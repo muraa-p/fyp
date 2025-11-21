@@ -1,0 +1,109 @@
+-- Create the users table
+create table if not exists users (
+  id uuid primary key,                     -- Supabase Auth user ID
+  email text unique not null,
+  name text,
+  phone text,
+  bio text,
+  university text,
+  major text,
+  year text,
+  location text,
+  website text,
+  avatar_url text,                         -- Renamed column for avatar_url
+  skills_to_teach text[],                  -- Skills to teach
+  skills_to_learn text[],                  -- Skills to learn
+  social jsonb default '{}'::jsonb,        -- Social media info (json)
+  created_at timestamp default now()       -- Created at timestamp
+);
+
+-- Create the workshops table
+create table if not exists workshops (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid references users(id) on delete cascade,
+  title text not null,
+  description text,
+  category text,
+  duration text,
+  date timestamp,
+  max_participants int,
+  skills text[],                           -- Skills required for the workshop
+  image_url text,                          -- Image URL for the workshop
+  created_at timestamp default now()       -- Created at timestamp
+);
+
+-- Create the workshop enrollments table
+create table if not exists workshop_enrollments (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  workshop_id uuid references workshops(id) on delete cascade,
+  status text default 'enrolled',
+  enrolled_at timestamp default now(),
+  unique(user_id, workshop_id)
+);
+
+-- Create the workshop ratings table
+create table if not exists workshop_ratings (
+  id uuid primary key default uuid_generate_v4(),
+  workshop_id uuid references workshops(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  rating int check(rating >= 1 and rating <= 5),
+  review text,
+  created_at timestamp default now(),
+  unique(user_id, workshop_id)
+);
+
+-- Create the endorsements table
+create table if not exists endorsements (
+  id uuid primary key default uuid_generate_v4(),
+  endorsed_user uuid references users(id),
+  endorsed_by uuid references users(id),
+  skill text,
+  created_at timestamp default now()
+);
+
+-- Create the achievements table
+create table if not exists achievements (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  name text,
+  icon text,
+  earned boolean default false,
+  created_at timestamp default now()
+);
+
+-- Create the leaderboard table
+create table if not exists leaderboard (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  xp int default 0,
+  level int default 1,
+  updated_at timestamp default now()
+);
+
+-- Create the CV entries table
+create table if not exists cv_entries (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id),
+  title text,
+  description text,
+  start_date date,
+  end_date date,
+  type text,
+  created_at timestamp default now()
+);
+
+-- Create the messages table
+create table if not exists messages (
+  id uuid primary key default uuid_generate_v4(),
+  sender_id uuid references users(id),
+  receiver_id uuid references users(id),
+  content text,
+  created_at timestamp default now()
+);
+
+-- Create the skills table
+create table if not exists skills (
+  id uuid primary key default uuid_generate_v4(),
+  name text unique not null
+);
