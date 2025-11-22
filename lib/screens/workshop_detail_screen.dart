@@ -318,8 +318,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             const SizedBox(height: 8),
 
             // 🎯 Skill the user wants to learn
-            if (ws['skillRequested'] != null &&
-                ws['skillRequested'].toString().isNotEmpty)
+            if (ws['skill_requested'] != null && ws['skill_requested'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6), // ✅ fixed here too
                 child: Row(
@@ -328,7 +327,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "Wants to learn: ${ws['skillRequested']}",
+                        "Wants to learn: ${ws['skill_requested']}",
                         style: theme.textTheme.bodyMedium!
                             .copyWith(fontWeight: FontWeight.w500),
                       ),
@@ -338,8 +337,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               ),
 
             // 🧠 Skill the user can teach in return
-            if (ws['skillOffered'] != null &&
-                ws['skillOffered'].toString().isNotEmpty)
+            if (ws['skill_offered'] != null && ws['skill_offered'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6), // ✅ fixed here too
                 child: Row(
@@ -348,7 +346,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "Can teach: ${ws['skillOffered']}",
+                        "Can teach: ${ws['skill_offered']}",
                         style: theme.textTheme.bodyMedium!
                             .copyWith(fontWeight: FontWeight.w500),
                       ),

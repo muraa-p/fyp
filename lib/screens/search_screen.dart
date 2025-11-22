@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import 'package:skillx/screens/user_search_screen.dart';
 import 'package:skillx/screens/workshop_detail_screen.dart';
 
-import '../main.dart';
+// We no longer need Provider or AppState
+// import 'package:provider/provider.dart';
+// import '../main.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -16,6 +18,11 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = "All";
 
+  // State to hold the fetched workshops and the filtered list
+  List<Map<String, dynamic>> _allWorkshops = [];
+  List<Map<String, dynamic>> _filteredWorkshops = [];
+  bool _isLoading = true;
+
   final List<String> _categories = [
     "All",
     "Programming",
@@ -24,97 +31,80 @@ class _SearchScreenState extends State<SearchScreen> {
     "Soft Skills",
     "Music",
     "Languages",
+    "Teach4Learn" // Added Teach4Learn as a category
   ];
 
-  final List<Map<String, dynamic>> _workshops = [
-    {
-      "title": "React Hooks Deep Dive",
-      "instructor": "Sarah Kim",
-      "rating": 4.9,
-      "participants": "12/15",
-      "duration": "2 hours",
-      "category": "Programming",
-      "image":
-      "https://images.unsplash.com/photo-1618761714954-0b8cd0026356?auto=format&fit=crop&w=1080&q=80",
-    },
-    {
-      "title": "Public Speaking Confidence",
-      "instructor": "Michael Chen",
-      "rating": 4.8,
-      "participants": "8/10",
-      "duration": "1.5 hours",
-      "category": "Soft Skills",
-      "image":
-      "https://images.unsplash.com/photo-1603575448362-1fefdeee4389?auto=format&fit=crop&w=1080&q=80",
-    },
-    {
-      "title": "UI/UX Design Principles",
-      "instructor": "Emma Rodriguez",
-      "rating": 4.9,
-      "participants": "15/20",
-      "duration": "3 hours",
-      "category": "Design",
-      "image":
-      "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1080&q=80",
-    },
-    {
-      "title": "Digital Marketing Basics",
-      "instructor": "Lisa Zhang",
-      "rating": 4.7,
-      "participants": "10/12",
-      "duration": "2 hours",
-      "category": "Marketing",
-      "image":
-      "https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1080&q=80",
-    },
+  // Get the current user's ID to check for "Your Workshop" badge
+  final String? currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
-// 👇 UPDATED Teach4Learn example workshop
-    {
-      "type": "Teach4Learn",
-      "title": "🎨 Skill Exchange: Learn Digital Illustration for Web Dev",
-      "instructor": "Yasir Mohamed",
-      "rating": 4.9,
-      "participants": "0/1",
-      "duration": "Flexible",
-      "category": "Teach4Learn",
-      "image":
-      "https://images.unsplash.com/photo-1509099836639-18ba1795216d?auto=format&fit=crop&w=1080&q=80",
+  @override
+  void initState() {
+    super.initState();
+    _fetchWorkshops();
+  }
 
-      // 🔹 About / Description
-      "description":
-      "I’m looking to improve my digital illustration skills — character design, composition, and coloring. "
-          "In return, I can teach you Web Development fundamentals, React basics, or help you build your own website. "
-          "Let’s collaborate and exchange knowledge!",
+  // Function to fetch workshops from Supabase
+  Future<void> _fetchWorkshops() async {
+    setState(() => _isLoading = true);
+    try {
+      // Fetch workshops and join with the users table to get the instructor's name
+      final data = await Supabase.instance.client
+          .from('workshops')
+          .select('''
+            *,
+            users!workshops_creator_id_fkey (
+              name
+            )
+          ''')
+          .order('created_at', ascending: false);
 
-      // 🔹 Skill swap fields
-      "skillRequested": "Digital Illustration",
-      "skillOffered": "Web Development",
+      // Process the data to flatten the user object
+      final processedData = data.map((workshop) {
+        return {
+          ...workshop,
+          'instructor': workshop['users']?['name'] ?? 'Unknown Instructor',
+          // The 'participants' field in the old mock data is now derived from max_participants
+          'participants': '0/${workshop['max_participants'] ?? 0}',
+        };
+      }).toList();
 
-      // 🔹 Status
-      "status": "open",
-    },
-  ];
+      if (mounted) {
+        setState(() {
+          _allWorkshops = processedData;
+          _filteredWorkshops = processedData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Optionally show an error message to the user
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching workshops: $e')),
+        );
+      }
+    }
+  }
 
+  // Function to filter workshops based on search and category
+  void _filterWorkshops() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredWorkshops = _allWorkshops.where((ws) {
+        final matchesSearch = ws["title"]
+            .toString()
+            .toLowerCase()
+            .contains(query);
+        final matchesCategory = _selectedCategory == "All" ||
+            ws["category"] == _selectedCategory;
+        return matchesSearch && matchesCategory;
+      }).toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // Filter workshops by search + category
-    final appState = Provider.of<AppState>(context);
-    final allWorkshops = [..._workshops, ...appState.createdWorkshops];
-
-    final filtered = allWorkshops.where((ws) {
-      final matchesSearch = ws["title"]
-          .toString()
-          .toLowerCase()
-          .contains(_searchController.text.toLowerCase());
-      final matchesCategory = _selectedCategory == "All"
-          ? true
-          : ws["category"] == _selectedCategory;
-      return matchesSearch && matchesCategory;
-    }).toList();
-
 
     return Scaffold(
       appBar: AppBar(
@@ -145,7 +135,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 hintText: "Search workshops...",
                 prefixIcon: const Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => _filterWorkshops(), // Re-filter on text change
             ),
           ),
 
@@ -171,7 +161,10 @@ class _SearchScreenState extends State<SearchScreen> {
                         : theme.colorScheme.onSurface,
                   ),
                   onSelected: (_) {
-                    setState(() => _selectedCategory = category);
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                    _filterWorkshops(); // Re-filter on category change
                   },
                 );
               },
@@ -182,7 +175,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
           // Results
           Expanded(
-            child: filtered.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredWorkshops.isEmpty
                 ? Center(
               child: Text(
                 "No workshops found",
@@ -194,10 +189,11 @@ class _SearchScreenState extends State<SearchScreen> {
             )
                 : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filtered.length,
+              itemCount: _filteredWorkshops.length,
               itemBuilder: (context, index) {
-                final ws = filtered[index];
-                return _WorkshopCard(workshop: ws);
+                final ws = _filteredWorkshops[index];
+                // Pass the currentUserId to the card
+                return _WorkshopCard(workshop: ws, currentUserId: currentUserId);
               },
             ),
           ),
@@ -208,11 +204,13 @@ class _SearchScreenState extends State<SearchScreen> {
 }
 
 //
-// --- WORKSHOP CARD ---
+// --- WORKSHOP CARD (Updated) ---
 //
 class _WorkshopCard extends StatelessWidget {
   final Map<String, dynamic> workshop;
-  const _WorkshopCard({required this.workshop});
+  final String? currentUserId; // Accept the current user ID
+
+  const _WorkshopCard({required this.workshop, this.currentUserId});
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +239,7 @@ class _WorkshopCard extends StatelessWidget {
                   height: 160,
                   width: double.infinity,
                   child: Image.network(
-                    workshop["image"] ?? "",
+                    workshop["image_url"] ?? "https://via.placeholder.com/160", // Use image_url from DB
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       color: theme.colorScheme.surfaceVariant,
@@ -253,7 +251,7 @@ class _WorkshopCard extends StatelessWidget {
                 ),
 
                 // 🟡 Add this badge for your own workshops
-                if (workshop["creatorId"] == "currentUser")
+                if (workshop["creator_id"] == currentUserId)
                   Positioned(
                     top: 12,
                     left: 12,
@@ -275,12 +273,12 @@ class _WorkshopCard extends StatelessWidget {
                     ),
                   ),
 
-                // Category chip (already in your code)
+                // Category chip
                 Positioned(
                   top: 12,
                   right: 12,
                   child: Chip(
-                    label: Text(workshop["category"]),
+                    label: Text(workshop["category"] ?? "General"),
                     backgroundColor:
                     theme.colorScheme.primary.withOpacity(0.8),
                     labelStyle: TextStyle(
@@ -311,7 +309,7 @@ class _WorkshopCard extends StatelessWidget {
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 16),
                       const SizedBox(width: 4),
-                      Text("${workshop["rating"]}",
+                      Text("${workshop["rating"] ?? 0.0}",
                           style: theme.textTheme.bodySmall),
                       const SizedBox(width: 12),
                       const Icon(Icons.group, size: 16),
@@ -335,7 +333,9 @@ class _WorkshopCard extends StatelessWidget {
                         backgroundColor:
                         theme.colorScheme.primary.withOpacity(0.2),
                         child: Text(
-                          workshop["instructor"][0],
+                          workshop["instructor"]?.isNotEmpty == true
+                              ? workshop["instructor"][0].toUpperCase()
+                              : 'U',
                           style: TextStyle(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.bold,
@@ -362,4 +362,3 @@ class _WorkshopCard extends StatelessWidget {
     );
   }
 }
-
