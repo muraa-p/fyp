@@ -1,3 +1,16 @@
+-- Drop existing tables to start fresh
+DROP TABLE IF EXISTS time_slots cascade;
+DROP TABLE IF EXISTS messages cascade;
+DROP TABLE IF EXISTS cv_entries cascade;
+DROP TABLE IF EXISTS leaderboard cascade;
+DROP TABLE IF EXISTS achievements cascade;
+DROP TABLE IF EXISTS endorsements cascade;
+DROP TABLE IF EXISTS workshop_ratings cascade;
+DROP TABLE IF EXISTS workshop_enrollments cascade;
+DROP TABLE IF EXISTS workshops cascade;
+DROP TABLE IF EXISTS skills cascade;
+DROP TABLE IF EXISTS users cascade;
+
 -- Create the users table
 create table if not exists users (
   id uuid primary key,                     -- Supabase Auth user ID
