@@ -1,15 +1,15 @@
--- Drop existing tables to start fresh
-DROP TABLE IF EXISTS time_slots cascade;
-DROP TABLE IF EXISTS messages cascade;
-DROP TABLE IF EXISTS cv_entries cascade;
-DROP TABLE IF EXISTS leaderboard cascade;
-DROP TABLE IF EXISTS achievements cascade;
-DROP TABLE IF EXISTS endorsements cascade;
-DROP TABLE IF EXISTS workshop_ratings cascade;
-DROP TABLE IF EXISTS workshop_enrollments cascade;
-DROP TABLE IF EXISTS workshops cascade;
-DROP TABLE IF EXISTS skills cascade;
-DROP TABLE IF EXISTS users cascade;
+-- -- Drop existing tables to start fresh
+-- DROP TABLE IF EXISTS time_slots cascade;
+-- DROP TABLE IF EXISTS messages cascade;
+-- DROP TABLE IF EXISTS cv_entries cascade;
+-- DROP TABLE IF EXISTS leaderboard cascade;
+-- DROP TABLE IF EXISTS achievements cascade;
+-- DROP TABLE IF EXISTS endorsements cascade;
+-- DROP TABLE IF EXISTS workshop_ratings cascade;
+-- DROP TABLE IF EXISTS workshop_enrollments cascade;
+-- DROP TABLE IF EXISTS workshops cascade;
+-- DROP TABLE IF EXISTS skills cascade;
+-- DROP TABLE IF EXISTS users cascade;
 
 -- Create the users table
 create table if not exists users (
@@ -119,4 +119,54 @@ create table if not exists messages (
 create table if not exists skills (
   id uuid primary key default uuid_generate_v4(),
   name text unique not null
+);
+
+
+
+-- Create the follows table to track follower relationships
+create table if not exists follows (
+  id uuid primary key default uuid_generate_v4(),
+  follower_id uuid references users(id) on delete cascade, -- The user who is following
+  following_id uuid references users(id) on delete cascade, -- The user being followed
+  created_at timestamp default now(),
+  unique(follower_id, following_id) -- A user can't follow the same person twice
+);
+
+-- It's good practice to add indexes for performance
+create index if not exists follows_follower_id_idx on follows(follower_id);
+create index if not exists follows_following_id_idx on follows(following_id);
+
+
+
+
+-- First, drop the old, incomplete workshops table
+DROP TABLE IF EXISTS workshops cascade;
+
+-- Now, create the new, complete workshops table with all the required columns
+CREATE TABLE workshops (
+  id uuid primary key default uuid_generate_v4(),
+  creator_id uuid references users(id) on delete cascade,
+  title text not null,
+  description text,
+  category text,
+  duration text,
+  date timestamp with time zone, -- Changed to timestamp with time zone to store date and time
+  max_participants int,
+  skills text[],                           -- Skills required for the workshop
+  image_url text,                          -- Image URL for the workshop
+  created_at timestamp with time zone default now(), -- Changed to timestamp with time zone
+
+  -- New columns added for your app's functionality
+  type text DEFAULT 'Free Workshop', -- 'Free Workshop' or 'Teach4Learn'
+  skill_requested text, -- For Teach4Learn type
+  skill_offered text,   -- For Teach4Learn type
+  difficulty text DEFAULT 'Beginner',
+  time text, -- e.g., '10:00 AM'
+  location text,
+  status text DEFAULT 'upcoming', -- e.g., 'upcoming', 'completed', 'cancelled'
+  rating float DEFAULT 0.0,
+  syllabus jsonb DEFAULT '[]'::jsonb,
+  prerequisites text[] DEFAULT '{}',
+  outcomes text[] DEFAULT '{}',
+  tags text[] DEFAULT '{}'
 );
