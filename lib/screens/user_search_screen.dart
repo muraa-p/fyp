@@ -32,6 +32,19 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Find Users"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.people),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FollowersFollowingScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -72,6 +85,107 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// New screen to display followers and following
+class FollowersFollowingScreen extends StatefulWidget {
+  const FollowersFollowingScreen({super.key});
+
+  @override
+  State<FollowersFollowingScreen> createState() => _FollowersFollowingScreenState();
+}
+
+class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // Mock data for followers and following
+  final List<Map<String, dynamic>> mockFollowers = [
+    {"id": "4", "name": "John Doe", "email": "john@example.com"},
+    {"id": "5", "name": "Jane Smith", "email": "jane@example.com"},
+  ];
+
+  final List<Map<String, dynamic>> mockFollowing = [
+    {"id": "6", "name": "Alice Johnson", "email": "alice@example.com"},
+    {"id": "7", "name": "Bob Williams", "email": "bob@example.com"},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Followers & Following"),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: "Followers"),
+            Tab(text: "Following"),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Followers tab
+          ListView.builder(
+            itemCount: mockFollowers.length,
+            itemBuilder: (context, i) {
+              final user = mockFollowers[i];
+              return ListTile(
+                leading: CircleAvatar(
+                  child: Text(user["name"][0]),
+                ),
+                title: Text(user["name"]),
+                subtitle: Text(user["email"]),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserProfileScreen(user: user),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          // Following tab
+          ListView.builder(
+            itemCount: mockFollowing.length,
+            itemBuilder: (context, i) {
+              final user = mockFollowing[i];
+              return ListTile(
+                leading: CircleAvatar(
+                  child: Text(user["name"][0]),
+                ),
+                title: Text(user["name"]),
+                subtitle: Text(user["email"]),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserProfileScreen(user: user),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
