@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// Assuming you still have this model
-// import '../models/user_model.dart';
 import 'user_profile_screen.dart';
 import 'followers_following_screen.dart';
 
@@ -18,23 +16,23 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
   // Method to fetch users from Supabase based on a search query
   Future<List<Map<String, dynamic>>> _searchUsers(String query) async {
+    // First, ensure a user is logged in. If not, return an empty list.
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) {
+      // You could also navigate to a login screen here if desired
+      print('User is not authenticated. Cannot fetch users.');
+      return [];
+    }
+
     try {
-      // Get the current user's ID
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-
-      // Use .or() to search in both name and email fields
-      // .ilike() is a case-insensitive 'LIKE'
-      final queryBuilder = Supabase.instance.client
+      // This query is more explicit. It first filters OUT the current user,
+      // and then applies the search filter to the remaining users.
+      final data = await Supabase.instance.client
           .from('users')
-          .select('id, name, email') // Only select the columns you need
-          .or('name.ilike.%$query%,email.ilike.%$query%');
-
-      // If a user is logged in, exclude them from the results
-      if (currentUserId != null) {
-        queryBuilder.neq('id', currentUserId);
-      }
-
-      final data = await queryBuilder.order('name');
+          .select('id, name, email, avatar_url') // Select avatar_url for better UI
+          .neq('id', currentUserId) // Exclude the current user FIRST
+          .or('name.ilike.%$query%,email.ilike.%$query%') // Then search
+          .order('name');
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       // Handle errors, e.g., by showing a snackbar
@@ -111,7 +109,15 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                     final user = users[i];
                     return ListTile(
                       leading: CircleAvatar(
-                        child: Text(user["name"]?.isNotEmpty == true ? user["name"][0] : 'U'),
+                        // Use avatar_url if available, otherwise show initial
+                        backgroundImage: user['avatar_url'] != null
+                            ? NetworkImage(user['avatar_url'])
+                            : null,
+                        child: user['avatar_url'] == null
+                            ? Text(user["name"]?.isNotEmpty == true
+                            ? user["name"][0].toUpperCase()
+                            : 'U')
+                            : null,
                       ),
                       title: Text(user["name"] ?? 'No Name'),
                       subtitle: Text(user["email"] ?? 'No Email'),
