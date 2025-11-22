@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../models/user_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+// Assuming you still have this model
+// import '../models/user_model.dart';
 import 'user_profile_screen.dart';
+import 'followers_following_screen.dart';
 
 class UserSearchScreen extends StatefulWidget {
   const UserSearchScreen({super.key});
@@ -11,24 +14,44 @@ class UserSearchScreen extends StatefulWidget {
 
 class _UserSearchScreenState extends State<UserSearchScreen> {
   final TextEditingController _controller = TextEditingController();
+  late Future<List<Map<String, dynamic>>> _usersFuture;
 
-  // Replace this with Supabase fetch later
-  final List<Map<String, dynamic>> mockUsers = [
-    {"id": "1", "name": "Sarah Kim", "email": "sarah@example.com"},
-    {"id": "2", "name": "Michael Chen", "email": "mike@example.com"},
-    {"id": "3", "name": "Emma Rodriguez", "email": "emma@example.com"},
-  ];
+  // Method to fetch users from Supabase based on a search query
+  Future<List<Map<String, dynamic>>> _searchUsers(String query) async {
+    try {
+      // Get the current user's ID
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+      // Use .or() to search in both name and email fields
+      // .ilike() is a case-insensitive 'LIKE'
+      final queryBuilder = Supabase.instance.client
+          .from('users')
+          .select('id, name, email') // Only select the columns you need
+          .or('name.ilike.%$query%,email.ilike.%$query%');
+
+      // If a user is logged in, exclude them from the results
+      if (currentUserId != null) {
+        queryBuilder.neq('id', currentUserId);
+      }
+
+      final data = await queryBuilder.order('name');
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      // Handle errors, e.g., by showing a snackbar
+      print('Error fetching users: $e');
+      return []; // Return an empty list on error
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initial search with an empty query to get all users (except the current user)
+    _usersFuture = _searchUsers('');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final filtered = mockUsers.where((u) {
-      final q = _controller.text.toLowerCase();
-      return u["name"]!.toLowerCase().contains(q) ||
-          u["email"]!.toLowerCase().contains(q);
-    }).toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Find Users"),
@@ -56,136 +79,55 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                 hintText: "Search users...",
                 prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (_) => setState(() {}),
+              // Trigger a new search whenever the text changes
+              onChanged: (value) {
+                setState(() {
+                  _usersFuture = _searchUsers(value);
+                });
+              },
             ),
           ),
-
           Expanded(
-            child: filtered.isEmpty
-                ? const Center(child: Text("No users found"))
-                : ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, i) {
-                final user = filtered[i];
-                return ListTile(
-                  leading: CircleAvatar(
-                    child: Text(user["name"][0]),
-                  ),
-                  title: Text(user["name"]),
-                  subtitle: Text(user["email"]),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            UserProfileScreen(user: user), // YOUR screen
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: _usersFuture,
+              builder: (context, snapshot) {
+                // Show a loading indicator while waiting for data
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                // Show an error message if something went wrong
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                // If there's no data, show a message
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text("No users found"));
+                }
+                // Display the list of users
+                final users = snapshot.data!;
+                return ListView.builder(
+                  itemCount: users.length,
+                  itemBuilder: (context, i) {
+                    final user = users[i];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text(user["name"]?.isNotEmpty == true ? user["name"][0] : 'U'),
                       ),
+                      title: Text(user["name"] ?? 'No Name'),
+                      subtitle: Text(user["email"] ?? 'No Email'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => UserProfileScreen(user: user),
+                          ),
+                        );
+                      },
                     );
                   },
                 );
               },
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// New screen to display followers and following
-class FollowersFollowingScreen extends StatefulWidget {
-  const FollowersFollowingScreen({super.key});
-
-  @override
-  State<FollowersFollowingScreen> createState() => _FollowersFollowingScreenState();
-}
-
-class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  // Mock data for followers and following
-  final List<Map<String, dynamic>> mockFollowers = [
-    {"id": "4", "name": "John Doe", "email": "john@example.com"},
-    {"id": "5", "name": "Jane Smith", "email": "jane@example.com"},
-  ];
-
-  final List<Map<String, dynamic>> mockFollowing = [
-    {"id": "6", "name": "Alice Johnson", "email": "alice@example.com"},
-    {"id": "7", "name": "Bob Williams", "email": "bob@example.com"},
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Followers & Following"),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: "Followers"),
-            Tab(text: "Following"),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Followers tab
-          ListView.builder(
-            itemCount: mockFollowers.length,
-            itemBuilder: (context, i) {
-              final user = mockFollowers[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  child: Text(user["name"][0]),
-                ),
-                title: Text(user["name"]),
-                subtitle: Text(user["email"]),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UserProfileScreen(user: user),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-          // Following tab
-          ListView.builder(
-            itemCount: mockFollowing.length,
-            itemBuilder: (context, i) {
-              final user = mockFollowing[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  child: Text(user["name"][0]),
-                ),
-                title: Text(user["name"]),
-                subtitle: Text(user["email"]),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UserProfileScreen(user: user),
-                    ),
-                  );
-                },
-              );
-            },
           ),
         ],
       ),

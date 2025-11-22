@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 
 class UserProfileScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -13,11 +13,104 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool isFollowing = false;
+  bool _isLoadingFollow = false; // Add a loading state for the button
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _checkIfFollowing(); // Check follow status on load
+  }
+
+  // Function to check if the current user is already following this profile's user
+  Future<void> _checkIfFollowing() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('follows')
+          .select()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', widget.user['id'])
+          .maybeSingle(); // Use maybeSingle to get one or null
+
+      if (mounted) {
+        setState(() {
+          isFollowing = response != null;
+        });
+      }
+    } catch (e) {
+      print("Error checking follow status: $e");
+    }
+  }
+
+  // Function to follow a user
+  Future<void> _followUser() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You must be logged in to follow users.")),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingFollow = true);
+
+    try {
+      await Supabase.instance.client.from('follows').insert({
+        'follower_id': currentUserId,
+        'following_id': widget.user['id'],
+      });
+      if (mounted) {
+        setState(() {
+          isFollowing = true;
+          _isLoadingFollow = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Now following ${widget.user['name']}")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingFollow = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error following user: $e")),
+        );
+      }
+    }
+  }
+
+  // Function to unfollow a user
+  Future<void> _unfollowUser() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    setState(() => _isLoadingFollow = true);
+
+    try {
+      await Supabase.instance.client
+          .from('follows')
+          .delete()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', widget.user['id']);
+      if (mounted) {
+        setState(() {
+          isFollowing = false;
+          _isLoadingFollow = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Unfollowed ${widget.user['name']}")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingFollow = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error unfollowing user: $e")),
+        );
+      }
+    }
   }
 
   @override
@@ -74,14 +167,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               ),
               child: Column(
                 children: [
-                  // ✅ Only ONE CircleAvatar (duplicate removed)
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.white24,
-                    backgroundImage: (user['avatar'] != null && user['avatar'].toString().isNotEmpty)
-                        ? NetworkImage(user['avatar'])
+                    backgroundImage: (user['avatar_url'] != null && user['avatar_url'].toString().isNotEmpty)
+                        ? NetworkImage(user['avatar_url'])
                         : null,
-                    child: (user['avatar'] == null || user['avatar'].toString().isEmpty)
+                    child: (user['avatar_url'] == null || user['avatar_url'].toString().isEmpty)
                         ? Text(
                       (user['name'] != null && user['name'].toString().isNotEmpty)
                           ? user['name'].toString().substring(0, 1).toUpperCase()
@@ -94,7 +186,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                   ),
                   const SizedBox(height: 10),
 
-                  // ✅ Name and University
                   Text(
                     (user['name'] != null && user['name'].toString().isNotEmpty)
                         ? user['name']
@@ -114,7 +205,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
                   const SizedBox(height: 8),
 
-                  // ✅ Rating + Endorsements (restored)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -133,7 +223,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
                   const SizedBox(height: 12),
 
-                  // ✅ XP Progress
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -160,7 +249,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
                   const SizedBox(height: 12),
 
-                  // ✅ Follow + Conditional Message Button
                   Row(
                     children: [
                       // Follow/Unfollow button
@@ -171,20 +259,32 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                             isFollowing ? Colors.grey[300] : Colors.white,
                             foregroundColor: theme.colorScheme.primary,
                           ),
-                          onPressed: () {
-                            setState(() => isFollowing = !isFollowing);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(isFollowing
-                                    ? "Now following ${user['name']}"
-                                    : "Unfollowed ${user['name']}")));
+                          // Disable button while loading
+                          onPressed: _isLoadingFollow
+                              ? null
+                              : () async {
+                            if (isFollowing) {
+                              await _unfollowUser();
+                            } else {
+                              await _followUser();
+                            }
                           },
-                          child: Text(isFollowing ? "Following" : "Follow"),
+                          child: _isLoadingFollow
+                              ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.grey,
+                            ),
+                          )
+                              : Text(isFollowing ? "Following" : "Follow"),
                         ),
                       ),
 
                       const SizedBox(width: 12),
 
-                      // ✅ Message button visible only if both follow each other
+                      // Message button visible only if both follow each other
                       if (isFollowing && (user['followsYou'] == true))
                         Expanded(
                           child: OutlinedButton.icon(
