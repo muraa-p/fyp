@@ -1,7 +1,11 @@
+// ADD THIS IMPORT AT THE TOP OF THE FILE
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
-import 'package:provider/provider.dart';
-import '../main.dart'; // so AppState is visible
+
+// REMOVE THESE IMPORTS AS THEY ARE NO LONGER NEEDED
+// import 'package:provider/provider.dart';
+// import '../main.dart'; // so AppState is visible
 
 class CreateWorkshopScreen extends StatefulWidget {
   final Function(String)? onNavigate;
@@ -16,14 +20,13 @@ class CreateWorkshopScreen extends StatefulWidget {
     this.isEditing = false,
   });
 
-
   @override
   State<CreateWorkshopScreen> createState() => _CreateWorkshopScreenState();
 }
 
-
 class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   int currentStep = 0;
+  bool _isPublishing = false; // Add a loading state
 
   final steps = [
     'Workshop Details',
@@ -45,7 +48,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   final TextEditingController newLessonDurationController = TextEditingController();
   final TextEditingController skillOfferedController = TextEditingController();
 
-
   List<Map<String, dynamic>> syllabus = [];
 
   @override
@@ -56,23 +58,26 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       final w = widget.existingWorkshop!;
       titleController.text = w['title'] ?? '';
       descController.text = w['description'] ?? '';
-      skillRequestedController.text = w['skillRequested'] ?? '';
-      skillOfferedController.text = w['skillOffered'] ?? '';
+      skillRequestedController.text = w['skill_requested'] ?? '';
+      skillOfferedController.text = w['skill_offered'] ?? '';
       selectedWorkshopType = w['type'] ?? 'Free Workshop';
       selectedCategory = w['category'];
       selectedDifficulty = w['difficulty'];
       selectedDuration = w['duration'];
-      selectedDate = w['date'] != null ? DateTime.tryParse(w['date']) : null;
+      // Parse the timestamp for date and time pickers
+      if (w['date'] != null) {
+        final dateTime = DateTime.parse(w['date']);
+        selectedDate = dateTime;
+        selectedTime = TimeOfDay.fromDateTime(dateTime);
+      }
       locationController.text = w['location'] ?? '';
       syllabus = List<Map<String, dynamic>>.from(w['syllabus'] ?? []);
       prerequisites = List<String>.from(w['prerequisites'] ?? []);
       outcomes = List<String>.from(w['outcomes'] ?? []);
       tags = List<String>.from(w['tags'] ?? []);
-      maxParticipantsController.text = (w['participants']?.toString().split('/')?.last ?? '');
+      maxParticipantsController.text = (w['max_participants']?.toString() ?? '');
     }
   }
-
-
 
   String? selectedCategory;
   String? selectedDifficulty;
@@ -198,8 +203,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
               border: OutlineInputBorder(),
             ),
           ),
-
-
           const SizedBox(height: 16),
         ],
 
@@ -309,11 +312,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     );
   }
 
-
-
-
   // Step 2–4 (unchanged)
-  Widget buildStep2(BuildContext context) { /* same as before */
+  Widget buildStep2(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -568,8 +568,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     );
   }
 
-
-  Widget buildStep4() { /* unchanged */
+  Widget buildStep4() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -589,86 +588,95 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     );
   }
 
-  void handlePublish() {
-    final appState = Provider.of<AppState>(context, listen: false);
+  // This is the main function that will interact with Supabase
+  Future<void> _publishWorkshop() async {
+    // Get the current authenticated user's ID
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to create a workshop.')),
+      );
+      return;
+    }
 
-    final autoDesc = selectedWorkshopType == 'Teach4Learn'
-        ? (skillOfferedController.text.isNotEmpty ||
-        skillRequestedController.text.isNotEmpty
-        ? "Skill Exchange — I can teach ${skillOfferedController.text.isNotEmpty ? skillOfferedController.text : '[skill]'} "
-        "in return for learning ${skillRequestedController.text.isNotEmpty ? skillRequestedController.text : '[skill]'}."
-        : "Skill Exchange session.")
-        : null;
+    // Set a loading state to prevent multiple clicks
+    setState(() => _isPublishing = true);
 
-    final newWorkshop = {
-      "id": widget.isEditing
-          ? widget.existingWorkshop!['id']
-          : DateTime.now().millisecondsSinceEpoch.toString(),
-      "title": titleController.text.isNotEmpty
-          ? titleController.text
-          : "Untitled Workshop",
-      "description": descController.text.isNotEmpty
-          ? descController.text
-          : (autoDesc ?? "No description provided."),
-      "category": selectedCategory ?? "General",
-      "difficulty": selectedDifficulty ?? "Beginner",
-      "duration": selectedDuration ?? "1 hour",
-      "participants":
-      "0/${maxParticipantsController.text.isNotEmpty ? maxParticipantsController.text : '10'}",
-      "type": selectedWorkshopType,
-      "skillRequested": skillRequestedController.text,
-      "skillOffered": skillOfferedController.text,
-      "date": selectedDate != null
-          ? selectedDate!.toLocal().toString().split(' ')[0]
-          : "TBA",
-      "time": selectedTime != null ? selectedTime!.format(context) : "TBA",
-      "location": locationController.text.isNotEmpty
-          ? locationController.text
-          : (locationType == "virtual" ? "Online" : "In-person"),
-      "status": "upcoming",
-      "rating": widget.isEditing
-          ? (widget.existingWorkshop?['rating'] ?? 0.0)
-          : 0.0,
-      "creatorId": "currentUser",
-      "instructor": "You",
-      "image": widget.isEditing
-          ? widget.existingWorkshop!['image']
-          : "https://source.unsplash.com/random/800x600?${selectedCategory ?? 'workshop'}",
-      "syllabus": syllabus,
-      "prerequisites": prerequisites,
-      "outcomes": outcomes,
-      "tags": tags,
+    // Combine date and time into a single DateTime object for the database
+    DateTime? finalDateTime;
+    if (selectedDate != null && selectedTime != null) {
+      finalDateTime = DateTime(
+        selectedDate!.year,
+        selectedDate!.month,
+        selectedDate!.day,
+        selectedTime!.hour,
+        selectedTime!.minute,
+      );
+    }
+
+    // Prepare the data map to be sent to Supabase
+    final workshopData = {
+      'creator_id': user.id, // Use the actual user ID from Supabase Auth
+      'title': titleController.text.isNotEmpty ? titleController.text : "Untitled Workshop",
+      'description': descController.text.isNotEmpty ? descController.text : "No description provided.",
+      'type': selectedWorkshopType,
+      'skill_requested': skillRequestedController.text,
+      'skill_offered': skillOfferedController.text,
+      'category': selectedCategory ?? "General",
+      'difficulty': selectedDifficulty ?? "Beginner",
+      'duration': selectedDuration ?? "1 hour",
+      'max_participants': int.tryParse(maxParticipantsController.text) ?? 10, // Store as an integer
+      'date': finalDateTime?.toIso8601String(), // Store as a full timestamp
+      'time': selectedTime != null ? selectedTime!.format(context) : null,
+      'location': locationController.text.isNotEmpty ? locationController.text : (locationType == "virtual" ? "Online" : "In-person"),
+      'syllabus': syllabus,
+      'prerequisites': prerequisites,
+      'outcomes': outcomes,
+      'tags': tags,
+      'image_url': "https://source.unsplash.com/random/800x600?${selectedCategory ?? 'workshop'}",
     };
 
-    if (widget.isEditing) {
-      appState.updateWorkshop(widget.existingWorkshop!['id'], newWorkshop);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Workshop updated ✅')),
-      );
+    try {
+      if (widget.isEditing) {
+        // Update existing workshop in the database
+        await Supabase.instance.client
+            .from('workshops')
+            .update(workshopData)
+            .eq('id', widget.existingWorkshop!['id']);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workshop updated ✅')),
+        );
+      } else {
+        // Insert new workshop into the database
+        await Supabase.instance.client.from('workshops').insert(workshopData);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workshop published 🎉')),
+        );
+      }
 
-      // ✅ Go back to previous (detail) screen after editing
-      Navigator.pop(context, newWorkshop);
-
-    } else {
-      appState.addCreatedWorkshop(newWorkshop);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Work!shop published 🎉')),
-      );
-
-      // ✅ If navigation callback exists, use it; otherwise just pop
+      // Navigate back after successful operation
       if (widget.onNavigate != null) {
         widget.onNavigate!("home");
       } else {
         Navigator.pop(context);
       }
+    } on PostgrestException catch (error) {
+      // Handle specific Supabase errors (e.g., validation, permissions)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Database Error: ${error.message}')),
+      );
+    } catch (error) {
+      // Handle other potential errors (e.g., network issues)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $error')),
+      );
+    } finally {
+      // Re-enable the button regardless of the outcome
+      if (mounted) {
+        setState(() => _isPublishing = false);
+      }
     }
   }
-
-
-
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -705,8 +713,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
                 label: currentStep == steps.length - 1
                     ? 'Publish Workshop'
                     : 'Continue',
-                onPressed:
-                currentStep == steps.length - 1 ? handlePublish : nextStep,
+                onPressed: (currentStep == steps.length - 1 && !_isPublishing) ? _publishWorkshop : nextStep,
               ),
             ),
           ],
