@@ -1,18 +1,21 @@
--- -- Drop existing tables to start fresh
--- DROP TABLE IF EXISTS time_slots cascade;
--- DROP TABLE IF EXISTS messages cascade;
--- DROP TABLE IF EXISTS cv_entries cascade;
--- DROP TABLE IF EXISTS leaderboard cascade;
--- DROP TABLE IF EXISTS achievements cascade;
--- DROP TABLE IF EXISTS endorsements cascade;
--- DROP TABLE IF EXISTS workshop_ratings cascade;
--- DROP TABLE IF EXISTS workshop_enrollments cascade;
--- DROP TABLE IF EXISTS workshops cascade;
--- DROP TABLE IF EXISTS skills cascade;
--- DROP TABLE IF EXISTS users cascade;
+-- Drop all tables in the correct order to avoid dependency issues
+DROP TABLE IF EXISTS conversation_participants cascade;
+DROP TABLE IF EXISTS workshop_requests cascade;
+DROP TABLE IF EXISTS messages cascade;
+DROP TABLE IF EXISTS conversations cascade;
+DROP TABLE IF EXISTS workshop_enrollments cascade;
+DROP TABLE IF EXISTS workshop_ratings cascade;
+DROP TABLE IF EXISTS workshops cascade;
+DROP TABLE IF EXISTS endorsements cascade;
+DROP TABLE IF EXISTS achievements cascade;
+DROP TABLE IF EXISTS leaderboard cascade;
+DROP TABLE IF EXISTS cv_entries cascade;
+DROP TABLE IF EXISTS follows cascade;
+DROP TABLE IF EXISTS skills cascade;
+DROP TABLE IF EXISTS users cascade;
 
 -- Create the users table
-create table if not exists users (
+CREATE TABLE users (
   id uuid primary key,                     -- Supabase Auth user ID
   email text unique not null,
   name text,
@@ -27,122 +30,25 @@ create table if not exists users (
   skills_to_teach text[],                  -- Skills to teach
   skills_to_learn text[],                  -- Skills to learn
   social jsonb default '{}'::jsonb,        -- Social media info (json)
-  created_at timestamp default now()       -- Created at timestamp
-);
-
--- Create the workshops table
-create table if not exists workshops (
-  id uuid primary key default uuid_generate_v4(),
-  creator_id uuid references users(id) on delete cascade,
-  title text not null,
-  description text,
-  category text,
-  duration text,
-  date timestamp,
-  max_participants int,
-  skills text[],                           -- Skills required for the workshop
-  image_url text,                          -- Image URL for the workshop
-  created_at timestamp default now()       -- Created at timestamp
-);
-
--- Create the workshop enrollments table
-create table if not exists workshop_enrollments (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id) on delete cascade,
-  workshop_id uuid references workshops(id) on delete cascade,
-  status text default 'enrolled',
-  enrolled_at timestamp default now(),
-  unique(user_id, workshop_id)
-);
-
--- Create the workshop ratings table
-create table if not exists workshop_ratings (
-  id uuid primary key default uuid_generate_v4(),
-  workshop_id uuid references workshops(id) on delete cascade,
-  user_id uuid references users(id) on delete cascade,
-  rating int check(rating >= 1 and rating <= 5),
-  review text,
-  created_at timestamp default now(),
-  unique(user_id, workshop_id)
-);
-
--- Create the endorsements table
-create table if not exists endorsements (
-  id uuid primary key default uuid_generate_v4(),
-  endorsed_user uuid references users(id),
-  endorsed_by uuid references users(id),
-  skill text,
-  created_at timestamp default now()
-);
-
--- Create the achievements table
-create table if not exists achievements (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id) on delete cascade,
-  name text,
-  icon text,
-  earned boolean default false,
-  created_at timestamp default now()
-);
-
--- Create the leaderboard table
-create table if not exists leaderboard (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id) on delete cascade,
-  xp int default 0,
-  level int default 1,
-  updated_at timestamp default now()
-);
-
--- Create the CV entries table
-create table if not exists cv_entries (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id),
-  title text,
-  description text,
-  start_date date,
-  end_date date,
-  type text,
-  created_at timestamp default now()
-);
-
--- Create the messages table
-create table if not exists messages (
-  id uuid primary key default uuid_generate_v4(),
-  sender_id uuid references users(id),
-  receiver_id uuid references users(id),
-  content text,
-  created_at timestamp default now()
+  created_at timestamp with time zone default now()       -- Created at timestamp
 );
 
 -- Create the skills table
-create table if not exists skills (
+CREATE TABLE skills (
   id uuid primary key default uuid_generate_v4(),
   name text unique not null
 );
 
-
-
 -- Create the follows table to track follower relationships
-create table if not exists follows (
+CREATE TABLE follows (
   id uuid primary key default uuid_generate_v4(),
   follower_id uuid references users(id) on delete cascade, -- The user who is following
   following_id uuid references users(id) on delete cascade, -- The user being followed
-  created_at timestamp default now(),
+  created_at timestamp with time zone default now(),
   unique(follower_id, following_id) -- A user can't follow the same person twice
 );
 
--- It's good practice to add indexes for performance
-create index if not exists follows_follower_id_idx on follows(follower_id);
-create index if not exists follows_following_id_idx on follows(following_id);
-
-
-
-
--- First, drop the old, incomplete workshops table
-DROP TABLE IF EXISTS workshops cascade;
-
--- Now, create the new, complete workshops table with all the required columns
+-- Create the workshops table
 CREATE TABLE workshops (
   id uuid primary key default uuid_generate_v4(),
   creator_id uuid references users(id) on delete cascade,
@@ -170,3 +76,203 @@ CREATE TABLE workshops (
   outcomes text[] DEFAULT '{}',
   tags text[] DEFAULT '{}'
 );
+
+-- Create the workshop enrollments table
+CREATE TABLE workshop_enrollments (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  workshop_id uuid references workshops(id) on delete cascade,
+  status text default 'enrolled',
+  enrolled_at timestamp with time zone default now(),
+  unique(user_id, workshop_id)
+);
+
+-- Create the workshop ratings table
+CREATE TABLE workshop_ratings (
+  id uuid primary key default uuid_generate_v4(),
+  workshop_id uuid references workshops(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  rating int check(rating >= 1 and rating <= 5),
+  review text,
+  created_at timestamp with time zone default now(),
+  unique(user_id, workshop_id)
+);
+
+-- Create the endorsements table
+CREATE TABLE endorsements (
+  id uuid primary key default uuid_generate_v4(),
+  endorsed_user uuid references users(id),
+  endorsed_by uuid references users(id),
+  skill text,
+  created_at timestamp with time zone default now()
+);
+
+-- Create the achievements table
+CREATE TABLE achievements (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  name text,
+  icon text,
+  earned boolean default false,
+  created_at timestamp with time zone default now()
+);
+
+-- Create the leaderboard table
+CREATE TABLE leaderboard (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete cascade,
+  xp int default 0,
+  level int default 1,
+  updated_at timestamp with time zone default now()
+);
+
+-- Create the CV entries table
+CREATE TABLE cv_entries (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id),
+  title text,
+  description text,
+  start_date date,
+  end_date date,
+  type text,
+  created_at timestamp with time zone default now()
+);
+
+-- Create the workshop_requests table
+CREATE TABLE workshop_requests (
+  id uuid primary key default uuid_generate_v4(),
+  workshop_id uuid references workshops(id) on delete cascade,
+  requester_id uuid references users(id) on delete cascade,
+  status text default 'pending', -- 'pending', 'accepted', 'declined'
+  message text, -- Optional message from requester
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  unique(workshop_id, requester_id)
+);
+
+-- Create the 'conversations' table WITHOUT the foreign key to 'messages'
+CREATE TABLE conversations (
+  id uuid primary key default uuid_generate_v4(),
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  -- last_message_id will be added later
+  is_group boolean default false,
+  name text, -- For group chats
+  avatar_url text, -- For group chats
+  created_by uuid references users(id) on delete cascade
+);
+
+-- Create the 'messages' table
+CREATE TABLE messages (
+  id uuid primary key default uuid_generate_v4(),
+  conversation_id uuid references conversations(id) on delete cascade,
+  sender_id uuid references users(id) on delete cascade,
+  content text,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  read_at timestamp with time zone,
+  message_type text default 'text' -- 'text', 'image', 'file', etc.
+);
+
+-- Create 'conversation_participants' table
+CREATE TABLE conversation_participants (
+  id uuid primary key default uuid_generate_v4(),
+  conversation_id uuid references conversations(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  joined_at timestamp with time zone default now(),
+  last_read_at timestamp with time zone,
+  is_admin boolean default false, -- For group chats
+  unique(conversation_id, user_id)
+);
+
+-- NOW, add the 'last_message_id' column to 'conversations' and create the foreign key
+-- This works because the 'messages' table now exists.
+ALTER TABLE conversations
+ADD COLUMN last_message_id uuid references messages(id) on delete set null;
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS follows_follower_id_idx ON follows(follower_id);
+CREATE INDEX IF NOT EXISTS follows_following_id_idx ON follows(following_id);
+CREATE INDEX IF NOT EXISTS messages_conversation_id_idx ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS messages_sender_id_idx ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS conversations_created_by_idx ON conversations(created_by);
+CREATE INDEX IF NOT EXISTS conversations_updated_at_idx ON conversations(updated_at); -- Good for sorting
+CREATE INDEX IF NOT EXISTS conversation_participants_conversation_id_idx ON conversation_participants(conversation_id);
+CREATE INDEX IF NOT EXISTS conversation_participants_user_id_idx ON conversation_participants(user_id);
+CREATE INDEX IF NOT EXISTS workshop_requests_workshop_id_idx ON workshop_requests(workshop_id);
+CREATE INDEX IF NOT EXISTS workshop_requests_requester_id_idx ON workshop_requests(requester_id);
+
+-- Create the RPC function to check if a conversation exists between two users
+CREATE OR REPLACE FUNCTION get_existing_conversation(user1_id UUID, user2_id UUID)
+RETURNS TABLE(id UUID) AS $$ BEGIN
+  RETURN QUERY
+  SELECT c.id
+  FROM conversations c
+  JOIN conversation_participants cp1 ON c.id = cp1.conversation_id
+  JOIN conversation_participants cp2 ON c.id = cp2.conversation_id
+  WHERE cp1.user_id = user1_id
+    AND cp2.user_id = user2_id
+    AND c.is_group = false;
+END;
+ $$ LANGUAGE plpgsql;
+
+
+
+
+
+
+
+
+
+
+
+
+
+ -- BEST FIX: One RPC to get all conversations with preview, other user, unread count
+CREATE OR REPLACE FUNCTION get_user_conversations(current_user_id UUID)
+RETURNS TABLE(
+  id UUID,
+  is_group BOOLEAN,
+  name TEXT,
+  avatar_url TEXT,
+  updated_at TIMESTAMPTZ,
+  last_message_content TEXT,
+  last_message_time TIMESTAMPTZ,
+  last_message_sender_name TEXT,
+  other_user JSON,
+  unread_count BIGINT
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    c.id,
+    c.is_group,
+    c.name,
+    c.avatar_url,
+    c.updated_at,
+    m.content AS last_message_content,
+    m.created_at AS last_message_time,
+    sender.name AS last_message_sender_name,
+    jsonb_build_object(
+      'id', u.id,
+      'name', u.name,
+      'avatar_url', u.avatar_url
+    ) AS other_user,
+    COUNT(msg.id) FILTER (WHERE msg.read_at IS NULL AND msg.sender_id != current_user_id)::BIGINT AS unread_count
+  FROM conversations c
+  JOIN conversation_participants cp ON c.id = cp.conversation_id
+  LEFT JOIN messages m ON m.id = c.last_message_id
+  LEFT JOIN users sender ON sender.id = m.sender_id
+  LEFT JOIN LATERAL (
+    SELECT u.id, u.name, u.avatar_url
+    FROM conversation_participants cp2
+    JOIN users u ON u.id = cp2.user_id
+    WHERE cp2.conversation_id = c.id AND cp2.user_id != current_user_id
+    LIMIT 1
+  ) u ON NOT c.is_group
+  LEFT JOIN messages msg ON msg.conversation_id = c.id
+    AND msg.sender_id != current_user_id
+    AND msg.read_at IS NULL
+  WHERE cp.user_id = current_user_id
+  GROUP BY c.id, c.is_group, c.name, c.avatar_url, c.updated_at,
+           m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url
+  ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
+$$;

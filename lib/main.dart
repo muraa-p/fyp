@@ -14,8 +14,8 @@ Future<void> main() async {
 
   // 🔥 Initialize Supabase
   await Supabase.initialize(
-    url: 'https://wzvbwvakzvavvtnlkhen.supabase.co',          // <-- TODO: paste from Supabase project
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6dmJ3dmFrenZhdnZ0bmxraGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxMDU5MzUsImV4cCI6MjA3ODY4MTkzNX0.oJCqfI2jV7cVESBKyQWipMHL3eXpxHQ5tsxs4zkr_qo', // <-- TODO: paste anon key
+    url: 'https://vjmuvhkrmehmwwkrzdkk.supabase.co',          // <-- TODO: paste from Supabase project
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqbXV2aGtybWVobXd3a3J6ZGtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NjQyODcsImV4cCI6MjA3OTM0MDI4N30.PZw4fxDUhGxUB4f60xbDaUKb9J-g2sWHo0AfQxoEdSU', // <-- TODO: paste anon key
   );
 
   runApp(
