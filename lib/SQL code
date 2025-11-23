@@ -276,3 +276,60 @@ RETURNS TABLE(
            m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url
   ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
 $$;
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION get_user_conversations(current_user_id UUID)
+RETURNS TABLE(
+  id UUID,
+  is_group BOOLEAN,
+  name TEXT,
+  avatar_url TEXT,
+  updated_at TIMESTAMPTZ,
+  last_message_content TEXT,
+  last_message_time TIMESTAMPTZ,
+  last_message_sender_name TEXT,
+  other_user JSON,
+  unread_count BIGINT
+) LANGUAGE sql STABLE AS $$   SELECT
+    c.id,
+    c.is_group,
+    c.name,
+    c.avatar_url,
+    c.updated_at,
+    m.content AS last_message_content,
+    m.created_at AS last_message_time,
+    sender.name AS last_message_sender_name,
+    jsonb_build_object(
+      'id', u.id,
+      'name', u.name,
+      'avatar_url', u.avatar_url
+    ) AS other_user,
+    COUNT(msg.id) FILTER (WHERE msg.read_at IS NULL AND msg.sender_id != current_user_id)::BIGINT AS unread_count
+  FROM conversations c
+  JOIN conversation_participants cp ON c.id = cp.conversation_id
+  LEFT JOIN messages m ON m.id = c.last_message_id
+  LEFT JOIN users sender ON sender.id = m.sender_id
+  LEFT JOIN LATERAL (
+    SELECT u.id, u.name, u.avatar_url
+    FROM conversation_participants cp2
+    JOIN users u ON u.id = cp2.user_id
+    WHERE cp2.conversation_id = c.id AND cp2.user_id != current_user_id
+    LIMIT 1
+  ) u ON NOT c.is_group
+  LEFT JOIN messages msg ON msg.conversation_id = c.id
+    AND msg.sender_id != current_user_id
+    AND msg.read_at IS NULL
+  WHERE cp.user_id = current_user_id
+  GROUP BY c.id, c.is_group, c.name, c.avatar_url, c.updated_at,
+           m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url
+  ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
+ $$;
