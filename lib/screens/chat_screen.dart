@@ -10,28 +10,23 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateMixin {
   String searchQuery = "";
-  Map<String, dynamic>? activeChat;
+  Map<String, dynamic>? activeChat; // Full conversation object from RPC
   RealtimeChannel? _currentChatChannel;
   final TextEditingController _msgController = TextEditingController();
   late TabController _tabController;
 
-  // Supabase client
   final SupabaseClient supabase = Supabase.instance.client;
-
-  // Current user
   User? currentUser;
+  String? myName; // Cached for consistent "You" in temp messages
 
-  // Data lists
   List<Map<String, dynamic>> conversations = [];
   List<Map<String, dynamic>> workshopRequests = [];
   List<Map<String, dynamic>> messages = [];
   bool isLoading = true;
 
-  // Realtime subscriptions
+  // Only needed realtime subscriptions
   RealtimeChannel? _conversationsChannel;
-  RealtimeChannel? _messagesChannel;
   RealtimeChannel? _requestsChannel;
-  RealtimeChannel? _participantsChannel;
 
   @override
   void initState() {
@@ -44,29 +39,31 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   void dispose() {
     _msgController.dispose();
     _tabController.dispose();
+    _unsubscribeFromCurrentChat();
     _conversationsChannel?.unsubscribe();
-    _messagesChannel?.unsubscribe();
     _requestsChannel?.unsubscribe();
-    _participantsChannel?.unsubscribe();
     super.dispose();
   }
 
   Future<void> _initializeData() async {
     currentUser = supabase.auth.currentUser;
-    if (currentUser != null) {
-      await _fetchConversations();
-      await _fetchWorkshopRequests();
-      _setupRealtimeSubscriptions();
-      setState(() {
-        isLoading = false;
-      });
-    }
+    if (currentUser == null) return;
+
+    myName = currentUser!.userMetadata?['name'] ?? 'You';
+
+    await Future.wait([
+      _fetchConversations(),
+      _fetchWorkshopRequests(),
+    ]);
+
+    _setupRealtimeSubscriptions();
+    setState(() => isLoading = false);
   }
 
   void _setupRealtimeSubscriptions() {
-    // 1. Refresh conversation list when you join/leave a chat
-    supabase
-        .channel('conversation_participants_changes')
+    // Refresh conversation list on join/leave
+    _conversationsChannel = supabase
+        .channel('conv_participants')
         .onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
@@ -80,50 +77,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     )
         .subscribe();
 
-    // 2. GLOBAL new message → always refresh the list (preview + unread count)
-    supabase
-        .channel('global_messages')
-        .onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'messages',
-      callback: (payload) {
-        final convId = payload.newRecord!['conversation_id'] as String;
-
-        // Refresh list preview
-        _fetchConversations();
-
-        // If we are inside this exact chat → instantly add the message
-        if (activeChat != null && activeChat!['id'] == convId) {
-          final newMsg = payload.newRecord!;
-          setState(() {
-            messages.add({
-              ...newMsg,
-              'sender': {
-                'id': newMsg['sender_id'],
-                'name': newMsg['sender_id'] == currentUser!.id
-                    ? (currentUser!.userMetadata?['name'] ?? 'You')
-                    : 'User', // you can improve this later
-                'avatar_url': null,
-              },
-            });
-          });
-
-          // Mark as read if it's not from me
-          if (newMsg['sender_id'] != currentUser!.id) {
-            supabase
-                .from('messages')
-                .update({'read_at': DateTime.now().toIso8601String()})
-                .eq('id', newMsg['id']);
-          }
-        }
-      },
-    )
-        .subscribe();
-
-    // Workshop requests realtime
-    supabase
-        .channel('workshop_requests_changes')
+    // Workshop requests changes
+    _requestsChannel = supabase
+        .channel('workshop_requests')
         .onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
@@ -131,16 +87,37 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       callback: (_) => _fetchWorkshopRequests(),
     )
         .subscribe();
+
+    // Refresh unread counts when any message is read
+    supabase
+        .channel('message_read')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'messages',
+      callback: (_) => _fetchConversations(),
+    )
+        .subscribe();
+  }
+
+  // Unified method to open any chat
+  void _openChat(Map<String, dynamic> conversation) {
+    _unsubscribeFromCurrentChat();
+    setState(() {
+      activeChat = conversation;
+      messages = []; // Clear old messages
+    });
+    _subscribeToCurrentChat();
+    _fetchMessages(conversation['id']);
   }
 
   void _subscribeToCurrentChat() {
-    _currentChatChannel?.unsubscribe();
+    _unsubscribeFromCurrentChat();
     if (activeChat == null) return;
 
     final channel = supabase.channel('chat_${activeChat!['id']}');
 
-    channel
-        .onPostgresChanges(
+    channel.onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'messages',
@@ -151,21 +128,27 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       ),
       callback: (payload) {
         final newMsg = payload.newRecord!;
+        final senderId = newMsg['sender_id'] as String;
+
         setState(() {
           messages.add({
             ...newMsg,
             'sender': {
-              'id': newMsg['sender_id'],
-              'name': newMsg['sender_id'] == currentUser!.id
-                  ? (currentUser!.userMetadata?['name'] ?? 'You')
-                  : 'User',
+              'id': senderId,
+              'name': senderId == currentUser!.id ? myName : 'User',
               'avatar_url': null,
             },
           });
         });
+
+        if (senderId != currentUser!.id) {
+          supabase
+              .from('messages')
+              .update({'read_at': DateTime.now().toIso8601String()})
+              .eq('id', newMsg['id']);
+        }
       },
-    )
-        .subscribe();
+    ).subscribe();
 
     _currentChatChannel = channel;
   }
@@ -177,7 +160,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   Future<void> _fetchConversations() async {
     if (currentUser == null) return;
-
     try {
       final response = await supabase
           .rpc('get_user_conversations', params: {'current_user_id': currentUser!.id})
@@ -188,60 +170,37 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       });
     } catch (e) {
       print('Error fetching conversations: $e');
-      setState(() => conversations = []);
     }
   }
 
   Future<void> _fetchWorkshopRequests() async {
     if (currentUser == null) return;
-
     try {
-      // Get workshops created by the current user
       final workshopsData = await supabase
           .from('workshops')
-          .select('id, title, creator_id')
+          .select('id')
           .eq('creator_id', currentUser!.id);
 
       final workshopIds = workshopsData.map((e) => e['id'] as String).toList();
-
       if (workshopIds.isEmpty) {
-        setState(() {
-          workshopRequests = [];
-        });
+        setState(() => workshopRequests = []);
         return;
       }
 
-      // Get pending requests for these workshops
       final requestsData = await supabase
           .from('workshop_requests')
           .select('''
-            id,
-            workshop_id,
-            requester_id,
-            status,
-            message,
-            created_at,
-            requester:users(
-              id,
-              name,
-              avatar_url
-            ),
-            workshop:workshops(
-              id,
-              title,
-              skill_requested,
-              skill_offered
-            )
+            id, workshop_id, requester_id, status, message, created_at,
+            requester:users(id, name, avatar_url),
+            workshop:workshops(id, title, skill_requested, skill_offered)
           ''')
           .in_('workshop_id', workshopIds)
           .eq('status', 'pending')
           .order('created_at', ascending: false);
 
-      setState(() {
-        workshopRequests = requestsData;
-      });
+      setState(() => workshopRequests = requestsData);
     } catch (e) {
-      print('Error fetching workshop requests: $e');
+      print('Error fetching requests: $e');
     }
   }
 
@@ -250,162 +209,122 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       final response = await supabase
           .from('messages')
           .select('''
-            id,
-            content,
-            created_at,
-            sender_id,
-            sender:users(
-              id,
-              name,
-              avatar_url
-            )
+            id, content, created_at, sender_id,
+            sender:users(id, name, avatar_url)
           ''')
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
 
-      setState(() {
-        messages = response;
-      });
+      setState(() => messages = response);
 
-      // Mark messages as read
+      // Mark all unread as read
       await supabase
           .from('messages')
           .update({'read_at': DateTime.now().toIso8601String()})
           .eq('conversation_id', conversationId)
           .neq('sender_id', currentUser!.id)
-          .is_('read_at', 'null');
+          .is_('read_at', null);
     } catch (e) {
       print('Error fetching messages: $e');
     }
   }
 
   Future<void> sendMessage() async {
-    if (_msgController.text.trim().isEmpty || activeChat == null || currentUser == null) return;
+    if (_msgController.text.trim().isEmpty || activeChat == null) return;
+
+    final content = _msgController.text.trim();
+    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    final tempMsg = {
+      'id': tempId,
+      'content': content,
+      'created_at': DateTime.now().toIso8601String(),
+      'sender_id': currentUser!.id,
+      'sender': {
+        'id': currentUser!.id,
+        'name': myName,
+        'avatar_url': currentUser!.userMetadata?['avatar_url'],
+      },
+    };
+
+    setState(() => messages.add(tempMsg));
+    _msgController.clear();
 
     try {
-      final messageContent = _msgController.text.trim();
-
-      // Create a temporary message to show immediately
-      final tempMessage = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(), // Temporary ID
-        'content': messageContent,
-        'created_at': DateTime.now().toIso8601String(),
-        'sender_id': currentUser!.id,
-        'sender': {
-          'id': currentUser!.id,
-          'name': currentUser!.userMetadata?['name'] ?? 'You',
-          'avatar_url': currentUser!.userMetadata?['avatar_url'],
-        }
-      };
-
-      // Add the temporary message to the UI immediately
-      setState(() {
-        messages.add(tempMessage);
-      });
-
-      _msgController.clear();
-
-      // Send the message to the database
-// Inside sendMessage(), after inserting the message:
-      final messageData = await supabase
+      final data = await supabase
           .from('messages')
           .insert({
         'conversation_id': activeChat!['id'],
         'sender_id': currentUser!.id,
-        'content': messageContent,
+        'content': content,
       })
           .select()
           .single();
 
-// This is the key fix:
       await supabase
           .from('conversations')
           .update({
         'updated_at': DateTime.now().toIso8601String(),
-        'last_message_id': messageData['id'],
+        'last_message_id': data['id'],
       })
           .eq('id', activeChat!['id']);
 
-      // Replace the temporary message with the real one
       setState(() {
-        final index = messages.indexWhere((m) => m['id'] == tempMessage['id']);
-        if (index != -1) {
-          messages[index] = messageData;
-        }
+        final i = messages.indexWhere((m) => m['id'] == tempId);
+        if (i != -1) messages[i] = {...data, 'sender': tempMsg['sender']};
       });
+
+      _fetchConversations();
     } catch (e) {
-      print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send')));
+      setState(() => messages.removeWhere((m) => m['id'] == tempId));
     }
   }
 
   Future<void> acceptRequest(Map<String, dynamic> request) async {
     try {
-      // Update the request status
-      await supabase
-          .from('workshop_requests')
-          .update({'status': 'accepted', 'updated_at': DateTime.now().toIso8601String()})
-          .eq('id', request['id']);
-
-      // Create a new conversation between the workshop creator and the requester
-      final newConversation = await supabase
+      final newConv = await supabase
           .from('conversations')
-          .insert({
-        'is_group': false,
-        'created_by': currentUser!.id,
-      })
+          .insert({'is_group': false, 'created_by': currentUser!.id})
           .select()
           .single();
 
-      // Add both users to the conversation
       await supabase.from('conversation_participants').insert([
-        {
-          'conversation_id': newConversation['id'],
-          'user_id': currentUser!.id,
-        },
-        {
-          'conversation_id': newConversation['id'],
-          'user_id': request['requester_id'],
-        }
+        {'conversation_id': newConv['id'], 'user_id': currentUser!.id},
+        {'conversation_id': newConv['id'], 'user_id': request['requester_id']},
       ]);
 
-      // Send a welcome message
       await supabase.from('messages').insert({
-        'conversation_id': newConversation['id'],
+        'conversation_id': newConv['id'],
         'sender_id': currentUser!.id,
-        'content': 'Exchange accepted! Let\'s start collaborating.',
+        'content': "Exchange accepted! Let's collaborate.",
       });
 
-      // Update the workshop enrollment
       await supabase.from('workshop_enrollments').upsert({
         'user_id': request['requester_id'],
         'workshop_id': request['workshop_id'],
         'status': 'enrolled',
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Exchange with ${request['requester']['name']} accepted!")),
-      );
+      await supabase
+          .from('workshop_requests')
+          .update({'status': 'accepted'})
+          .eq('id', request['id']);
 
-      // Open the new conversation
-      setState(() {
-        activeChat = {
-          'id': newConversation['id'],
+      _openChat({
+        'id': newConv['id'],
+        'is_group': false,
+        'other_user': {
+          'id': request['requester_id'],
           'name': request['requester']['name'],
           'avatar_url': request['requester']['avatar_url'],
-          'is_group': false,
-        };
+        },
       });
 
-      _fetchMessages(newConversation['id']);
-      _fetchConversations(); // Refresh the conversation list
+      _fetchConversations();
+      _fetchWorkshopRequests();
     } catch (e) {
-      print('Error accepting request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to accept request: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept')));
     }
   }
 
@@ -413,26 +332,25 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     try {
       await supabase
           .from('workshop_requests')
-          .update({'status': 'declined', 'updated_at': DateTime.now().toIso8601String()})
+          .update({'status': 'declined'})
           .eq('id', request['id']);
+      _fetchWorkshopRequests();
     } catch (e) {
-      print('Error declining request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to decline request: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline')));
     }
   }
 
   Future<void> startNewConversation() async {
     try {
       // Get users that the current user is following
-      // We need to specify the foreign key relationship explicitly
       final response = await supabase
           .from('follows')
           .select('following_id:users!follows_following_id_fkey(id, name, avatar_url)')
           .eq('follower_id', currentUser!.id);
 
-      final usersFollowed = response.map((e) => e['following_id'] as Map<String, dynamic>).toList();
+      final usersFollowed = response
+          .map((e) => e['following_id'] as Map<String, dynamic>)
+          .toList();
 
       if (usersFollowed.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -454,9 +372,12 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                 final user = usersFollowed[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: NetworkImage(user['avatar_url'] ?? ''),
+                    backgroundImage: user['avatar_url'] != null
+                        ? NetworkImage(user['avatar_url'])
+                        : null,
+                    child: user['avatar_url'] == null ? const Icon(Icons.person) : null,
                   ),
-                  title: Text(user['name']),
+                  title: Text(user['name'] ?? 'User'),
                   onTap: () => Navigator.of(context).pop(user),
                 );
               },
@@ -467,30 +388,28 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       if (selectedUser == null) return;
 
-      // Check if a conversation already exists using RPC
-      final existingConversation = await supabase
-          .rpc('get_existing_conversation', params: {
+      // Check if conversation already exists
+      final existing = await supabase.rpc('get_existing_conversation', params: {
         'user1_id': currentUser!.id,
-        'user2_id': selectedUser['id']
+        'user2_id': selectedUser['id'],
       });
 
-      if (existingConversation.isNotEmpty) {
-        // Open the existing conversation
-        setState(() {
-          activeChat = {
-            'id': existingConversation.first['id'],
+      if (existing.isNotEmpty) {
+        // Reuse existing conversation
+        _openChat({
+          'id': existing.first['id'],
+          'is_group': false,
+          'other_user': {
+            'id': selectedUser['id'],
             'name': selectedUser['name'],
             'avatar_url': selectedUser['avatar_url'],
-            'is_group': false,
-          };
+          },
         });
-
-        _fetchMessages(existingConversation.first['id']);
         return;
       }
 
-      // Create a new conversation
-      final newConversation = await supabase
+      // Create new conversation
+      final newConv = await supabase
           .from('conversations')
           .insert({
         'is_group': false,
@@ -499,30 +418,31 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           .select()
           .single();
 
-      // Add both users to the conversation
+      // Add both participants
       await supabase.from('conversation_participants').insert([
         {
-          'conversation_id': newConversation['id'],
+          'conversation_id': newConv['id'],
           'user_id': currentUser!.id,
         },
         {
-          'conversation_id': newConversation['id'],
+          'conversation_id': newConv['id'],
           'user_id': selectedUser['id'],
-        }
+        },
       ]);
 
-      // Open the new conversation
-      setState(() {
-        activeChat = {
-          'id': newConversation['id'],
+      // Open the new chat using the unified method
+      _openChat({
+        'id': newConv['id'],
+        'is_group': false,
+        'other_user': {
+          'id': selectedUser['id'],
           'name': selectedUser['name'],
           'avatar_url': selectedUser['avatar_url'],
-          'is_group': false,
-        };
+        },
       });
 
-      _fetchMessages(newConversation['id']);
-      _fetchConversations(); // Refresh the conversation list
+      // Refresh list to show the new conversation immediately
+      _fetchConversations();
     } catch (e) {
       print('Error starting new conversation: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -533,67 +453,36 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-// --- CHAT DETAIL SCREEN ---
     if (activeChat != null) {
-      // Extract the correct name and avatar from the RPC structure
       final isGroup = activeChat!['is_group'] == true;
       final displayName = isGroup
           ? (activeChat!['name'] ?? 'Group Chat')
-          : (activeChat!['other_user'] as Map<String, dynamic>?)?['name'] ?? 'Unknown User';
-
+          : (activeChat!['other_user'] as Map<String, dynamic>?)!['name'] ?? 'User';
       final avatarUrl = isGroup
           ? activeChat!['avatar_url'] as String?
-          : (activeChat!['other_user'] as Map<String, dynamic>?)?['avatar_url'] as String?;
+          : (activeChat!['other_user'] as Map<String, dynamic>?)!['avatar_url'] as String?;
 
       return Scaffold(
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              _unsubscribeFromCurrentChat();     // <-- ADD THIS LINE
+              _unsubscribeFromCurrentChat();
               setState(() => activeChat = null);
-              _fetchConversations();
             },
           ),
           title: Row(
             children: [
               CircleAvatar(
-                radius: 20,
-                backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
-                    ? NetworkImage(avatarUrl)
-                    : null,
-                child: avatarUrl == null || avatarUrl.isEmpty
-                    ? const Icon(Icons.person)
-                    : null,
+                backgroundImage: avatarUrl?.isNotEmpty == true ? NetworkImage(avatarUrl!) : null,
+                child: avatarUrl?.isNotEmpty != true ? const Icon(Icons.person) : null,
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "Online",
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
-          actions: const [
-            Icon(Icons.call),
-            SizedBox(width: 16),
-            Icon(Icons.videocam),
-            SizedBox(width: 16),
-            Icon(Icons.more_vert),
-            SizedBox(width: 8),
-          ],
         ),
         body: Column(
           children: [
@@ -601,50 +490,37 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final msg = messages[index];
-                  final isMe = msg["sender_id"] == currentUser?.id;
-
+                itemBuilder: (_, i) {
+                  final msg = messages[i];
+                  final isMe = msg['sender_id'] == currentUser?.id;
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isMe
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(16),
+                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(18),
                       ),
                       child: Text(
-                        msg["content"] ?? '',
-                        style: TextStyle(
-                          color: isMe
-                              ? Theme.of(context).colorScheme.onPrimary
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                        msg['content'] ?? '',
+                        style: TextStyle(color: isMe ? Colors.white : null),
                       ),
                     ),
                   );
                 },
               ),
             ),
-            // Message input bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-              ),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
               child: Row(
                 children: [
                   IconButton(icon: const Icon(Icons.attach_file), onPressed: () {}),
                   Expanded(
                     child: TextField(
                       controller: _msgController,
-                      decoration: const InputDecoration(
-                        hintText: "Type a message...",
-                        border: InputBorder.none,
-                      ),
+                      decoration: const InputDecoration(hintText: "Type a message...", border: InputBorder.none),
                       onSubmitted: (_) => sendMessage(),
                     ),
                   ),
@@ -657,245 +533,149 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       );
     }
 
-    // --- CHAT LIST + REQUESTS WITH TABS ---
-    // Fix the filtering logic
-    final filteredConversations = conversations.where((c) {
-      // For direct messages, check participant name
-      if (!c['is_group'] && c['participants'] != null && c['participants'].isNotEmpty) {
-        final participant = c['participants'][0] as Map<String, dynamic>;
-        return participant['name']?.toString().toLowerCase().contains(searchQuery.toLowerCase()) ?? false;
+    // Conversation List
+    final filtered = conversations.where((c) {
+      final q = searchQuery.toLowerCase();
+      if (c['is_group'] == true) {
+        return (c['name'] ?? '').toString().toLowerCase().contains(q);
       }
-      // For group chats, check conversation name
-      return c['name']?.toString().toLowerCase().contains(searchQuery.toLowerCase()) ?? false;
+      final name = (c['other_user'] as Map<String, dynamic>?)?['name']?.toString().toLowerCase() ?? '';
+      return name.contains(q);
     }).toList();
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text("Messages & Requests"),
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(icon: Icon(Icons.message), text: "Messages"),
-              Tab(icon: Icon(Icons.swap_horiz), text: "Requests"),
-            ],
-          ),
-        ),
-        body: TabBarView(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Messages & Requests"),
+        bottom: TabBar(
           controller: _tabController,
-          children: [
-            // --- MESSAGES TAB ---
-// --- MESSAGES TAB ---
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: "Search conversations...",
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (val) => setState(() => searchQuery = val),
-                  ),
-                ),
-                Expanded(
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : conversations.isEmpty
-                      ? const Center(child: Text("No conversations yet"))
-                      : ListView.separated(
-                    itemCount: conversations.length,
-                    separatorBuilder: (_, __) => const Divider(height: 0),
-                    itemBuilder: (context, index) {
-                      final conversation = conversations[index];
-
-                      // SEARCH FILTER — CORRECTED FOR RPC DATA STRUCTURE
-                      final otherUser = conversation['other_user'] as Map<String, dynamic>?;
-                      final conversationName = conversation['is_group'] == true
-                          ? (conversation['name'] ?? 'Group Chat')
-                          : (otherUser?['name'] ?? 'Unknown User');
-
-                      if (searchQuery.isNotEmpty &&
-                          !conversationName.toLowerCase().contains(searchQuery.toLowerCase())) {
-                        return const SizedBox.shrink(); // Hide non-matching
-                      }
-
-                      final lastMsgContent = conversation['last_message_content'] ?? 'No messages yet';
-                      final lastMsgTime = conversation['last_message_time'];
-                      final unreadCount = (conversation['unread_count'] as num?)?.toInt() ?? 0;
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          radius: 24,
-                          backgroundImage: (() {
-                            final url = conversation['is_group'] == true
-                                ? conversation['avatar_url']
-                                : otherUser?['avatar_url'];
-                            if (url == null || url.toString().trim().isEmpty) return null;
-                            return NetworkImage(url);
-                          })(),
-                          child: (() {
-                            final url = conversation['is_group'] == true
-                                ? conversation['avatar_url']
-                                : otherUser?['avatar_url'];
-                            if (url == null || url.toString().trim().isEmpty) {
-                              return const Icon(Icons.person);
-                            }
-                            return null;
-                          })(),
-                        ),
-                        title: Text(
-                          conversationName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        subtitle: Text(
-                          lastMsgContent,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (lastMsgTime != null)
-                              Text(
-                                _formatTime(lastMsgTime),
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                            if (unreadCount > 0)
-                              CircleAvatar(
-                                radius: 10,
-                                backgroundColor: Colors.red,
-                                child: Text(
-                                  unreadCount > 99 ? '99+' : '$unreadCount',
-                                  style: const TextStyle(fontSize: 10, color: Colors.white),
-                                ),
-                              ),
-                          ],
-                        ),
-                        onTap: () {
-                          setState(() {
-                            activeChat = conversation;
-                          });
-                          _subscribeToCurrentChat();          // <-- ADD THIS LINE
-                          _fetchMessages(conversation['id']);
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            // --- REQUESTS TAB ---
-            isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : workshopRequests.isEmpty
-                ? const Center(child: Text("No pending workshop requests"))
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: workshopRequests.length,
-              itemBuilder: (context, index) {
-                final request = workshopRequests[index];
-                final requester = request['requester'] as Map<String, dynamic>;
-                final workshop = request['workshop'] as Map<String, dynamic>;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundImage: NetworkImage(requester['avatar_url'] ?? ''),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "${requester['name']} is requesting to join",
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    workshop['title'] ?? 'Workshop',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (workshop['skill_requested'] != null)
-                          Text("Wants to learn: ${workshop['skill_requested']}"),
-                        if (workshop['skill_offered'] != null)
-                          Text("Offers: ${workshop['skill_offered']}"),
-                        if (request['message'] != null && request['message'].isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text("Message: ${request['message']}"),
-                        ],
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            TextButton(
-                              onPressed: () => declineRequest(request),
-                              child: const Text("Decline"),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => acceptRequest(request),
-                              child: const Text("Accept"),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+          tabs: const [
+            Tab(icon: Icon(Icons.message), text: "Messages"),
+            Tab(icon: Icon(Icons.swap_horiz), text: "Requests"),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: startNewConversation,
-          child: const Icon(Icons.add),
-        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Messages Tab
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: TextField(
+                  decoration: const InputDecoration(hintText: "Search...", prefixIcon: Icon(Icons.search)),
+                  onChanged: (v) => setState(() => searchQuery = v),
+                ),
+              ),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filtered.isEmpty
+                    ? const Center(child: Text("No conversations"))
+                    : ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) {
+                    final c = filtered[i];
+                    final isGroup = c['is_group'] == true;
+                    final name = isGroup ? (c['name'] ?? 'Group') : (c['other_user'] as Map)['name'];
+                    final avatar = isGroup ? c['avatar_url'] : (c['other_user'] as Map)['avatar_url'];
+                    final lastMsg = c['last_message_content'] ?? 'No messages';
+                    final time = c['last_message_time'];
+                    final unread = (c['unread_count'] as num?)?.toInt() ?? 0;
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: avatar?.isNotEmpty == true ? NetworkImage(avatar) : null,
+                        child: avatar?.isNotEmpty != true ? const Icon(Icons.person) : null,
+                      ),
+                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (time != null) Text(_formatTime(time), style: const TextStyle(fontSize: 11)),
+                          if (unread > 0)
+                            CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Text('$unread', style: const TextStyle(fontSize: 10, color: Colors.white))),
+                        ],
+                      ),
+                      onTap: () => _openChat(c),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          // Requests Tab (your original, works perfectly)
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : workshopRequests.isEmpty
+              ? const Center(child: Text("No pending requests"))
+              : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: workshopRequests.length,
+            itemBuilder: (_, i) {
+              final r = workshopRequests[i];
+              final req = r['requester'] as Map<String, dynamic>;
+              final ws = r['workshop'] as Map<String, dynamic>;
+
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(backgroundImage: NetworkImage(req['avatar_url'] ?? '')),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text("${req['name']} wants to join", style: const TextStyle(fontWeight: FontWeight.bold))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(ws['title'] ?? 'Workshop'),
+                      if (ws['skill_requested'] != null) Text("Learn: ${ws['skill_requested']}"),
+                      if (ws['skill_offered'] != null) Text("Offers: ${ws['skill_offered']}"),
+                      if (r['message']?.isNotEmpty == true) Text("Message: ${r['message']}"),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
+                          ElevatedButton(onPressed: () => acceptRequest(r), child: const Text("Accept")),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: startNewConversation,
+        child: const Icon(Icons.add),
       ),
     );
   }
 
   String _formatTime(String timestamp) {
-    final dateTime = DateTime.parse(timestamp);
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-    }
+    final dt = DateTime.parse(timestamp);
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${dt.day}/${dt.month}';
   }
 }
 
+// Extensions for Supabase filters
 extension on PostgrestFilterBuilder {
-  is_(String s, String t) {}
+  PostgrestFilterBuilder is_(String column, dynamic value) => filter(column, 'is', value);
 }
 
 extension on PostgrestFilterBuilder<PostgrestList> {
-  in_(String s, List<String> conversationIds) {}
+  PostgrestFilterBuilder<PostgrestList> in_(String column, List<dynamic> values) => filter(column, 'in', values);
 }
