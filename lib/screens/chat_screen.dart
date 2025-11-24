@@ -10,21 +10,21 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateMixin {
   String searchQuery = "";
-  Map<String, dynamic>? activeChat; // Full conversation object from RPC
+  Map<String, dynamic>? activeChat;
   RealtimeChannel? _currentChatChannel;
   final TextEditingController _msgController = TextEditingController();
   late TabController _tabController;
+  final ScrollController _scrollController = ScrollController();
 
   final SupabaseClient supabase = Supabase.instance.client;
   User? currentUser;
-  String? myName; // Cached for consistent "You" in temp messages
+  String? myName;
 
   List<Map<String, dynamic>> conversations = [];
   List<Map<String, dynamic>> workshopRequests = [];
   List<Map<String, dynamic>> messages = [];
   bool isLoading = true;
 
-  // Only needed realtime subscriptions
   RealtimeChannel? _conversationsChannel;
   RealtimeChannel? _requestsChannel;
 
@@ -39,6 +39,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   void dispose() {
     _msgController.dispose();
     _tabController.dispose();
+    _scrollController.dispose();
     _unsubscribeFromCurrentChat();
     _conversationsChannel?.unsubscribe();
     _requestsChannel?.unsubscribe();
@@ -61,7 +62,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   }
 
   void _setupRealtimeSubscriptions() {
-    // Refresh conversation list on join/leave
     _conversationsChannel = supabase
         .channel('conv_participants')
         .onPostgresChanges(
@@ -77,7 +77,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     )
         .subscribe();
 
-    // Workshop requests changes
     _requestsChannel = supabase
         .channel('workshop_requests')
         .onPostgresChanges(
@@ -87,25 +86,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       callback: (_) => _fetchWorkshopRequests(),
     )
         .subscribe();
-
-    // Refresh unread counts when any message is read
-    supabase
-        .channel('message_read')
-        .onPostgresChanges(
-      event: PostgresChangeEvent.update,
-      schema: 'public',
-      table: 'messages',
-      callback: (_) => _fetchConversations(),
-    )
-        .subscribe();
   }
 
-  // Unified method to open any chat
   void _openChat(Map<String, dynamic> conversation) {
     _unsubscribeFromCurrentChat();
     setState(() {
       activeChat = conversation;
-      messages = []; // Clear old messages
+      messages = [];
     });
     _subscribeToCurrentChat();
     _fetchMessages(conversation['id']);
@@ -115,9 +102,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     _unsubscribeFromCurrentChat();
     if (activeChat == null) return;
 
-    final channel = supabase.channel('chat_${activeChat!['id']}');
-
-    channel.onPostgresChanges(
+    _currentChatChannel = supabase.channel('messages_${activeChat!['id']}').onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'messages',
@@ -130,15 +115,20 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         final newMsg = payload.newRecord!;
         final senderId = newMsg['sender_id'] as String;
 
+        if (messages.any((msg) => msg['id'] == newMsg['id'])) {
+          return;
+        }
+
         setState(() {
           messages.add({
             ...newMsg,
             'sender': {
               'id': senderId,
-              'name': senderId == currentUser!.id ? myName : 'User',
+              'name': senderId == currentUser!.id ? myName : 'Other User',
               'avatar_url': null,
             },
           });
+          Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
         });
 
         if (senderId != currentUser!.id) {
@@ -149,8 +139,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         }
       },
     ).subscribe();
-
-    _currentChatChannel = channel;
   }
 
   void _unsubscribeFromCurrentChat() {
@@ -158,13 +146,21 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     _currentChatChannel = null;
   }
 
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _fetchConversations() async {
     if (currentUser == null) return;
     try {
       final response = await supabase
-          .rpc('get_user_conversations', params: {'current_user_id': currentUser!.id})
-          .order('updated_at', ascending: false);
-
+          .rpc('get_user_conversations', params: {'current_user_id': currentUser!.id});
       setState(() {
         conversations = List<Map<String, dynamic>>.from(response);
       });
@@ -215,15 +211,19 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
 
-      setState(() => messages = response);
+      setState(() {
+        messages = response;
+        Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+      });
 
-      // Mark all unread as read
       await supabase
           .from('messages')
           .update({'read_at': DateTime.now().toIso8601String()})
           .eq('conversation_id', conversationId)
           .neq('sender_id', currentUser!.id)
           .is_('read_at', null);
+
+      _fetchConversations();
     } catch (e) {
       print('Error fetching messages: $e');
     }
@@ -247,7 +247,10 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       },
     };
 
-    setState(() => messages.add(tempMsg));
+    setState(() {
+      messages.add(tempMsg);
+      Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+    });
     _msgController.clear();
 
     try {
@@ -276,6 +279,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       _fetchConversations();
     } catch (e) {
+      print('Error sending message: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send')));
       setState(() => messages.removeWhere((m) => m['id'] == tempId));
     }
@@ -324,6 +328,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       _fetchConversations();
       _fetchWorkshopRequests();
     } catch (e) {
+      print('Error accepting request: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept')));
     }
   }
@@ -336,13 +341,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           .eq('id', request['id']);
       _fetchWorkshopRequests();
     } catch (e) {
+      print('Error declining request: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline')));
     }
   }
 
   Future<void> startNewConversation() async {
     try {
-      // Get users that the current user is following
       final response = await supabase
           .from('follows')
           .select('following_id:users!follows_following_id_fkey(id, name, avatar_url)')
@@ -388,14 +393,12 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       if (selectedUser == null) return;
 
-      // Check if conversation already exists
       final existing = await supabase.rpc('get_existing_conversation', params: {
         'user1_id': currentUser!.id,
         'user2_id': selectedUser['id'],
       });
 
       if (existing.isNotEmpty) {
-        // Reuse existing conversation
         _openChat({
           'id': existing.first['id'],
           'is_group': false,
@@ -408,7 +411,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         return;
       }
 
-      // Create new conversation
       final newConv = await supabase
           .from('conversations')
           .insert({
@@ -418,7 +420,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           .select()
           .single();
 
-      // Add both participants
       await supabase.from('conversation_participants').insert([
         {
           'conversation_id': newConv['id'],
@@ -430,7 +431,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         },
       ]);
 
-      // Open the new chat using the unified method
       _openChat({
         'id': newConv['id'],
         'is_group': false,
@@ -441,7 +441,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         },
       });
 
-      // Refresh list to show the new conversation immediately
       _fetchConversations();
     } catch (e) {
       print('Error starting new conversation: $e');
@@ -488,6 +487,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           children: [
             Expanded(
               child: ListView.builder(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 itemCount: messages.length,
                 itemBuilder: (_, i) {
@@ -533,7 +533,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       );
     }
 
-    // Conversation List
     final filtered = conversations.where((c) {
       final q = searchQuery.toLowerCase();
       if (c['is_group'] == true) {
@@ -557,7 +556,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Messages Tab
           Column(
             children: [
               Padding(
@@ -605,8 +603,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               ),
             ],
           ),
-
-          // Requests Tab (your original, works perfectly)
           isLoading
               ? const Center(child: CircularProgressIndicator())
               : workshopRequests.isEmpty

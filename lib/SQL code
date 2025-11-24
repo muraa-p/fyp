@@ -333,3 +333,72 @@ RETURNS TABLE(
            m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url
   ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
  $$;
+
+
+
+
+ -- 1. Enable RLS on messages (probably already enabled, but safe to run)
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- 2. CRITICAL: Allow users to receive real-time updates for messages in conversations they're part of
+CREATE POLICY "Users can realtime receive messages in their conversations" ON messages
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM conversation_participants cp
+      WHERE cp.conversation_id = messages.conversation_id
+      AND cp.user_id = auth.uid()
+    )
+  );
+
+-- 3. Also allow users to insert messages (for sending)
+CREATE POLICY "Users can send messages in their conversations" ON messages
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM conversation_participants cp
+      WHERE cp.conversation_id = messages.conversation_id
+      AND cp.user_id = auth.uid()
+    )
+    AND sender_id = auth.uid()
+  );
+
+-- 4. Allow updating read_at (for marking as read)
+CREATE POLICY "Users can mark messages as read" ON messages
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM conversation_participants cp
+      WHERE cp.conversation_id = messages.conversation_id
+      AND cp.user_id = auth.uid()
+    )
+  ) WITH CHECK (read_at IS NOT NULL);
+
+
+
+
+
+
+
+  -- Allow users to see their own conversations
+CREATE POLICY "Users can view their conversations" ON conversations
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM conversation_participants cp
+      WHERE cp.conversation_id = conversations.id
+      AND cp.user_id = auth.uid()
+    )
+  );
+
+-- Allow access to conversation_participants
+CREATE POLICY "Users can see participants in their convos" ON conversation_participants
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM conversation_participants cp
+      WHERE cp.conversation_id = conversation_participants.conversation_id
+      AND cp.user_id = auth.uid()
+    )
+  );
+
+
+
+
+
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
