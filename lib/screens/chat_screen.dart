@@ -115,10 +115,40 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         final newMsg = payload.newRecord!;
         final senderId = newMsg['sender_id'] as String;
 
-        if (messages.any((msg) => msg['id'] == newMsg['id'])) {
-          return;
+        // Check if this is a message sent by the current user
+        final isMyMessage = senderId == currentUser!.id;
+
+        // If it's my message, check if we already have a message with the same content sent recently
+        if (isMyMessage) {
+          final hasSimilarMessage = messages.any((msg) =>
+          msg['content'] == newMsg['content'] &&
+              msg['sender_id'] == senderId &&
+              DateTime.parse(msg['created_at']).isAfter(DateTime.now().subtract(const Duration(seconds: 5)))
+          );
+
+          if (hasSimilarMessage) {
+            // Find the temporary message and replace it with the server message
+            setState(() {
+              final index = messages.indexWhere((msg) =>
+              msg['content'] == newMsg['content'] &&
+                  msg['sender_id'] == senderId
+              );
+              if (index != -1) {
+                messages[index] = {
+                  ...newMsg,
+                  'sender': {
+                    'id': senderId,
+                    'name': myName,
+                    'avatar_url': currentUser!.userMetadata?['avatar_url'],
+                  },
+                };
+              }
+            });
+            return;
+          }
         }
 
+        // If it's not my message or we don't have a similar message, add it normally
         setState(() {
           messages.add({
             ...newMsg,
@@ -233,7 +263,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     if (_msgController.text.trim().isEmpty || activeChat == null) return;
 
     final content = _msgController.text.trim();
-    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}'; // Add a prefix to identify temp messages
 
     final tempMsg = {
       'id': tempId,
@@ -272,6 +302,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       })
           .eq('id', activeChat!['id']);
 
+      // The real-time subscription will handle replacing the temp message
+      // But we'll also update it here as a fallback
       setState(() {
         final i = messages.indexWhere((m) => m['id'] == tempId);
         if (i != -1) messages[i] = {...data, 'sender': tempMsg['sender']};
