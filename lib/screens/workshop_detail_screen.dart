@@ -1,7 +1,11 @@
+// Update the WorkshopDetailScreen.dart file
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/create_workshop_screen.dart';
 import 'package:skillx/screens/user_profile_screen.dart';
+import 'package:skillx/screens/chat_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 
 class WorkshopDetailScreen extends StatefulWidget {
@@ -16,13 +20,15 @@ class WorkshopDetailScreen extends StatefulWidget {
 class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   bool isEnrolled = false;
   bool isLiked = false;
+  bool isLoadingEnrollment = false;
+  Map<String, dynamic>? workshopConversation;
 
   late List<Map<String, dynamic>> syllabus;
 
   @override
   void initState() {
     super.initState();
-    // ✅ Use the workshop's own syllabus if it exists, otherwise fallback to default
+    // Use the workshop's own syllabus if it exists, otherwise fallback to default
     final passed = widget.workshop["syllabus"];
     syllabus = passed != null && passed is List
         ? List<Map<String, dynamic>>.from(passed)
@@ -31,8 +37,60 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       {"title": "Core Concepts", "duration": "20 min", "completed": false},
       {"title": "Project Practice", "duration": "30 min", "completed": false},
     ];
+
+    // Check if user is enrolled and get workshop conversation
+    _checkEnrollmentAndConversation();
   }
 
+// Update the _checkEnrollmentAndConversation function in WorkshopDetailScreen.dart
+
+  Future<void> _checkEnrollmentAndConversation() async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Check if user is enrolled in the workshop
+      final enrollmentData = await Supabase.instance.client
+          .from('workshop_enrollments')
+          .select()
+          .eq('user_id', currentUser.id)
+          .eq('workshop_id', widget.workshop['id'])
+          .maybeSingle();
+
+      setState(() {
+        isEnrolled = enrollmentData != null;
+      });
+
+      // If enrolled, get the workshop conversation
+      if (isEnrolled) {
+        final conversationData = await Supabase.instance.client
+            .from('workshops')
+            .select('conversation_id')
+            .eq('id', widget.workshop['id'])
+            .single();
+
+        if (conversationData['conversation_id'] != null) {
+          // Make sure the user is added to the conversation participants
+          await Supabase.instance.client.rpc('add_user_to_workshop_chat', params: {
+            'workshop_id': widget.workshop['id'],
+            'user_id': currentUser.id,  // Use user_id instead of participant_id
+          });
+
+          final conversation = await Supabase.instance.client
+              .from('conversations')
+              .select('id, name, avatar_url')
+              .eq('id', conversationData['conversation_id'])
+              .single();
+
+          setState(() {
+            workshopConversation = conversation;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking enrollment: $e');
+    }
+  }
 
   void _toggleLessonComplete(int index) {
     setState(() {
@@ -137,18 +195,48 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           const SizedBox(height: 20),
 
-// --- About Section ---
+          // --- Workshop Group Chat Button ---
+          if (isEnrolled && workshopConversation != null)
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                leading: const Icon(Icons.chat, color: Colors.blue),
+                title: const Text('Workshop Group Chat'),
+                subtitle: const Text('Join the discussion with other participants'),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                        initialConversation: {
+                          'id': workshopConversation!['id'],
+                          'is_group': true,
+                          'name': workshopConversation!['name'],
+                          'avatar_url': workshopConversation!['avatar_url'],
+                          'workshop_id': ws['id'],
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          if (isEnrolled && workshopConversation != null) const SizedBox(height: 20),
+
+          // --- About Section ---
           _aboutCard(ws, theme, isTeach4Learn),
 
           const SizedBox(height: 20),
 
-// --- Syllabus ---
+          // --- Syllabus ---
           if ((ws['syllabus'] ?? []).isNotEmpty)
             _syllabusCard(theme, progressPercent),
 
           const SizedBox(height: 20),
 
-// --- Prerequisites ---
+          // --- Prerequisites ---
           if ((ws['prerequisites'] ?? '').toString().trim().isNotEmpty)
             _infoCard(
               title: "Prerequisites",
@@ -159,7 +247,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           const SizedBox(height: 20),
 
-// --- Learning Outcomes ---
+          // --- Learning Outcomes ---
           if ((ws['outcomes'] ?? '').toString().trim().isNotEmpty)
             _infoCard(
               title: "Learning Outcomes",
@@ -170,16 +258,14 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           const SizedBox(height: 20),
 
-// --- Tags ---
+          // --- Tags ---
           if ((ws['tags'] ?? []).isNotEmpty)
             _tagsCard(ws['tags']),
 
           const SizedBox(height: 20),
 
-// --- Reviews ---
+          // --- Reviews ---
           _reviewCard(),
-
-
 
           const SizedBox(height: 80),
         ],
@@ -280,11 +366,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
   Widget _aboutCard(Map<String, dynamic> ws, ThemeData theme, bool isTeach4Learn) {
     if (!isTeach4Learn) {
-      // 👇 Normal workshops stay as-is
+      // Normal workshops stay as-is
       return Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: const EdgeInsets.all(16), // ✅ named parameter
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -303,11 +389,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       );
     }
 
-    // 👇 Teach4Learn layout: skill exchange information
+    // Teach4Learn layout: skill exchange information
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16), // ✅ named parameter
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -317,10 +403,10 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             ),
             const SizedBox(height: 8),
 
-            // 🎯 Skill the user wants to learn
+            // Skill the user wants to learn
             if (ws['skill_requested'] != null && ws['skill_requested'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6), // ✅ fixed here too
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
                     const Icon(Icons.school, color: Colors.deepPurple, size: 20),
@@ -336,10 +422,10 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                 ),
               ),
 
-            // 🧠 Skill the user can teach in return
+            // Skill the user can teach in return
             if (ws['skill_offered'] != null && ws['skill_offered'].toString().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6), // ✅ fixed here too
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
                     const Icon(Icons.lightbulb, color: Colors.orange, size: 20),
@@ -527,14 +613,12 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-
-
-
   Widget _bottomButton(BuildContext context, ThemeData theme, bool isTeach4Learn) {
     final ws = widget.workshop;
-    final isCreator = ws['creatorId'] == 'currentUser'; // 👈 check who made it
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final isCreator = currentUser != null && ws['creator_id'] == currentUser.id;
 
-    // --- if creator, disable the enroll button ---
+    // If creator, disable the enroll button
     if (isCreator) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -544,13 +628,13 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         ),
         child: Row(
           children: [
-            // 📝 EDIT BUTTON
+            // EDIT BUTTON
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.edit),
                 label: const Text("Edit"),
                 onPressed: () async {
-                  // 🧭 Navigate to CreateWorkshopScreen in edit mode
+                  // Navigate to CreateWorkshopScreen in edit mode
                   final updatedWorkshop = await Navigator.push<Map<String, dynamic>>(
                     context,
                     MaterialPageRoute(
@@ -561,7 +645,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     ),
                   );
 
-                  // ✅ Refresh detail screen after editing
+                  // Refresh detail screen after editing
                   if (updatedWorkshop != null) {
                     setState(() {
                       widget.workshop.clear();
@@ -578,7 +662,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             ),
             const SizedBox(width: 12),
 
-            // 🗑️ DELETE BUTTON
+            // DELETE BUTTON
             Expanded(
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.delete_forever),
@@ -611,7 +695,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     ),
                   );
 
-                  // ✅ Only delete & navigate back if confirmed
+                  // Only delete & navigate back if confirmed
                   if (confirm == true) {
                     context.read<AppState>().deleteWorkshop(ws['id']);
                     Navigator.pop(context); // Close details screen
@@ -627,10 +711,43 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       );
     }
 
+    // Show workshop group chat button if enrolled
+    if (isEnrolled && workshopConversation != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          border: Border(top: BorderSide(color: theme.dividerColor)),
+        ),
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.chat),
+          label: const Text("Open Workshop Chat"),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  initialConversation: {
+                    'id': workshopConversation!['id'],
+                    'is_group': true,
+                    'name': workshopConversation!['name'],
+                    'avatar_url': workshopConversation!['avatar_url'],
+                    'workshop_id': ws['id'],
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
 
-
-
-    // --- otherwise show enroll/un-enroll button ---
+    // Otherwise show enroll/un-enroll button
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -645,43 +762,75 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               : theme.colorScheme.primary,
           foregroundColor: Colors.white,
         ),
-        onPressed: () {
-          setState(() => isEnrolled = !isEnrolled);
-          final appState = context.read<AppState>();
+        onPressed: isLoadingEnrollment ? null : () async {
+          setState(() => isLoadingEnrollment = true);
 
-          if (isEnrolled) {
-            appState.enrollWorkshop({
-              ...widget.workshop,
-              "progress": syllabus,
-            });
+          try {
+            if (isEnrolled) {
+              // Unenroll logic
+              await Supabase.instance.client
+                  .from('workshop_enrollments')
+                  .delete()
+                  .eq('user_id', currentUser!.id)
+                  .eq('workshop_id', ws['id']);
+
+              setState(() {
+                isEnrolled = false;
+                workshopConversation = null;
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(isTeach4Learn
+                      ? "Exchange request withdrawn"
+                      : "Unenrolled from workshop"),
+                ),
+              );
+            } else {
+              // Enroll logic
+              await Supabase.instance.client
+                  .from('workshop_requests')
+                  .insert({
+                'workshop_id': ws['id'],
+                'requester_id': currentUser!.id,
+                'status': 'pending',
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(isTeach4Learn
+                      ? "Exchange request sent! 🎯"
+                      : "Enrollment request sent! Awaiting approval."),
+                ),
+              );
+            }
+          } catch (e) {
+            print('Error with enrollment: $e');
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(isTeach4Learn
-                    ? "Exchange request sent! 🎯"
-                    : "Successfully enrolled!"),
-              ),
+              SnackBar(content: Text('Error: ${e.toString()}')),
             );
-          } else {
-            appState.unenrollWorkshop(widget.workshop["title"]);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(isTeach4Learn
-                    ? "Exchange request withdrawn"
-                    : "Unenrolled from workshop"),
-              ),
-            );
+          } finally {
+            setState(() => isLoadingEnrollment = false);
           }
         },
-        child: Text(
+        child: isLoadingEnrollment
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : Text(
           isTeach4Learn
               ? (isEnrolled ? "Request Sent ✓" : "Send Exchange Request")
-              : (isEnrolled ? "Enrolled ✓" : "Enroll Now"),
+              : (isEnrolled ? "Enrolled ✓" : "Request Enrollment"),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
-
 }
 
 class _StatItem extends StatelessWidget {

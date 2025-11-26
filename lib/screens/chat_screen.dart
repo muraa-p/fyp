@@ -1,8 +1,12 @@
+// Update the ChatScreen.dart file
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.initialConversation});
+
+  final Map<String, dynamic>? initialConversation;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -32,7 +36,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _initializeData();
+
+    // If an initial conversation is provided, open it immediately
+    if (widget.initialConversation != null) {
+      _openChat(widget.initialConversation!);
+    } else {
+      _initializeData();
+    }
   }
 
   @override
@@ -317,51 +327,135 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     }
   }
 
+// Update the acceptRequest function in ChatScreen.dart
+
   Future<void> acceptRequest(Map<String, dynamic> request) async {
     try {
-      final newConv = await supabase
-          .from('conversations')
-          .insert({'is_group': false, 'created_by': currentUser!.id})
-          .select()
+      // Get the workshop details to check if it has a conversation_id
+      final workshopData = await supabase
+          .from('workshops')
+          .select('id, title, conversation_id, type')
+          .eq('id', request['workshop_id'])
           .single();
 
-      await supabase.from('conversation_participants').insert([
-        {'conversation_id': newConv['id'], 'user_id': currentUser!.id},
-        {'conversation_id': newConv['id'], 'user_id': request['requester_id']},
-      ]);
-
-      await supabase.from('messages').insert({
-        'conversation_id': newConv['id'],
-        'sender_id': currentUser!.id,
-        'content': "Exchange accepted! Let's collaborate.",
-      });
-
-      await supabase.from('workshop_enrollments').upsert({
-        'user_id': request['requester_id'],
-        'workshop_id': request['workshop_id'],
-        'status': 'enrolled',
-      });
-
+      // Update the request status first
       await supabase
           .from('workshop_requests')
           .update({'status': 'accepted'})
           .eq('id', request['id']);
 
-      _openChat({
-        'id': newConv['id'],
-        'is_group': false,
-        'other_user': {
-          'id': request['requester_id'],
-          'name': request['requester']['name'],
-          'avatar_url': request['requester']['avatar_url'],
-        },
-      });
+      // Check if this is a Teach4Learn workshop or a regular workshop
+      final isTeach4Learn = workshopData['type'] == 'Teach4Learn';
+
+      if (isTeach4Learn) {
+        // For Teach4Learn workshops, create a 1-on-1 conversation
+        final newConv = await supabase
+            .from('conversations')
+            .insert({'is_group': false, 'created_by': currentUser!.id})
+            .select()
+            .single();
+
+        await supabase.from('conversation_participants').insert([
+          {'conversation_id': newConv['id'], 'user_id': currentUser!.id},
+          {'conversation_id': newConv['id'], 'user_id': request['requester_id']},
+        ]);
+
+        await supabase.from('messages').insert({
+          'conversation_id': newConv['id'],
+          'sender_id': currentUser!.id,
+          'content': "Exchange accepted! Let's collaborate.",
+        });
+
+        // Update or insert the workshop enrollment
+        await supabase.from('workshop_enrollments').upsert({
+          'user_id': request['requester_id'],
+          'workshop_id': request['workshop_id'],
+          'status': 'enrolled',
+        }, onConflict: 'user_id,workshop_id');
+
+        // Open the 1-on-1 chat
+        _openChat({
+          'id': newConv['id'],
+          'is_group': false,
+          'other_user': {
+            'id': request['requester_id'],
+            'name': request['requester']['name'],
+            'avatar_url': request['requester']['avatar_url'],
+          },
+        });
+      } else {
+        // For regular workshops, add the user to the workshop group chat
+        if (workshopData['conversation_id'] != null) {
+          // Update or insert the workshop enrollment
+          await supabase.from('workshop_enrollments').upsert({
+            'user_id': request['requester_id'],
+            'workshop_id': request['workshop_id'],
+            'status': 'enrolled',
+          }, onConflict: 'user_id,workshop_id');
+
+          // Add the user to the workshop group chat
+          await supabase.rpc('add_user_to_workshop_chat', params: {
+            'workshop_id': request['workshop_id'],
+            'user_id': request['requester_id'],
+          });
+
+          // Send a notification message to the group chat
+          await supabase.from('messages').insert({
+            'conversation_id': workshopData['conversation_id'],
+            'sender_id': currentUser!.id,
+            'content': "${request['requester']['name']} has joined the workshop!",
+          });
+
+          // Open the workshop group chat
+          _openChat({
+            'id': workshopData['conversation_id'],
+            'is_group': true,
+            'name': workshopData['title'] + ' - Group Chat',
+            'workshop_id': workshopData['id'],
+          });
+        } else {
+          // If no conversation exists, create one
+          final conversationId = await supabase.rpc('create_workshop_group_chat', params: {
+            'workshop_id': workshopData['id'],
+            'workshop_title': workshopData['title'],
+            'creator_id': currentUser!.id,
+          });
+
+          // Update or insert the workshop enrollment
+          await supabase.from('workshop_enrollments').upsert({
+            'user_id': request['requester_id'],
+            'workshop_id': request['workshop_id'],
+            'status': 'enrolled',
+          }, onConflict: 'user_id,workshop_id');
+
+          // Add the user to the newly created conversation
+          await supabase.rpc('add_user_to_workshop_chat', params: {
+            'workshop_id': workshopData['id'],
+            'user_id': request['requester_id'],
+          });
+
+          // Send a notification message to the group chat
+          await supabase.from('messages').insert({
+            'conversation_id': conversationId,
+            'sender_id': currentUser!.id,
+            'content': "${request['requester']['name']} has joined the workshop!",
+          });
+
+          // Open the workshop group chat
+          _openChat({
+            'id': conversationId,
+            'is_group': true,
+            'name': workshopData['title'] + ' - Group Chat',
+            'workshop_id': workshopData['id'],
+          });
+        }
+      }
 
       _fetchConversations();
       _fetchWorkshopRequests();
     } catch (e) {
       print('Error accepting request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept: ${e.toString()}')));
     }
   }
 
@@ -380,6 +474,18 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   Future<void> startNewConversation() async {
     try {
+      // Verify user is authenticated
+      if (currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must be logged in to start a conversation')),
+        );
+        return;
+      }
+
+      // Debug: Print current user ID
+      print('Current user ID: ${currentUser!.id}');
+      print('Current user type: ${currentUser!.id.runtimeType}');
+
       final response = await supabase
           .from('follows')
           .select('following_id:users!follows_following_id_fkey(id, name, avatar_url)')
@@ -425,6 +531,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       if (selectedUser == null) return;
 
+      // Check for existing conversation
       final existing = await supabase.rpc('get_existing_conversation', params: {
         'user1_id': currentUser!.id,
         'user2_id': selectedUser['id'],
@@ -443,15 +550,22 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         return;
       }
 
+      // Create new conversation with explicit created_by
+      print('Creating new conversation...');
+      print('Creator ID: ${currentUser!.id}');
+
       final newConv = await supabase
           .from('conversations')
           .insert({
         'is_group': false,
-        'created_by': currentUser!.id,
+        'created_by': currentUser!.id, // This should be a UUID string
       })
           .select()
           .single();
 
+      print('Conversation created: ${newConv['id']}');
+
+      // Add both participants
       await supabase.from('conversation_participants').insert([
         {
           'conversation_id': newConv['id'],
@@ -463,6 +577,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         },
       ]);
 
+      print('Participants added successfully');
+
+      // Open the chat
       _openChat({
         'id': newConv['id'],
         'is_group': false,
@@ -474,8 +591,20 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       });
 
       _fetchConversations();
+
+    } on PostgrestException catch (e) {
+      print('PostgrestException: ${e.message}');
+      print('Code: ${e.code}');
+      print('Details: ${e.details}');
+      print('Hint: ${e.hint}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Database error: ${e.message}')),
+      );
     } catch (e) {
       print('Error starting new conversation: $e');
+      print('Error type: ${e.runtimeType}');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to start conversation: $e')),
       );
@@ -486,6 +615,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     if (activeChat != null) {
       final isGroup = activeChat!['is_group'] == true;
+      final isWorkshopChat = activeChat!['workshop_id'] != null;
       final displayName = isGroup
           ? (activeChat!['name'] ?? 'Group Chat')
           : (activeChat!['other_user'] as Map<String, dynamic>?)!['name'] ?? 'User';
@@ -510,10 +640,66 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    if (isWorkshopChat)
+                      Text(
+                        'Workshop Group Chat',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
+          actions: isWorkshopChat ? [
+            IconButton(
+              icon: const Icon(Icons.upload_file),
+              onPressed: () {
+                // Show options for sharing materials
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Share Materials'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.slideshow),
+                          title: const Text('Share Slides'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _sendWorkshopMessage('📊 New slides have been uploaded!');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.assignment),
+                          title: const Text('Share Assignment'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _sendWorkshopMessage('📝 A new assignment has been posted!');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.announcement),
+                          title: const Text('Make Announcement'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _showAnnouncementDialog();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ] : null,
         ),
         body: Column(
           children: [
@@ -607,6 +793,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                   itemBuilder: (_, i) {
                     final c = filtered[i];
                     final isGroup = c['is_group'] == true;
+                    final isWorkshopChat = c['workshop_id'] != null;
                     final name = isGroup ? (c['name'] ?? 'Group') : (c['other_user'] as Map)['name'];
                     final avatar = isGroup ? c['avatar_url'] : (c['other_user'] as Map)['avatar_url'];
                     final lastMsg = c['last_message_content'] ?? 'No messages';
@@ -618,7 +805,25 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                         backgroundImage: avatar?.isNotEmpty == true ? NetworkImage(avatar) : null,
                         child: avatar?.isNotEmpty != true ? const Icon(Icons.person) : null,
                       ),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                          ),
+                          if (isWorkshopChat)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'Workshop',
+                                style: TextStyle(fontSize: 10, color: Colors.blue),
+                              ),
+                            ),
+                        ],
+                      ),
                       subtitle: Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -684,6 +889,47 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       floatingActionButton: FloatingActionButton(
         onPressed: startNewConversation,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _sendWorkshopMessage(String content) {
+    if (activeChat == null) return;
+
+    _msgController.text = content;
+    sendMessage();
+  }
+
+  void _showAnnouncementDialog() {
+    final TextEditingController announcementController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Make Announcement'),
+        content: TextField(
+          controller: announcementController,
+          decoration: const InputDecoration(
+            hintText: 'Enter your announcement...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (announcementController.text.trim().isNotEmpty) {
+                _sendWorkshopMessage('📢 Announcement: ${announcementController.text.trim()}');
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Send'),
+          ),
+        ],
       ),
     );
   }

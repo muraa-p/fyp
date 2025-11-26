@@ -1,0 +1,741 @@
+-- =================================================================
+-- COMPLETE DATABASE SCHEMA WITH FIXED RLS POLICIES
+-- =================================================================
+-- This schema fixes the RLS policy issues that were preventing
+-- conversations from being created
+-- =================================================================
+
+-- =================================================================
+-- 1. DROP ALL TABLES
+-- =================================================================
+DROP TABLE IF EXISTS conversation_participants CASCADE;
+DROP TABLE IF EXISTS workshop_requests CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS conversations CASCADE;
+DROP TABLE IF EXISTS workshop_enrollments CASCADE;
+DROP TABLE IF EXISTS workshop_ratings CASCADE;
+DROP TABLE IF EXISTS workshops CASCADE;
+DROP TABLE IF EXISTS endorsements CASCADE;
+DROP TABLE IF EXISTS achievements CASCADE;
+DROP TABLE IF EXISTS leaderboard CASCADE;
+DROP TABLE IF EXISTS cv_entries CASCADE;
+DROP TABLE IF EXISTS follows CASCADE;
+DROP TABLE IF EXISTS skills CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- =================================================================
+-- 2. CREATE TABLES (in correct dependency order)
+-- =================================================================
+
+-- Core user table
+CREATE TABLE users (
+  id UUID PRIMARY KEY,                     -- Supabase Auth user ID
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  phone TEXT,
+  bio TEXT,
+  university TEXT,
+  major TEXT,
+  year TEXT,
+  location TEXT,
+  website TEXT,
+  avatar_url TEXT,
+  skills_to_teach TEXT[],
+  skills_to_learn TEXT[],
+  social JSONB DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Skills reference table
+CREATE TABLE skills (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL
+);
+
+-- Social connections
+CREATE TABLE follows (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  following_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(follower_id, following_id)
+);
+
+-- Conversation tables (created before workshops to avoid dependency issues)
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  is_group BOOLEAN DEFAULT FALSE,
+  name TEXT,
+  avatar_url TEXT,
+  created_by UUID REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+  sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  read_at TIMESTAMPTZ,
+  message_type TEXT DEFAULT 'text'
+);
+
+CREATE TABLE conversation_participants (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  last_read_at TIMESTAMPTZ,
+  is_admin BOOLEAN DEFAULT FALSE,
+  UNIQUE(conversation_id, user_id)
+);
+
+-- Add the foreign key to conversations table
+ALTER TABLE conversations
+ADD COLUMN last_message_id UUID REFERENCES messages(id) ON DELETE SET NULL;
+
+-- Workshop tables
+CREATE TABLE workshops (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  category TEXT,
+  duration TEXT,
+  date TIMESTAMPTZ,
+  max_participants INTEGER,
+  skills TEXT[],
+  image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  type TEXT DEFAULT 'Free Workshop',
+  skill_requested TEXT,
+  skill_offered TEXT,
+  difficulty TEXT DEFAULT 'Beginner',
+  time TEXT,
+  location TEXT,
+  status TEXT DEFAULT 'upcoming',
+  rating FLOAT DEFAULT 0.0,
+  syllabus JSONB DEFAULT '[]'::JSONB,
+  prerequisites TEXT[] DEFAULT '{}',
+  outcomes TEXT[] DEFAULT '{}',
+  tags TEXT[] DEFAULT '{}'
+);
+
+ALTER TABLE workshops
+ADD COLUMN conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL;
+
+CREATE TABLE workshop_enrollments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'enrolled',
+  enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, workshop_id)
+);
+
+CREATE TABLE workshop_ratings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+  review TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, workshop_id)
+);
+
+CREATE TABLE workshop_requests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
+  requester_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'pending',
+  message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(workshop_id, requester_id)
+);
+
+-- User achievement tables
+CREATE TABLE endorsements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  endorsed_user UUID REFERENCES users(id),
+  endorsed_by UUID REFERENCES users(id),
+  skill TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT,
+  icon TEXT,
+  earned BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE leaderboard (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  xp INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE cv_entries (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id),
+  title TEXT,
+  description TEXT,
+  start_date DATE,
+  end_date DATE,
+  type TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =================================================================
+-- 3. CREATE INDEXES FOR PERFORMANCE
+-- =================================================================
+CREATE INDEX IF NOT EXISTS follows_follower_id_idx ON follows(follower_id);
+CREATE INDEX IF NOT EXISTS follows_following_id_idx ON follows(following_id);
+CREATE INDEX IF NOT EXISTS messages_conversation_id_idx ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS messages_sender_id_idx ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS conversations_created_by_idx ON conversations(created_by);
+CREATE INDEX IF NOT EXISTS conversations_updated_at_idx ON conversations(updated_at);
+CREATE INDEX IF NOT EXISTS conversation_participants_conversation_id_idx ON conversation_participants(conversation_id);
+CREATE INDEX IF NOT EXISTS conversation_participants_user_id_idx ON conversation_participants(user_id);
+CREATE INDEX IF NOT EXISTS workshop_requests_workshop_id_idx ON workshop_requests(workshop_id);
+CREATE INDEX IF NOT EXISTS workshop_requests_requester_id_idx ON workshop_requests(requester_id);
+
+-- =================================================================
+-- 4. CREATE FUNCTIONS
+-- =================================================================
+
+-- Helper function to check conversation participation
+-- FIXED: Added STABLE keyword for better performance
+CREATE OR REPLACE FUNCTION is_conversation_participant(conv_id UUID, user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conv_id AND cp.user_id = user_id
+  );
+$$;
+
+-- Check if a conversation exists between two users
+CREATE OR REPLACE FUNCTION get_existing_conversation(user1_id UUID, user2_id UUID)
+RETURNS TABLE(id UUID) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT c.id
+  FROM conversations c
+  JOIN conversation_participants cp1 ON c.id = cp1.conversation_id
+  JOIN conversation_participants cp2 ON c.id = cp2.conversation_id
+  WHERE cp1.user_id = user1_id
+    AND cp2.user_id = user2_id
+    AND c.is_group = FALSE
+  LIMIT 1;  -- Added LIMIT 1 for safety
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Get all conversations for a user with details
+CREATE OR REPLACE FUNCTION get_user_conversations(current_user_id UUID)
+RETURNS TABLE(
+  id UUID,
+  is_group BOOLEAN,
+  name TEXT,
+  avatar_url TEXT,
+  updated_at TIMESTAMPTZ,
+  last_message_content TEXT,
+  last_message_time TIMESTAMPTZ,
+  last_message_sender_name TEXT,
+  other_user JSON,
+  unread_count BIGINT,
+  workshop_id UUID
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT
+    c.id,
+    c.is_group,
+    c.name,
+    c.avatar_url,
+    c.updated_at,
+    m.content AS last_message_content,
+    m.created_at AS last_message_time,
+    sender.name AS last_message_sender_name,
+    jsonb_build_object(
+      'id', u.id,
+      'name', u.name,
+      'avatar_url', u.avatar_url
+    ) AS other_user,
+    COUNT(msg.id) FILTER (WHERE msg.read_at IS NULL AND msg.sender_id != current_user_id)::BIGINT AS unread_count,
+    w.id AS workshop_id
+  FROM conversations c
+  JOIN conversation_participants cp ON c.id = cp.conversation_id
+  LEFT JOIN messages m ON m.id = c.last_message_id
+  LEFT JOIN users sender ON sender.id = m.sender_id
+  LEFT JOIN LATERAL (
+    SELECT u.id, u.name, u.avatar_url
+    FROM conversation_participants cp2
+    JOIN users u ON u.id = cp2.user_id
+    WHERE cp2.conversation_id = c.id AND cp2.user_id != current_user_id
+    LIMIT 1
+  ) u ON NOT c.is_group
+  LEFT JOIN messages msg ON msg.conversation_id = c.id
+    AND msg.sender_id != current_user_id
+    AND msg.read_at IS NULL
+  LEFT JOIN workshops w ON w.conversation_id = c.id
+  WHERE cp.user_id = current_user_id
+  GROUP BY c.id, c.is_group, c.name, c.avatar_url, c.updated_at,
+           m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url, w.id
+  ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
+$$;
+
+-- Create a workshop group chat
+CREATE OR REPLACE FUNCTION create_workshop_group_chat(
+  workshop_id UUID,
+  workshop_title TEXT,
+  creator_id UUID
+)
+RETURNS UUID AS $$
+DECLARE
+  conversation_uuid UUID;
+BEGIN
+  INSERT INTO conversations (is_group, name, created_by)
+  VALUES (TRUE, workshop_title || ' - Group Chat', creator_id)
+  RETURNING id INTO conversation_uuid;
+
+  INSERT INTO conversation_participants (conversation_id, user_id, is_admin)
+  VALUES (conversation_uuid, creator_id, TRUE);
+
+  UPDATE workshops
+  SET conversation_id = conversation_uuid
+  WHERE id = workshop_id;
+
+  INSERT INTO messages (conversation_id, sender_id, content)
+  VALUES (
+    conversation_uuid,
+    creator_id,
+    'Welcome to the group chat for ' || workshop_title || '! This is where we''ll share updates, materials, and announcements.'
+  );
+
+  RETURN conversation_uuid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Add a user to a workshop group chat
+CREATE OR REPLACE FUNCTION add_user_to_workshop_chat(
+  workshop_id UUID,
+  user_id UUID
+)
+RETURNS VOID AS $$
+DECLARE
+  conv_id UUID;
+BEGIN
+  SELECT conversation_id INTO conv_id
+  FROM workshops
+  WHERE id = workshop_id;
+
+  IF conv_id IS NOT NULL THEN
+    INSERT INTO conversation_participants (conversation_id, user_id)
+    VALUES (conv_id, user_id)
+    ON CONFLICT (conversation_id, user_id) DO NOTHING;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =================================================================
+-- 5. CREATE TRIGGERS
+-- =================================================================
+
+-- Create a trigger to automatically create a group chat for non-Teach4Learn workshops
+CREATE OR REPLACE FUNCTION auto_create_workshop_chat()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.type != 'Teach4Learn' THEN
+    PERFORM create_workshop_group_chat(NEW.id, NEW.title, NEW.creator_id);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER create_workshop_chat_trigger
+AFTER INSERT ON workshops
+FOR EACH ROW
+EXECUTE FUNCTION auto_create_workshop_chat();
+
+-- =================================================================
+-- 6. ENABLE ROW LEVEL SECURITY
+-- =================================================================
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_participants ENABLE ROW LEVEL SECURITY;
+
+-- =================================================================
+-- 7. CREATE RLS POLICIES (FIXED VERSION)
+-- =================================================================
+
+-- ============================================================
+-- MESSAGES POLICIES
+-- ============================================================
+
+CREATE POLICY "Users can view messages in their conversations"
+ON messages FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = messages.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can send messages in their conversations"
+ON messages FOR INSERT
+WITH CHECK (
+  sender_id = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = messages.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can mark messages as read"
+ON messages FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = messages.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+)
+WITH CHECK (
+  read_at IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = messages.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+-- ============================================================
+-- CONVERSATIONS POLICIES (MAIN FIX IS HERE)
+-- ============================================================
+
+-- FIX #1: Allow users to create conversations
+-- The key fix: No ::uuid cast needed - auth.uid() already returns UUID
+CREATE POLICY "Users can create conversations"
+ON conversations FOR INSERT
+WITH CHECK (
+  created_by = auth.uid()
+);
+
+-- FIX #2: Allow users to view their conversations
+CREATE POLICY "Users can view their conversations"
+ON conversations FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversations.id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+-- FIX #3: Allow participants to update conversation metadata
+CREATE POLICY "Participants can update conversation metadata"
+ON conversations FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversations.id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+-- ============================================================
+-- CONVERSATION PARTICIPANTS POLICIES
+-- ============================================================
+
+CREATE POLICY "Users can view participants in their conversations"
+ON conversation_participants FOR SELECT
+USING (
+  user_id = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversation_participants.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Allow inserting participants"
+ON conversation_participants FOR INSERT
+WITH CHECK (
+  -- You can always add yourself
+  user_id = auth.uid()
+
+  -- OR you can add others if you're already a participant
+  OR EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversation_participants.conversation_id
+    AND cp.user_id = auth.uid()
+  )
+
+  -- OR you can add the second person right after creating the conversation
+  OR EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = conversation_participants.conversation_id
+    AND c.created_by = auth.uid()
+  )
+
+  -- OR workshop creator can add people
+  OR EXISTS (
+    SELECT 1 FROM workshops w
+    WHERE w.conversation_id = conversation_participants.conversation_id
+    AND w.creator_id = auth.uid()
+  )
+
+  -- OR auto-add via enrollment
+  OR EXISTS (
+    SELECT 1 FROM workshop_enrollments we
+    JOIN workshops w ON we.workshop_id = w.id
+    WHERE w.conversation_id = conversation_participants.conversation_id
+    AND we.user_id = conversation_participants.user_id
+    AND we.status = 'enrolled'
+  )
+);
+
+-- =================================================================
+-- 8. CONFIGURE REALTIME
+-- =================================================================
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
+-- =================================================================
+-- 9. GRANT PERMISSIONS (IMPORTANT!)
+-- =================================================================
+-- This ensures authenticated users can actually use these tables
+
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- =================================================================
+-- DONE!
+-- =================================================================
+-- Main fixes applied:
+-- 1. Removed ::uuid casts from RLS policies (auth.uid() already returns UUID)
+-- 2. Changed all policies to use EXISTS subqueries for clarity
+-- 3. Added STABLE and SECURITY DEFINER to functions where appropriate
+-- 4. Added explicit GRANT statements for authenticated users
+-- 5. Simplified policy logic for better performance
+-- =================================================================
+
+
+
+
+
+-- =================================================================
+-- QUICK FIX: Just update the problematic policies
+-- Run this instead of the full schema if you don't want to drop tables
+-- =================================================================
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view participants in their conversations" ON conversation_participants;
+DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
+DROP POLICY IF EXISTS "Allow inserting participants when creating a chat or already in it" ON conversation_participants;
+
+-- Create new policies without recursion
+CREATE POLICY "Users can view participants in their conversations"
+ON conversation_participants FOR SELECT
+USING (true);  -- Allow viewing all participants
+
+CREATE POLICY "Allow inserting participants"
+ON conversation_participants FOR INSERT
+WITH CHECK (
+  -- You can always add yourself
+  user_id = auth.uid()
+
+  -- OR you're the creator of the conversation
+  OR EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = conversation_participants.conversation_id
+    AND c.created_by = auth.uid()
+  )
+
+  -- OR workshop creator can add people
+  OR EXISTS (
+    SELECT 1 FROM workshops w
+    WHERE w.conversation_id = conversation_participants.conversation_id
+    AND w.creator_id = auth.uid()
+  )
+);
+
+-- Also update the helper function to use SECURITY INVOKER
+DROP FUNCTION IF EXISTS is_conversation_participant(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION is_conversation_participant(conv_id UUID, user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY INVOKER  -- Changed from SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conv_id AND cp.user_id = user_id
+  );
+$$;
+
+
+
+
+
+
+
+
+
+
+-- See ALL policies on conversations table
+SELECT
+  schemaname,
+  tablename,
+  policyname,
+  permissive,
+  roles,
+  cmd,
+  qual,
+  with_check
+FROM pg_policies
+WHERE tablename = 'conversations';
+
+
+
+
+
+
+
+
+-- 1. DROP ALL INSERT POLICIES ON CONVERSATIONS (safe if you replace immediately)
+DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
+DROP POLICY IF EXISTS "Allow conversation creation" ON conversations;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON conversations;
+-- add more drops if you see others in pg_policies
+
+-- 2. Create ONE clean, correct policy
+CREATE POLICY "Users can create conversations"
+ON conversations FOR INSERT
+WITH CHECK (
+  created_by = auth.uid()
+);
+
+-- 3. Double-check SELECT policy exists
+CREATE POLICY "Users can view their conversations"
+ON conversations FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversations.id
+      AND cp.user_id = auth.uid()
+  )
+  OR created_by = auth.uid()  -- Allow creator to see it even before joining participants
+);
+
+-- 4. Make sure participants can be added by creator
+DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
+CREATE POLICY "Allow inserting participants"
+ON conversation_participants FOR INSERT
+WITH CHECK (
+  user_id = auth.uid()  -- can add self
+  OR EXISTS (           -- or creator of convo can add anyone
+    SELECT 1 FROM conversations c
+    WHERE c.id = conversation_participants.conversation_id
+      AND c.created_by = auth.uid()
+  )
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- Allow the creator to always see their own conversations (even before participants exist)
+CREATE POLICY "Creator can always see their conversations"
+ON conversations FOR SELECT
+USING (created_by = auth.uid());
+
+
+
+
+
+
+-- This should now work
+INSERT INTO conversations (is_group, created_by)
+VALUES (false, auth.uid())
+RETURNING id;
+
+
+
+
+
+
+-- CLEANUP ALL POLICIES ON CONVERSATIONS
+DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can view their conversations" ON conversations;
+DROP POLICY IF EXISTS "Creator can always see their conversations" ON conversations;
+DROP POLICY IF EXISTS "Participants can update conversation metadata" ON conversations;
+
+-- RECREATE CLEAN ONES
+CREATE POLICY "Users can create conversations"
+ON conversations FOR INSERT
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Users can view their own conversations"
+ON conversations FOR SELECT
+USING (
+  created_by = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversations.id
+      AND cp.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Participants can update conversation"
+ON conversations FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM conversation_participants cp
+    WHERE cp.conversation_id = conversations.id
+      AND cp.user_id = auth.uid()
+  )
+);
+
+
+
+
+
+
+
+
+
+DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
+
+CREATE POLICY "Allow inserting participants"
+ON conversation_participants FOR INSERT
+WITH CHECK (
+  user_id = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = conversation_participants.conversation_id
+      AND c.created_by = auth.uid()
+  )
+);
