@@ -396,7 +396,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           // Add the user to the workshop group chat
           await supabase.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': request['workshop_id'],
-            'user_id': request['requester_id'],
+            'participant_id': request['requester_id'],  // Using participant_id
           });
 
           // Send a notification message to the group chat
@@ -431,7 +431,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           // Add the user to the newly created conversation
           await supabase.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': workshopData['id'],
-            'user_id': request['requester_id'],
+            'participant_id': request['requester_id'],  // Changed from user_id to participant_id
           });
 
           // Send a notification message to the group chat

@@ -739,3 +739,33 @@ WITH CHECK (
       AND c.created_by = auth.uid()
   )
 );
+
+
+
+
+
+
+
+
+-- First drop the existing function
+DROP FUNCTION IF EXISTS add_user_to_workshop_chat(uuid,uuid);
+
+-- Then create the new function with a different parameter name
+CREATE OR REPLACE FUNCTION add_user_to_workshop_chat(
+  workshop_id UUID,
+  participant_id UUID  -- Changed from user_id to avoid ambiguity
+)
+RETURNS VOID AS $$ DECLARE
+  conv_id UUID;
+BEGIN
+  SELECT conversation_id INTO conv_id
+  FROM workshops
+  WHERE id = workshop_id;
+
+  IF conv_id IS NOT NULL THEN
+    INSERT INTO conversation_participants (conversation_id, user_id)
+    VALUES (conv_id, participant_id)  -- Using the renamed parameter
+    ON CONFLICT (conversation_id, user_id) DO NOTHING;
+  END IF;
+END;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
