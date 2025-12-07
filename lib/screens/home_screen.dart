@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:skillx/screens/chat_screen.dart' show ChatScreen;
 import 'package:skillx/screens/endorsements_screen.dart';
 import 'package:skillx/screens/gamification_screen.dart';
-import 'package:skillx/screens/profile_screen.dart';
+import 'package:skillx/screens/profile_screen.dart'; // Make sure this import is correct
 import 'package:skillx/screens/schedule_screen.dart';
 import '../main.dart';
 import '../components/custom_bottom_nav.dart';
@@ -11,11 +11,6 @@ import 'search_screen.dart';
 import 'workshop_detail_screen.dart';
 import 'package:skillx/screens/cv_builder_screen.dart';
 import 'create_workshop_screen.dart';
-
-
-
-
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,7 +22,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _currentScreen = "home";
 
-  // ✅ Add this function (used for both CreateWorkshopScreen and BottomNav)
   void onNavigate(String screen) {
     setState(() {
       _currentScreen = screen;
@@ -42,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
         page = const DashboardPage();
         break;
       case "search":
-        page = page = const SearchScreen();
+        page = const SearchScreen();
         break;
       case "create":
         page = CreateWorkshopScreen(onNavigate: onNavigate);
@@ -52,13 +46,17 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case "profile":
         final currentUser = context.read<AppState>().user;
-        if (currentUser == null) {
-          return const Center(child: CircularProgressIndicator());
+        // Handle the case where the user might not be loaded yet
+        if (currentUser == null || currentUser.id.isEmpty) {
+          // You might want to show a loading indicator or navigate to login
+          page = const Center(child: CircularProgressIndicator());
+        } else {
+          // ✅ FIX IS HERE: Pass the user's ID, not the whole object
+          page = ProfileScreen(
+            userId: currentUser.id, // Corrected line
+            isCurrentUser: true,
+          );
         }
-        page = ProfileScreen(
-          user: currentUser,
-          isCurrentUser: true,
-        );
         break;
       default:
         page = const DashboardPage();
@@ -68,11 +66,13 @@ class _HomeScreenState extends State<HomeScreen> {
       body: page,
       bottomNavigationBar: CustomBottomNav(
         currentScreen: _currentScreen,
-        onNavigate: onNavigate, // ✅ use same function here
+        onNavigate: onNavigate,
       ),
-    );;
+    );
   }
 }
+
+
 
 //
 // --- DASHBOARD PAGE ---
