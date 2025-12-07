@@ -41,6 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // --- State variables for the Settings Tab ---
   bool _lowBandwidth = false;
   String _language = "en";
+  bool _isLoggingOut = false; // <-- ✅ NEW: State for logout loading
 
   @override
   void initState() {
@@ -583,15 +584,49 @@ class _ProfileScreenState extends State<ProfileScreen>
             },
           ),
 
+// In _buildSettingsTab(ThemeData theme) method...
+
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text("Log Out"),
-            onTap: () async {
+            leading: _isLoggingOut // ✅ UPDATED: Conditional leading icon
+                ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                color: Colors.red,
+                strokeWidth: 2.0,
+              ),
+            )
+                : const Icon(Icons.logout, color: Colors.red),
+            title: Text(_isLoggingOut ? "Logging Out..." : "Log Out"), // ✅ UPDATED: Conditional title
+            onTap: _isLoggingOut // ✅ UPDATED: Conditional onTap to prevent multiple taps
+                ? null
+                : () async {
+              setState(() {
+                _isLoggingOut = true; // ✅ ADD: Set loading state to true
+              });
+
               try {
                 await Supabase.instance.client.auth.signOut();
-                // After sign out, the listener in main.dart should handle navigation
+
+                // ✅ ADD: Clear user from app's state
+                if (mounted) {
+                  context.read<AppState>().setUser(null);
+                }
+
+                // ✅ ADD: Navigate to welcome screen and remove all other routes
+                if (mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/',
+                        (Route<dynamic> route) => false,
+                  );
+                }
               } catch (e) {
-                _showSnack("Error logging out: ${e.toString()}");
+                if (mounted) {
+                  _showSnack("Error logging out: ${e.toString()}");
+                  setState(() {
+                    _isLoggingOut = false; // ✅ ADD: Reset loading state on error
+                  });
+                }
               }
             },
           ),

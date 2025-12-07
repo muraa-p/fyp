@@ -42,7 +42,7 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> get createdWorkshops => _createdWorkshops;
 
   // --- User Management ---
-  void setUser(UserModel user) {
+  void setUser(UserModel? user) {
     _user = user;
     notifyListeners();
   }
