@@ -1,16 +1,21 @@
+//
+// --- DASHBOARD PAGE ---
+//
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/chat_screen.dart' show ChatScreen;
-import 'package:skillx/screens/endorsements_screen.dart';
-import 'package:skillx/screens/gamification_screen.dart';
-import 'package:skillx/screens/profile_screen.dart'; // Make sure this import is correct
-import 'package:skillx/screens/schedule_screen.dart';
+import 'package:skillx/screens/endorsements_screen.dart' show EndorsementsScreen;
+import 'package:skillx/screens/gamification_screen.dart' show GamificationScreen;
+import 'package:skillx/screens/profile_screen.dart' show ProfileScreen;
+import 'package:skillx/screens/schedule_screen.dart' show ScheduleScreen;
+import 'package:skillx/screens/cv_builder_screen.dart' show CVBuilderScreen;
+import 'package:skillx/screens/create_workshop_screen.dart' show CreateWorkshopScreen;
+import 'package:skillx/screens/search_screen.dart' show SearchScreen;
+import 'package:skillx/screens/workshop_detail_screen.dart' show WorkshopDetailScreen;
 import '../main.dart';
 import '../components/custom_bottom_nav.dart';
-import 'search_screen.dart';
-import 'workshop_detail_screen.dart';
-import 'package:skillx/screens/cv_builder_screen.dart';
-import 'create_workshop_screen.dart';
+// Add this import for Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -46,12 +51,12 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case "profile":
         final currentUser = context.read<AppState>().user;
-        // Handle the case where the user might not be loaded yet
+        // Handle case where user might not be loaded yet
         if (currentUser == null || currentUser.id.isEmpty) {
           // You might want to show a loading indicator or navigate to login
           page = const Center(child: CircularProgressIndicator());
         } else {
-          // ✅ FIX IS HERE: Pass the user's ID, not the whole object
+          // ✅ FIX IS HERE: Pass user's ID, not whole object
           page = ProfileScreen(
             userId: currentUser.id, // Corrected line
             isCurrentUser: true,
@@ -72,13 +77,118 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-
-
 //
 // --- DASHBOARD PAGE ---
 //
+
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
+
+// Function to fetch user workshops from database - moved outside build method
+  Future<List<Map<String, dynamic>>> _fetchUserWorkshops(String? userId) async {
+    if (userId == null || userId.isEmpty) return [];
+
+    try {
+      print('Fetching workshops for user: $userId');
+
+      // First, fetch workshops where the user is the creator
+      final createdWorkshopsResponse = await Supabase.instance.client
+          .from('workshops')
+          .select('''
+          id, title, creator_id, date, time, status, 
+          max_participants, rating, duration, image_url, tags
+        ''')
+          .eq('creator_id', userId)
+          .order('date', ascending: true);
+
+      // Second, fetch workshop IDs where the user is enrolled
+      final enrollmentsResponse = await Supabase.instance.client
+          .from('workshop_enrollments')
+          .select('workshop_id')
+          .eq('user_id', userId);
+
+      // Extract workshop IDs from enrollments
+      final enrolledWorkshopIds = enrollmentsResponse
+          .map((e) => e['workshop_id'] as String)
+          .toList();
+
+      // Fetch the actual workshops for those IDs
+      List<Map<String, dynamic>> enrolledWorkshops = [];
+      if (enrolledWorkshopIds.isNotEmpty) {
+        // Build the filter manually
+        var query = Supabase.instance.client.from('workshops').select('''
+            id, title, creator_id, date, time, status, 
+            max_participants, rating, duration, image_url, tags
+          ''');
+
+        for (int i = 0; i < enrolledWorkshopIds.length; i++) {
+          if (i == 0) {
+            query = query.eq('id', enrolledWorkshopIds[i]);
+          } else {
+            query = query.or('id.eq.${enrolledWorkshopIds[i]}');
+          }
+        }
+
+        final enrolledWorkshopsResponse = await query.order('date', ascending: true);
+        enrolledWorkshops = List<Map<String, dynamic>>.from(enrolledWorkshopsResponse);
+      }
+
+      // Combine both lists
+      List<Map<String, dynamic>> allWorkshops = [
+        ...List<Map<String, dynamic>>.from(createdWorkshopsResponse),
+        ...enrolledWorkshops
+      ];
+
+      // Remove duplicates (in case a user is both creator and enrolled)
+      final uniqueWorkshopIds = <String>{};
+      final uniqueWorkshops = allWorkshops.where((workshop) {
+        final id = workshop['id'] as String;
+        if (uniqueWorkshopIds.contains(id)) {
+          return false;
+        } else {
+          uniqueWorkshopIds.add(id);
+          return true;
+        }
+      }).toList();
+
+      // Sort by date
+      uniqueWorkshops.sort((a, b) {
+        final aDate = a['date'] as String?;
+        final bDate = b['date'] as String?;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
+      });
+
+      // Debug: Print the workshops to see what we're getting
+      print('Fetched ${uniqueWorkshops.length} workshops');
+      for (var workshop in uniqueWorkshops) {
+        print('Workshop: ${workshop['title']}, Date: ${workshop['date']}, Status: ${workshop['status']}');
+      }
+
+      return uniqueWorkshops;
+    } catch (e) {
+      print('Error fetching workshops: $e');
+      return [];
+    }
+  }
+
+  // Function to fetch creator name for a workshop
+  Future<String> _fetchCreatorName(String creatorId) async {
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('name')
+          .eq('id', creatorId)
+          .single();
+
+      return response['name'] as String? ?? "Unknown creator";
+    } catch (e) {
+      print('Error fetching creator name: $e');
+      return "Unknown creator";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,358 +200,394 @@ class DashboardPage extends StatelessWidget {
     int nextLevelXP = 300;
     double progress = currentXP / nextLevelXP;
 
-    // Fake schedule
-    final upcomingWorkshops = [
-      {
-        "title": "Python for Data Science",
-        "date": "Today, 4:00 PM",
-        "instructor": "David Park",
-        "status": "Enrolled"
-      },
-      {
-        "title": "Digital Marketing Basics",
-        "date": "Wed, 7:00 PM",
-        "instructor": "Lisa Zhang",
-        "status": "Teaching"
-      },
-    ];
+    // Fetch workshops from database
+    return FutureBuilder(
+        future: _fetchUserWorkshops(user?.id),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-    // Fake recommended workshops
-    final recommended = [
-      {
-        "title": "React Hooks Deep Dive",
-        "instructor": "Sarah Kim",
-        "rating": 4.9,
-        "participants": "12/15",
-        "duration": "2 hours"
-      },
-      {
-        "title": "Public Speaking Confidence",
-        "instructor": "Michael Chen",
-        "rating": 4.8,
-        "participants": "8/10",
-        "duration": "1.5 hours"
-      },
-      {
-        "title": "UI/UX Design Principles",
-        "instructor": "Emma Rodriguez",
-        "rating": 4.9,
-        "participants": "15/20",
-        "duration": "3 hours"
-      },
-    ];
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Welcome back, ${user?.name?.isNotEmpty == true ? user!.name : "Student"}!",
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    user?.email ?? "University",
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onBackground.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: () {
-                  // Access the HomeScreen state directly via context
-                  context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("profile");
-                },
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                  child: Text(
-                    (context.watch<AppState>().user?.name.isNotEmpty ?? false)
-                        ? context.watch<AppState>().user!.name[0]
-                        : "U",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              )
+          final workshops = snapshot.data ?? [];
 
-            ],
-          ),
+          // Debug: Print the number of workshops
+          print('Total workshops: ${workshops.length}');
 
-          const SizedBox(height: 20),
+          // Separate workshops into upcoming and teaching
+          final upcomingWorkshops = workshops.where((w) {
+            try {
+              // Check status first
+              if (w['status'] == 'upcoming') return true;
 
-          // XP Progress
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // Then check date if status is not upcoming
+              if (w['date'] != null && w['date'].toString().isNotEmpty) {
+                final workshopDate = DateTime.parse(w['date'].toString());
+                return workshopDate.isAfter(DateTime.now());
+              }
+              return false;
+            } catch (e) {
+              print('Error parsing date for workshop ${w['id']}: $e');
+              return false;
+            }
+          }).toList();
+
+          final teachingWorkshops = workshops.where((w) {
+            try {
+              // Check status first
+              if (w['status'] == 'teaching') return true;
+
+              // Then check date if status is not teaching
+              if (w['date'] != null && w['date'].toString().isNotEmpty) {
+                final workshopDate = DateTime.parse(w['date'].toString());
+                return workshopDate.isBefore(DateTime.now());
+              }
+              return false;
+            } catch (e) {
+              print('Error parsing date for workshop ${w['id']}: $e');
+              return false;
+            }
+          }).toList();
+
+          // Combine both lists for the unified schedule
+          final allScheduledWorkshops = [...upcomingWorkshops, ...teachingWorkshops];
+
+          // Debug: Print the number of workshops in each category
+          print('Upcoming workshops: ${upcomingWorkshops.length}');
+          print('Teaching workshops: ${teachingWorkshops.length}');
+
+          return SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                Text("Your Progress",
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(8),
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Welcome back, ${user?.name?.isNotEmpty == true ? user!.name : "Student"}!",
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          user?.email ?? "University",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onBackground.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        // Access HomeScreen state directly via context
+                        context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("profile");
+                      },
+                      child: CircleAvatar(
+                        radius: 24,
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                        child: Text(
+                          (context.watch<AppState>().user?.name.isNotEmpty ?? false)
+                              ? context.watch<AppState>().user!.name[0]
+                              : "U",
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  "${nextLevelXP - currentXP} XP to next level",
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onBackground.withOpacity(0.7),
+                const SizedBox(height: 20),
+
+                // XP Progress
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Your Progress",
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "${nextLevelXP - currentXP} XP to next level",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onBackground.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
+                const SizedBox(height: 20),
 
-          const SizedBox(height: 20),
-
-          // Search bar
-          TextField(
-            decoration: InputDecoration(
-              hintText: "Search workshops, skills, or instructors...",
-              prefixIcon: const Icon(Icons.search),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SearchScreen()),
-              );
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // Stats cards
-          Row(
-            children: const [
-              Expanded(
-                  child: _StatCard(
-                      label: "Workshops Attended",
-                      value: "12",
-                      icon: Icons.book_outlined,
-                      color: Colors.blue)),
-              SizedBox(width: 12),
-              Expanded(
-                  child: _StatCard(
-                      label: "Workshops Taught",
-                      value: "5",
-                      icon: Icons.group_outlined,
-                      color: Colors.green)),
-              SizedBox(width: 12),
-              Expanded(
-                  child: _StatCard(
-                      label: "Badges Earned",
-                      value: "3",
-                      icon: Icons.emoji_events_outlined,
-                      color: Colors.amber)),
-            ],
-          ),
-
-          const SizedBox(height: 28),
-
-          // Upcoming workshops
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Your Schedule",
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ScheduleScreen()),
-                  );
-                },
-                child: Text(
-                  "View All",
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w500,
+                // Search bar
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: "Search workshops, skills, or instructors...",
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Column(
-            children: upcomingWorkshops.map((ws) => _UpcomingCard(ws)).toList(),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Recommended workshops
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Recommended for You",
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              Text("View All",
-                  style: TextStyle(color: theme.colorScheme.primary)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Column(
-            children: recommended.map((ws) => _RecommendedCard(ws)).toList(),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Quick Actions
-          Text("Quick Actions",
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.emoji_events,
-                  title: "Gamification",
-                  subtitle: "View XP & Badges",
-                  color: Colors.yellow,
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => GamificationScreen(
-                          onNavigate: (_) {}, // safe dummy
-                          initialTab: 2,
-                        ),
-                      ),
-                    );
-
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.leaderboard,
-                  title: "Leaderboard",
-                  subtitle: "Global Rankings",
-                  color: Colors.blue,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GamificationScreen(
-                          onNavigate: (screen) {
-                            Navigator.pop(context);
-                          },
-                          initialTab: 2, // 2 = Leaderboard tab
-                        ),
-                      ),
+                      MaterialPageRoute(builder: (_) => const SearchScreen()),
                     );
                   },
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(height: 20),
 
+                // Stats cards
+                Row(
+                  children: [
+                    Expanded(
+                        child: StatCard(
+                            label: "Workshops Attended",
+                            value: "12",
+                            icon: Icons.book_outlined,
+                            color: Colors.blue)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: StatCard(
+                            label: "Workshops Taught",
+                            value: "5",
+                            icon: Icons.group_outlined,
+                            color: Colors.green)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: StatCard(
+                            label: "Badges Earned",
+                            value: "3",
+                            icon: Icons.emoji_events_outlined,
+                            color: Colors.amber)),
+                  ],
+                ),
+                const SizedBox(height: 28),
 
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.star,
-                  title: "Endorsements",
-                  subtitle: "Skill Recognition",
-                  color: Colors.purple,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EndorsementsScreen(
-                          onNavigate: (screen) {
-                            // Return to profile or home
-                            if (screen == "profile") Navigator.pop(context);
-                          },
+                // Unified Schedule section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                        "Your Schedule",
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ScheduleScreen(
+                            upcomingWorkshops: upcomingWorkshops,
+                            teachingWorkshops: teachingWorkshops,
+                          )),
+                        );
+                      },
+                      child: Text(
+                        "View All",
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: _QuickActionCard(
-                    icon: Icons.description,
-                    title: "CV Builder",
-                    subtitle: "Export Skills",
-                    color: Colors.green,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
+                const SizedBox(height: 12),
+                // Combined horizontal scrollable list with auto-sizing
+                Container(
+                  height: 185, // Further reduced height
+                  child: allScheduledWorkshops.isEmpty
+                      ? const Center(child: Text("No workshops scheduled",
+                      style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: allScheduledWorkshops.length,
+                    itemBuilder: (context, index) {
+                      final workshop = allScheduledWorkshops[index];
+                      final isTeaching = teachingWorkshops.contains(workshop);
+
+                      return Container(
+                        width: 280, // Fixed width for each card
+                        margin: const EdgeInsets.only(right: 12),
+                        child: WorkshopCard(
+                          workshop: workshop,
+                          isTeaching: isTeaching,
+                          fetchCreatorName: _fetchCreatorName,
+                        ),
                       );
                     },
                   ),
-              ),
-            ],
-          ),
+                ),
+                const SizedBox(height: 28),
 
-          const SizedBox(height: 28),
+                // Quick Actions
+                Text("Quick Actions",
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.emoji_events,
+                            title: "Gamification",
+                            subtitle: "View XP & Badges",
+                            color: Colors.yellow,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => GamificationScreen(
+                                    onNavigate: (screen) {
+                                      Navigator.pop(context);
+                                    },
+                                    initialTab: 2, // 2 = Leaderboard tab
+                                  ),
+                                ),
+                              );
+                            })),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.leaderboard,
+                            title: "Leaderboard",
+                            subtitle: "Global Rankings",
+                            color: Colors.blue,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => GamificationScreen(
+                                    onNavigate: (screen) {
+                                      Navigator.pop(context);
+                                    },
+                                    initialTab: 2, // 2 = Leaderboard tab
+                                  ),
+                                ),
+                              );
+                            })),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.star,
+                            title: "Endorsements",
+                            subtitle: "Skill Recognition",
+                            color: Colors.purple,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EndorsementsScreen(
+                                    onNavigate: (screen) {
+                                      Navigator.pop(context);
+                                    },
+                                  ),
+                                ),
+                              );
+                            })),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.description,
+                            title: "CV Builder",
+                            subtitle: "Export Skills",
+                            color: Colors.green,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
+                              );
+                            })),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.emoji_events,
+                            title: "Achievements",
+                            subtitle: "View All",
+                            color: Colors.amber,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => GamificationScreen(
+                                    onNavigate: (screen) {
+                                      Navigator.pop(context);
+                                    },
+                                    initialTab: 1, // 1 = Achievements tab
+                                  ),
+                                ),
+                              );
+                            })),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: QuickActionCard(
+                            icon: Icons.chat,
+                            title: "Messages",
+                            subtitle: "View All",
+                            color: Colors.blue,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ChatScreen()),
+                              );
+                            })),
+                  ],
+                ),
+                const SizedBox(height: 28),
 
-          // Achievements
-          Text("Recent Achievements",
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: const [
-              _AchievementCard(name: "First Workshop", icon: "🎯", earned: true),
-              _AchievementCard(name: "Quick Learner", icon: "⚡", earned: true),
-              _AchievementCard(
-                  name: "Community Helper", icon: "🤝", earned: false),
-              _AchievementCard(
-                  name: "Workshop Master", icon: "🏆", earned: false),
-            ],
-          ),
-        ],
-      ),
-    );
+                // Recent Achievements
+                Text("Recent Achievements",
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  children: const [
+                    AchievementCard(name: "First Workshop", icon: "🎯", earned: true),
+                    AchievementCard(name: "Quick Learner", icon: "⚡", earned: true),
+                    AchievementCard(name: "Community Helper", icon: "🤝", earned: false),
+                    AchievementCard(name: "Workshop Master", icon: "🏆", earned: false),
+                  ],
+                ),
+              ],
+            ),
+          );
+        });
   }
 }
 
-//
-// --- SUPPORTING WIDGETS ---
-//
-class _StatCard extends StatelessWidget {
+class StatCard extends StatelessWidget {
   final String label, value;
   final IconData icon;
   final Color color;
-  const _StatCard(
-      {required this.label,
-        required this.value,
-        required this.icon,
-        required this.color});
+  const StatCard({required this.label, required this.value, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -472,122 +618,153 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _UpcomingCard extends StatelessWidget {
-  final Map ws;
-  const _UpcomingCard(this.ws);
+// Unified workshop card that can handle both upcoming and teaching workshops
+class WorkshopCard extends StatefulWidget {
+  final Map<String, dynamic> workshop;
+  final bool isTeaching;
+  final Future<String> Function(String) fetchCreatorName;
+
+  const WorkshopCard({
+    super.key,
+    required this.workshop,
+    required this.isTeaching,
+    required this.fetchCreatorName,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title
-            Text(
-              ws["title"],
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-
-            // Subtitle
-            Text(
-              "${ws["date"]} • with ${ws["instructor"]}",
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onBackground.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 6),
-
-            // Status Chip
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Chip(
-                label: Text(ws["status"], style: theme.textTheme.bodySmall),
-                backgroundColor: ws["status"] == "Teaching"
-                    ? theme.colorScheme.primary.withOpacity(0.2)
-                    : theme.colorScheme.secondary.withOpacity(0.2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<WorkshopCard> createState() => _WorkshopCardState();
 }
 
-class _RecommendedCard extends StatelessWidget {
-  final Map ws;
-  const _RecommendedCard(this.ws);
+class _WorkshopCardState extends State<WorkshopCard> {
+  late Future<String> creatorNameFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    creatorNameFuture = widget.fetchCreatorName(widget.workshop['creator_id']);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Safely parse the date
+    DateTime? date;
+    try {
+      if (widget.workshop['date'] != null && widget.workshop['date'].toString().isNotEmpty) {
+        date = DateTime.parse(widget.workshop['date'].toString());
+      }
+    } catch (e) {
+      print('Error parsing date for workshop ${widget.workshop['id']}: $e');
+    }
+
+    final time = widget.workshop['time'] != null ? widget.workshop['time'].toString() : null;
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => WorkshopDetailScreen(workshop: {
-              "title": ws["title"],
-              "instructor": ws["instructor"],
-              "rating": ws["rating"],
-              "participants": ws["participants"],
-              "duration": ws["duration"],
-              "category": "General", // fallback if not provided
-              "image": ws["image"] ??
-                  "https://via.placeholder.com/400x200?text=Workshop",
-              "tags": ["SkillX", "Workshop"],
-            }),
+            builder: (_) => WorkshopDetailScreen(workshop: widget.workshop),
           ),
         );
       },
       child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: EdgeInsets.zero, // Remove margin since we're handling it in the parent
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(8), // Reduced padding
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Title & Chip stacked vertically
               Text(
-                ws["title"],
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                widget.workshop["title"]?.toString() ?? "Untitled Workshop",
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), // Slightly smaller font
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4), // Reduced spacing
               Chip(
                 label: Text(
-                  ws["duration"],
-                  style: const TextStyle(fontSize: 12),
+                  widget.workshop["duration"]?.toString() ?? "Unknown duration",
+                  style: const TextStyle(fontSize: 11), // Smaller font
                 ),
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Smaller padding
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4), // Reduced spacing
 
-              // Rating & Participants
-              Row(
-                children: [
-                  const Icon(Icons.star, color: Colors.amber, size: 16),
-                  Text("${ws["rating"]}",
-                      style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.group, size: 16),
-                  Text("${ws["participants"]}",
-                      style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 8),
+              // Date & Time - Side by side
+              if (date != null || time != null)
+                Row(
+                  children: [
+                    if (date != null)
+                      Text(
+                        "${date.day}/${date.month}/${date.year}",
+                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                      ),
+                    if (date != null && time != null)
+                      const Text(
+                        " • ",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    if (time != null)
+                      Text(
+                        time,
+                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                      ),
+                  ],
+                ),
+              if (date != null || time != null)
+                const SizedBox(height: 6), // Reduced spacing
 
-              // Instructor
-              Text(
-                "by ${ws["instructor"]}",
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              // Different content based on workshop type
+              if (widget.isTeaching)
+                Text(
+                  "${widget.workshop["workshop_enrollments"]?.length ?? 0}/${widget.workshop["max_participants"] ?? 0} participants",
+                  style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                )
+              else
+                FutureBuilder<String>(
+                  future: creatorNameFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Text(
+                        "Loading...",
+                        style: TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                      );
+                    } else if (snapshot.hasError) {
+                      return const Text(
+                        "Unknown creator",
+                        style: TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                      );
+                    } else {
+                      return Text(
+                        "by ${snapshot.data ?? "Unknown creator"}",
+                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    }
+                  },
+                ),
+              const SizedBox(height: 6), // Reduced spacing
+
+              // Status Chip
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Chip(
+                  label: Text(
+                    widget.isTeaching ? "Teaching" : (widget.workshop["status"]?.toString() ?? "Unknown"),
+                    style: const TextStyle(fontSize: 11), // Smaller font
+                  ),
+                  backgroundColor: widget.isTeaching
+                      ? theme.colorScheme.primary.withOpacity(0.2)
+                      : theme.colorScheme.secondary.withOpacity(0.2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Smaller padding
+                ),
               ),
             ],
           ),
@@ -597,14 +774,13 @@ class _RecommendedCard extends StatelessWidget {
   }
 }
 
-
-class _QuickActionCard extends StatelessWidget {
+class QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String title, subtitle;
   final Color color;
   final VoidCallback? onTap;
 
-  const _QuickActionCard({
+  const QuickActionCard({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -644,13 +820,12 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-
-class _AchievementCard extends StatelessWidget {
+class AchievementCard extends StatelessWidget {
   final String name;
   final String icon;
   final bool earned;
 
-  const _AchievementCard({
+  const AchievementCard({
     required this.name,
     required this.icon,
     required this.earned,

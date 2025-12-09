@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
+import 'workshop_detail_screen.dart';
 
 class ScheduleScreen extends StatelessWidget {
-  const ScheduleScreen({super.key});
+  final List<Map<String, dynamic>> upcomingWorkshops;
+  final List<Map<String, dynamic>> teachingWorkshops;
+
+  const ScheduleScreen({
+    super.key,
+    required this.upcomingWorkshops,
+    required this.teachingWorkshops,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final appState = context.watch<AppState>();
-
-    final upcomingTeaching = appState.createdWorkshops
-        .where((ws) => ws["status"] == "upcoming" || ws["status"] == "Teaching")
-        .toList();
-
-    final upcomingEnrolled = appState.enrolledWorkshops
-        .where((ws) => ws["status"] == "upcoming" || ws["status"] == "Enrolled")
-        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -25,22 +24,24 @@ class ScheduleScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (upcomingTeaching.isNotEmpty) ...[
-            Text("Workshops You're Teaching",
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+          if (teachingWorkshops.isNotEmpty) ...[
+            Text(
+              "Workshops You're Teaching",
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            ...upcomingTeaching.map((ws) => _WorkshopCard(ws, theme, isTeaching: true)),
+            ...teachingWorkshops.map((ws) => _WorkshopCard(ws, context, isTeaching: true)),
             const SizedBox(height: 20),
           ],
-          if (upcomingEnrolled.isNotEmpty) ...[
-            Text("Workshops You're Attending",
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+          if (upcomingWorkshops.isNotEmpty) ...[
+            Text(
+              "Workshops You're Attending",
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            ...upcomingEnrolled.map((ws) => _WorkshopCard(ws, theme)),
+            ...upcomingWorkshops.map((ws) => _WorkshopCard(ws, context)),
           ],
-          if (upcomingTeaching.isEmpty && upcomingEnrolled.isEmpty)
+          if (teachingWorkshops.isEmpty && upcomingWorkshops.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 60),
@@ -48,14 +49,15 @@ class ScheduleScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.calendar_today, size: 64, color: Colors.grey),
                     const SizedBox(height: 16),
-                    Text("No upcoming workshops",
-                        style: theme.textTheme.titleMedium),
+                    Text(
+                      "No upcoming workshops",
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       "You have not scheduled or joined any upcoming workshops.",
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.grey),
+                      style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
                     ),
                   ],
                 ),
@@ -67,22 +69,50 @@ class ScheduleScreen extends StatelessWidget {
   }
 }
 
-Widget _WorkshopCard(Map ws, ThemeData theme, {bool isTeaching = false}) {
+Widget _WorkshopCard(Map<String, dynamic> ws, BuildContext context, {bool isTeaching = false}) {
+  final theme = Theme.of(context);
+
+  // Safely parse the date
+  DateTime? date;
+  try {
+    if (ws['date'] != null && ws['date'].toString().isNotEmpty) {
+      date = DateTime.parse(ws['date'].toString());
+    }
+  } catch (e) {
+    print('Error parsing date for workshop ${ws['id']}: $e');
+  }
+
+  final time = ws['time'] != null ? ws['time'].toString() : null;
+
   return Card(
     margin: const EdgeInsets.only(bottom: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     child: ListTile(
-      title: Text(ws["title"] ?? "Untitled Workshop",
-          style:
-          theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WorkshopDetailScreen(workshop: ws),
+          ),
+        );
+      },
+      title: Text(
+        ws["title"]?.toString() ?? "Untitled Workshop",
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 4),
-          Text(ws["date"] ?? "Date not set"),
-          if (ws["instructor"] != null)
-            Text("by ${ws["instructor"]}",
-                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey)),
+          if (date != null)
+            Text("${date.day}/${date.month}/${date.year}"),
+          if (time != null)
+            Text(time),
+          if (ws["creator_id"] != null)
+            Text(
+              "by ${ws["creator_id"]}",
+              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+            ),
         ],
       ),
       trailing: Chip(

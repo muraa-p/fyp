@@ -769,3 +769,12 @@ BEGIN
   END IF;
 END;
  $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+
+
+
+ -- Update the workshops table to ensure consistent date/time handling
+ALTER TABLE workshops
+ALTER COLUMN date TYPE TEXT USING to_char(date, 'YYYY-MM-DD'),
+ALTER COLUMN time TYPE TEXT USING to_char(date, 'HH24:MI:SS');
