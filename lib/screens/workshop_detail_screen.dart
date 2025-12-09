@@ -22,6 +22,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   bool isLiked = false;
   bool isLoadingEnrollment = false;
   Map<String, dynamic>? workshopConversation;
+  String enrollmentStatus = 'none'; // Track the status: 'none', 'pending', 'enrolled'
 
   late List<Map<String, dynamic>> syllabus;
   Map<String, dynamic>? lessonReviews; // Track reviews for each lesson
@@ -66,8 +67,25 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           .eq('workshop_id', widget.workshop['id'])
           .maybeSingle();
 
+      // Check if user has a pending enrollment request
+      final requestData = await Supabase.instance.client
+          .from('workshop_requests')
+          .select()
+          .eq('requester_id', currentUser.id)  // Changed from user_id to requester_id
+          .eq('workshop_id', widget.workshop['id'])
+          .maybeSingle();
+
+      // Set the appropriate status - enrollment takes precedence over request
+      String status = 'none';
+      if (enrollmentData != null) {
+        status = 'enrolled';
+      } else if (requestData != null) {
+        status = 'pending';
+      }
+
       setState(() {
         isEnrolled = enrollmentData != null;
+        enrollmentStatus = status;
       });
 
       // If enrolled, get the workshop conversation
@@ -125,6 +143,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     } catch (e) {
       print('Error checking existing reviews: $e');
     }
+  }
+
+  // Also add a refresh method to manually check enrollment status
+  Future<void> _refreshEnrollmentStatus() async {
+    await _checkEnrollmentAndConversation();
   }
 
   void _toggleLessonComplete(int index) {
@@ -342,6 +365,33 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
+  // Format date for display
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Date to be announced';
+
+    final now = DateTime.now();
+    final difference = date.difference(now);
+
+    if (difference.inDays > 0) {
+      return '${date.day}/${date.month}/${date.year}';
+    } else if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == -1) {
+      return 'Yesterday';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  // Format time for display
+  String _formatTime(TimeOfDay? time) {
+    if (time == null) return 'Time to be announced';
+
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final ws = widget.workshop;
@@ -359,6 +409,19 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     // Check if all lessons are completed
     final allLessonsCompleted = syllabus.every((lesson) => lesson['completed'] == true);
 
+    // Parse date and time from workshop data
+    DateTime? workshopDate;
+    TimeOfDay? workshopTime;
+
+    if (ws['date'] != null) {
+      try {
+        workshopDate = DateTime.parse(ws['date']);
+        workshopTime = TimeOfDay.fromDateTime(workshopDate);
+      } catch (e) {
+        print('Error parsing date: $e');
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -367,6 +430,13 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               : (ws['title'] ?? 'Workshop Details'),
         ),
         actions: [
+          // Add a debug refresh button (remove in production)
+          if (!isCreator)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _refreshEnrollmentStatus,
+              tooltip: 'Refresh enrollment status',
+            ),
           IconButton(
             icon: Icon(
               isLiked ? Icons.favorite : Icons.favorite_border,
@@ -408,6 +478,63 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           _coverImage(ws),
 
           const SizedBox(height: 20),
+
+          // --- Date and Time Card ---
+          if (!isTeach4Learn)
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Date & Time",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, color: theme.colorScheme.primary),
+                        const SizedBox(width: 12),
+                        Text(
+                          _formatDate(workshopDate),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, color: theme.colorScheme.primary),
+                        const SizedBox(width: 12),
+                        Text(
+                          _formatTime(workshopTime),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    if (ws['location'] != null && ws['location'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.location_on, color: theme.colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              ws['location'],
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+          if (!isTeach4Learn) const SizedBox(height: 20),
 
           // --- Stats ---
           if (!isTeach4Learn)
@@ -1079,7 +1206,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       );
     }
 
-    // Otherwise show enroll/un-enroll button
+    // Otherwise show enroll/un-enroll button based on enrollment status
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1089,43 +1216,47 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: isEnrolled
-              ? theme.colorScheme.secondary
+          backgroundColor: enrollmentStatus == 'enrolled'
+              ? Colors.green  // Changed to green color when enrolled
               : theme.colorScheme.primary,
           foregroundColor: Colors.white,
         ),
-        onPressed: isLoadingEnrollment ? null : () async {
+        // Disable the button if enrolled (approved) to prevent unenrollment
+        onPressed: (isLoadingEnrollment || enrollmentStatus == 'enrolled') ? null : () async {
           setState(() => isLoadingEnrollment = true);
 
           try {
-            if (isEnrolled) {
-              // Unenroll logic
+            if (enrollmentStatus == 'pending') {
+              // Withdraw pending request
               await Supabase.instance.client
-                  .from('workshop_enrollments')
+                  .from('workshop_requests')
                   .delete()
-                  .eq('user_id', currentUser!.id)
+                  .eq('requester_id', currentUser!.id)  // Changed from user_id to requester_id
                   .eq('workshop_id', ws['id']);
 
               setState(() {
-                isEnrolled = false;
-                workshopConversation = null;
+                enrollmentStatus = 'none';
               });
 
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(isTeach4Learn
                       ? "Exchange request withdrawn"
-                      : "Unenrolled from workshop"),
+                      : "Enrollment request withdrawn"),
                 ),
               );
             } else {
-              // Enroll logic
+              // Send new enrollment request
               await Supabase.instance.client
                   .from('workshop_requests')
                   .insert({
                 'workshop_id': ws['id'],
                 'requester_id': currentUser!.id,
                 'status': 'pending',
+              });
+
+              setState(() {
+                enrollmentStatus = 'pending';
               });
 
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1155,9 +1286,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           ),
         )
             : Text(
-          isTeach4Learn
-              ? (isEnrolled ? "Request Sent ✓" : "Send Exchange Request")
-              : (isEnrolled ? "Enrolled ✓" : "Request Enrollment"),
+          enrollmentStatus == 'enrolled'
+              ? "Enrolled ✓"  // Changed to show proper message when enrolled
+              : enrollmentStatus == 'pending'
+              ? "Withdraw Request"
+              : (isTeach4Learn ? "Send Exchange Request" : "Request Enrollment"),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
