@@ -24,6 +24,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   Map<String, dynamic>? workshopConversation;
 
   late List<Map<String, dynamic>> syllabus;
+  Map<String, dynamic>? lessonReviews; // Track reviews for each lesson
+  bool hasReviewedWorkshop = false; // Track if user has reviewed the entire workshop
 
   @override
   void initState() {
@@ -38,8 +40,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       {"title": "Project Practice", "duration": "30 min", "completed": false},
     ];
 
+    // Initialize lesson reviews map
+    lessonReviews = {};
+    for (int i = 0; i < syllabus.length; i++) {
+      lessonReviews![i.toString()] = null; // No review initially
+    }
+
     // Check if user is enrolled and get workshop conversation
     _checkEnrollmentAndConversation();
+    _checkExistingReviews();
   }
 
 // Update the _checkEnrollmentAndConversation function in WorkshopDetailScreen.dart
@@ -92,7 +101,39 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
+  // Check for existing reviews
+  Future<void> _checkExistingReviews() async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Check if user has already reviewed the workshop
+      final existingWorkshopReview = await Supabase.instance.client
+          .from('workshop_ratings')
+          .select()
+          .eq('workshop_id', widget.workshop['id'])
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+
+      setState(() {
+        hasReviewedWorkshop = existingWorkshopReview != null;
+      });
+
+      // Check for lesson reviews if we have a lesson_reviews table
+      // This is a placeholder for where you would fetch lesson reviews
+      // You might need to create a new table for lesson reviews
+    } catch (e) {
+      print('Error checking existing reviews: $e');
+    }
+  }
+
   void _toggleLessonComplete(int index) {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final isCreator = currentUser != null && widget.workshop['creator_id'] == currentUser.id;
+
+    // Only allow creator to toggle lesson completion
+    if (!isCreator) return;
+
     setState(() {
       syllabus[index]['completed'] = !syllabus[index]['completed'];
     });
@@ -105,6 +146,200 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       ...ws,
       "progress": syllabus,
     });
+
+    // Update the workshop in the database
+    _updateWorkshopSyllabus();
+  }
+
+  // Update workshop syllabus in the database
+  Future<void> _updateWorkshopSyllabus() async {
+    try {
+      await Supabase.instance.client
+          .from('workshops')
+          .update({'syllabus': syllabus})
+          .eq('id', widget.workshop['id']);
+    } catch (e) {
+      print('Error updating syllabus: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating syllabus: ${e.toString()}')),
+      );
+    }
+  }
+
+  // Show dialog to review a lesson
+  void _showLessonReviewDialog(int lessonIndex) {
+    final TextEditingController reviewController = TextEditingController();
+    int rating = 5; // Default rating
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Review: ${syllabus[lessonIndex]['title']}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('How would you rate this lesson?'),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                return IconButton(
+                  icon: Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      rating = index + 1;
+                    });
+                  },
+                );
+              }),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reviewController,
+              decoration: const InputDecoration(
+                hintText: 'Write your review...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _submitLessonReview(lessonIndex, rating, reviewController.text);
+              Navigator.pop(context);
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Submit lesson review
+  Future<void> _submitLessonReview(int lessonIndex, int rating, String review) async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Store the review locally
+      setState(() {
+        lessonReviews![lessonIndex.toString()] = {
+          'rating': rating,
+          'review': review,
+          'created_at': DateTime.now().toIso8601String(),
+        };
+      });
+
+      // In a real implementation, you would save this to a lesson_reviews table
+      // For now, we'll just show a success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lesson review submitted!')),
+      );
+    } catch (e) {
+      print('Error submitting lesson review: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting review: ${e.toString()}')),
+      );
+    }
+  }
+
+  // Show dialog to review the entire workshop
+  void _showWorkshopReviewDialog() {
+    final TextEditingController reviewController = TextEditingController();
+    int rating = 5; // Default rating
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Review: ${widget.workshop['title']}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('How would you rate this workshop?'),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                return IconButton(
+                  icon: Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      rating = index + 1;
+                    });
+                  },
+                );
+              }),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reviewController,
+              decoration: const InputDecoration(
+                hintText: 'Write your review...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _submitWorkshopReview(rating, reviewController.text);
+              Navigator.pop(context);
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Submit workshop review
+  Future<void> _submitWorkshopReview(int rating, String review) async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Save the review to the database
+      await Supabase.instance.client
+          .from('workshop_ratings')
+          .upsert({
+        'workshop_id': widget.workshop['id'],
+        'user_id': currentUser.id,
+        'rating': rating,
+        'review': review,
+        'created_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'workshop_id,user_id');
+
+      setState(() {
+        hasReviewedWorkshop = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Workshop review submitted!')),
+      );
+    } catch (e) {
+      print('Error submitting workshop review: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting review: ${e.toString()}')),
+      );
+    }
   }
 
   @override
@@ -112,12 +347,17 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     final ws = widget.workshop;
     final theme = Theme.of(context);
     final isTeach4Learn = ws['type'] == 'Teach4Learn';
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final isCreator = currentUser != null && ws['creator_id'] == currentUser.id;
 
     final completedCount =
         syllabus.where((item) => item['completed']).length;
     final progressPercent = syllabus.isEmpty
         ? 0.0
         : completedCount / syllabus.length;
+
+    // Check if all lessons are completed
+    final allLessonsCompleted = syllabus.every((lesson) => lesson['completed'] == true);
 
     return Scaffold(
       appBar: AppBar(
@@ -232,9 +472,26 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           // --- Syllabus ---
           if ((ws['syllabus'] ?? []).isNotEmpty)
-            _syllabusCard(theme, progressPercent),
+            _syllabusCard(theme, progressPercent, isCreator),
 
           const SizedBox(height: 20),
+
+          // --- Workshop Review Button (only for enrolled users when all lessons are completed) ---
+          if (isEnrolled && allLessonsCompleted && !hasReviewedWorkshop)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 20),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.rate_review),
+                label: const Text("Review Workshop"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _showWorkshopReviewDialog,
+              ),
+            ),
 
           // --- Prerequisites ---
           if ((ws['prerequisites'] ?? '').toString().trim().isNotEmpty)
@@ -456,7 +713,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  Widget _syllabusCard(ThemeData theme, double progressPercent) {
+  Widget _syllabusCard(ThemeData theme, double progressPercent, bool isCreator) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -477,6 +734,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               children: syllabus.asMap().entries.map((entry) {
                 final index = entry.key;
                 final item = entry.value;
+                final hasReviewed = lessonReviews?[index.toString()] != null;
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
@@ -489,8 +748,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                   ),
                   child: Row(
                     children: [
+                      // Only make the circle clickable for the creator
                       GestureDetector(
-                        onTap: () => _toggleLessonComplete(index),
+                        onTap: isCreator ? () => _toggleLessonComplete(index) : null,
                         child: CircleAvatar(
                           radius: 14,
                           backgroundColor: item['completed']
@@ -518,6 +778,21 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                           ],
                         ),
                       ),
+                      // Show "Give Review" button for completed lessons (for enrolled users, not creators)
+                      if (item['completed'] && isEnrolled && !isCreator && !hasReviewed)
+                        TextButton(
+                          onPressed: () => _showLessonReviewDialog(index),
+                          child: const Text("Give Review"),
+                        ),
+                      // Show "Reviewed" indicator if already reviewed
+                      if (item['completed'] && isEnrolled && !isCreator && hasReviewed)
+                        const Text(
+                          "Reviewed",
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                     ],
                   ),
                 );
