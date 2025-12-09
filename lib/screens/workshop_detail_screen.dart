@@ -697,11 +697,68 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
                   // Only delete & navigate back if confirmed
                   if (confirm == true) {
-                    context.read<AppState>().deleteWorkshop(ws['id']);
-                    Navigator.pop(context); // Close details screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Workshop deleted 🗑️")),
-                    );
+                    try {
+                      // Show loading indicator
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (ctx) => const AlertDialog(
+                          content: Row(
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(width: 20),
+                              Text("Deleting workshop..."),
+                            ],
+                          ),
+                        ),
+                      );
+
+                      // Delete from Supabase
+                      await Supabase.instance.client
+                          .from('workshops')
+                          .delete()
+                          .eq('id', ws['id']);
+
+                      // Also delete any related enrollments, ratings, and requests
+                      await Supabase.instance.client
+                          .from('workshop_enrollments')
+                          .delete()
+                          .eq('workshop_id', ws['id']);
+
+                      await Supabase.instance.client
+                          .from('workshop_ratings')
+                          .delete()
+                          .eq('workshop_id', ws['id']);
+
+                      await Supabase.instance.client
+                          .from('workshop_requests')
+                          .delete()
+                          .eq('workshop_id', ws['id']);
+
+                      // Close loading dialog
+                      Navigator.pop(context);
+
+                      // Update local state
+                      context.read<AppState>().deleteWorkshop(ws['id']);
+
+                      // Close details screen
+                      Navigator.pop(context);
+
+                      // Show success message
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Workshop deleted 🗑️")),
+                      );
+                    } catch (e) {
+                      // Close loading dialog if still open
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      }
+
+                      // Show error message
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Error deleting workshop: ${e.toString()}")),
+                      );
+                    }
                   }
                 },
               ),

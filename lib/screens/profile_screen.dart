@@ -309,7 +309,60 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  // In ProfileScreen.dart, modify the _buildSkillsTab method to calculate workshop counts dynamically
+
   Widget _buildSkillsTab(ThemeData theme, List skills) {
+    // Create a map to store workshop counts for each skill
+    Map<String, int> skillWorkshopCounts = {};
+
+    // Initialize all skills with 0 workshops
+    for (var skill in skills) {
+      skillWorkshopCounts[skill["name"]] = 0;
+    }
+
+    // Count workshops for each skill
+    if (_createdWorkshops != null) {
+      for (var workshop in _createdWorkshops!) {
+        // Check if workshop title contains any skill name
+        for (var skill in skills) {
+          String skillName = skill["name"].toLowerCase();
+
+          // Check in title
+          if (workshop["title"] != null &&
+              workshop["title"].toString().toLowerCase().contains(skillName)) {
+            skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
+            continue;
+          }
+
+          // Check in tags
+          if (workshop["tags"] != null && workshop["tags"] is List) {
+            for (var tag in workshop["tags"]) {
+              if (tag.toString().toLowerCase() == skillName) {
+                skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
+                continue;
+              }
+            }
+          }
+
+          // Check in skills field
+          if (workshop["skills"] != null && workshop["skills"] is List) {
+            for (var skillField in workshop["skills"]) {
+              if (skillField.toString().toLowerCase() == skillName) {
+                skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
+                continue;
+              }
+            }
+          }
+
+          // Check in description
+          if (workshop["description"] != null &&
+              workshop["description"].toString().toLowerCase().contains(skillName)) {
+            skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
+          }
+        }
+      }
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: skills.isEmpty
@@ -319,6 +372,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (s["level"] == "Expert") progress = 0.95;
         if (s["level"] == "Advanced") progress = 0.75;
         if (s["level"] == "Intermediate") progress = 0.5;
+
+        // Use the calculated workshop count instead of the one from the database
+        int workshopCount = skillWorkshopCounts[s["name"]] ?? 0;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -331,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 const SizedBox(height: 6),
                 LinearProgressIndicator(value: progress, minHeight: 6),
                 const SizedBox(height: 6),
-                Text("${s["endorsements"]} endorsements • ${s["workshops"]} workshops"),
+                Text("${s["endorsements"]} endorsements • ${workshopCount} workshops"),
               ],
             ),
           ),
