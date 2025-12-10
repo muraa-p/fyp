@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../main.dart';
+
+// This file now relies on the global `supabase` variable defined in main.dart
 
 class GamificationScreen extends StatefulWidget {
   final Function(String) onNavigate;
-  final int initialTab; // NEW: allows opening directly to a specific tab
+  final int initialTab;
   const GamificationScreen({
     super.key,
     required this.onNavigate,
-    this.initialTab = 0, // default: Overview tab
+    this.initialTab = 0,
   });
 
   @override
@@ -14,18 +19,26 @@ class GamificationScreen extends StatefulWidget {
 }
 
 class _GamificationScreenState extends State<GamificationScreen>
-    with SingleTickerProviderStateMixin { // ✅ FIX
-
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
+  // State variables for our data
+  Map<String, dynamic>? _userStats;
+  List<dynamic>? _leaderboard;
+  List<dynamic>? _badges;
+  List<dynamic>? _achievements;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
       length: 4,
-      vsync: this, // ✅ FIX — safe and correct
+      vsync: this,
       initialIndex: widget.initialTab,
     );
+    _loadGamificationData();
   }
 
   @override
@@ -34,123 +47,100 @@ class _GamificationScreenState extends State<GamificationScreen>
     super.dispose();
   }
 
+  Future<void> _loadGamificationData() async {
+    // The global 'supabase' variable is now accessible here
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() {
+        _error = "User not logged in.";
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await supabase.rpc('get_user_gamification_data', params: {
+        'current_user_id': userId,
+      });
+
+      // FIX: The response from an RPC that returns a table is a list.
+      // We need to get the first element, which contains our data.
+      final data = response is List ? response.first : response;
+
+      if (data != null) {
+        setState(() {
+          _userStats = {
+            "totalXP": data['user_xp'],
+            "level": data['user_level'],
+            // Note: nextLevelXP logic needs to be defined. For now, a placeholder.
+            "nextLevelXP": (data['user_level'] + 1) * 500,
+            "badgesEarned": data['badges_earned'],
+            "workshopsAttended": data['workshops_attended'],
+            "workshopsTaught": data['workshops_taught'],
+            "endorsements": data['endorsements_count'],
+          };
+          _leaderboard = data['leaderboard'];
+          _badges = data['user_badges_data'];
+          _achievements = data['user_achievements_data'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = "Received no data from server.";
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = "Failed to load data: $e";
+        _isLoading = false;
+      });
+    }
+  }
+
+  Color rarityColor(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case "common":
+        return Colors.grey;
+      case "uncommon":
+        return Colors.green;
+      case "rare":
+        return Colors.blue;
+      case "epic":
+        return Colors.purple;
+      case "legendary":
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final Map<String, int> userStats = {
-      "totalXP": 2340,
-      "level": 7,
-      "nextLevelXP": 2800,
-      "badgesEarned": 12,
-      "workshopsAttended": 18,
-      "workshopsTaught": 5,
-      "endorsements": 23,
-      "rank": 15,
-      "totalUsers": 1247,
-    };
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    final List<Map<String, dynamic>> badges = [
-      {
-        "name": "First Steps",
-        "desc": "Complete your first workshop",
-        "icon": "🎯",
-        "earned": true,
-        "rarity": "Common"
-      },
-      {
-        "name": "Knowledge Seeker",
-        "desc": "Attend 10 workshops",
-        "icon": "📚",
-        "earned": true,
-        "rarity": "Common"
-      },
-      {
-        "name": "Rising Star",
-        "desc": "Teach your first workshop",
-        "icon": "⭐",
-        "earned": true,
-        "rarity": "Uncommon"
-      },
-      {
-        "name": "Community Leader",
-        "desc": "Teach 10 workshops",
-        "icon": "👑",
-        "earned": false,
-        "progress": 5,
-        "max": 10,
-        "rarity": "Rare"
-      },
-      {
-        "name": "Skill Master",
-        "desc": "Earn endorsements in 5 skills",
-        "icon": "🏆",
-        "earned": true,
-        "rarity": "Epic"
-      },
-      {
-        "name": "Legendary Mentor",
-        "desc": "Teach 50 workshops",
-        "icon": "🌟",
-        "earned": false,
-        "progress": 5,
-        "max": 50,
-        "rarity": "Legendary"
-      },
-    ];
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Gamification")),
+        body: Center(
+          child: Text(_error!),
+        ),
+      );
+    }
 
-    final List<Map<String, dynamic>> leaderboard = [
-      {"rank": 1, "name": "Emma Wilson", "avatar": "👩‍💼", "xp": 5240, "badges": 28},
-      {"rank": 2, "name": "James Chen", "avatar": "👨‍💻", "xp": 4980, "badges": 25},
-      {"rank": 3, "name": "Sofia Rodriguez", "avatar": "👩‍🎓", "xp": 4650, "badges": 23},
-      {"rank": 4, "name": "Michael Park", "avatar": "👨‍🏫", "xp": 4320, "badges": 21},
-      {"rank": 5, "name": "Lisa Anderson", "avatar": "👩‍🔬", "xp": 3990, "badges": 19},
-      {"rank": 15, "name": "You", "avatar": "👤", "xp": 2340, "badges": 12, "isMe": true},
-    ];
-
-    final List<Map<String, dynamic>> achievements = [
-      {
-        "title": "Perfect Attendance",
-        "desc": "Attend 5 workshops this month",
-        "progress": 3,
-        "max": 5,
-        "reward": "+150 XP",
-        "icon": "🎯"
-      },
-      {
-        "title": "Social Butterfly",
-        "desc": "Start chats with 10 new people",
-        "progress": 7,
-        "max": 10,
-        "reward": "+100 XP",
-        "icon": "🦋"
-      },
-      {
-        "title": "Skill Collector",
-        "desc": "Learn 3 new skills this month",
-        "progress": 1,
-        "max": 3,
-        "reward": "Skill Explorer Badge",
-        "icon": "🎪"
-      },
-    ];
-
-    Color rarityColor(String rarity) {
-      switch (rarity.toLowerCase()) {
-        case "common":
-          return Colors.grey;
-        case "uncommon":
-          return Colors.green;
-        case "rare":
-          return Colors.blue;
-        case "epic":
-          return Colors.purple;
-        case "legendary":
-          return Colors.amber;
-        default:
-          return Colors.grey;
-      }
+    if (_userStats == null || _leaderboard == null || _badges == null || _achievements == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Gamification")),
+        body: const Center(
+          child: Text("Could not load gamification data."),
+        ),
+      );
     }
 
     return Scaffold(
@@ -192,17 +182,17 @@ class _GamificationScreenState extends State<GamificationScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Level ${userStats["level"]}", style: theme.textTheme.titleMedium),
+                      Text("Level ${_userStats!["level"]}", style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
-                      Text("${userStats["totalXP"]} / ${userStats["nextLevelXP"]} XP"),
+                      Text("${_userStats!["totalXP"]} / ${_userStats!["nextLevelXP"]} XP"),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: (userStats["totalXP"]! / userStats["nextLevelXP"]!),
+                        value: (_userStats!["totalXP"]! / _userStats!["nextLevelXP"]!),
                         backgroundColor: Colors.grey[300],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "${userStats["nextLevelXP"]! - userStats["totalXP"]!} XP to next level",
+                        "${_userStats!["nextLevelXP"]! - _userStats!["totalXP"]!} XP to next level",
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -216,10 +206,10 @@ class _GamificationScreenState extends State<GamificationScreen>
                 crossAxisCount: 2,
                 childAspectRatio: 1.8,
                 children: [
-                  _StatCard("🎓", "Workshops Attended", "${userStats["workshopsAttended"]}"),
-                  _StatCard("👨‍🏫", "Workshops Taught", "${userStats["workshopsTaught"]}"),
-                  _StatCard("🏆", "Badges Earned", "${userStats["badgesEarned"]}"),
-                  _StatCard("👍", "Endorsements", "${userStats["endorsements"]}"),
+                  _StatCard("🎓", "Workshops Attended", "${_userStats!["workshopsAttended"]}"),
+                  _StatCard("👨‍🏫", "Workshops Taught", "${_userStats!["workshopsTaught"]}"),
+                  _StatCard("🏆", "Badges Earned", "${_userStats!["badgesEarned"]}"),
+                  _StatCard("👍", "Endorsements", "${_userStats!["endorsements"]}"),
                 ],
               ),
               const SizedBox(height: 16),
@@ -231,19 +221,19 @@ class _GamificationScreenState extends State<GamificationScreen>
                     children: [
                       const Text("Recent Achievements", style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
-                      ...badges
+                      ...(_badges!
                           .where((b) => b["earned"] == true)
                           .take(3)
                           .map((b) => ListTile(
                         leading: Text(b["icon"] as String, style: const TextStyle(fontSize: 24)),
                         title: Text(b["name"] as String),
-                        subtitle: Text(b["desc"] as String),
+                        subtitle: Text(b["description"] as String),
                         trailing: Chip(
                           label: Text(b["rarity"] as String),
                           backgroundColor: rarityColor(b["rarity"] as String),
                           labelStyle: const TextStyle(color: Colors.white),
                         ),
-                      )),
+                      ))),
                     ],
                   ),
                 ),
@@ -254,11 +244,9 @@ class _GamificationScreenState extends State<GamificationScreen>
           // --- Badges ---
           ListView(
             padding: const EdgeInsets.all(16),
-            children: badges.map((b) {
+            children: _badges!.map((b) {
               final bool earned = b["earned"] == true;
-              final double? progress = (!earned && b["progress"] != null && b["max"] != null)
-                  ? (((b["progress"] as num?) ?? 0) / ((b["max"] as num?) ?? 1))
-                  : null;
+              final double progress = (b["progress"] as int? ?? 0) / (b["max"] as int? ?? 1);
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -285,8 +273,8 @@ class _GamificationScreenState extends State<GamificationScreen>
                                 ),
                               ],
                             ),
-                            Text(b["desc"] as String, style: theme.textTheme.bodySmall),
-                            if (progress != null) ...[
+                            Text(b["description"] as String, style: theme.textTheme.bodySmall),
+                            if (!earned) ...[
                               const SizedBox(height: 8),
                               LinearProgressIndicator(value: progress),
                               Text("${b["progress"]}/${b["max"]}", style: theme.textTheme.bodySmall),
@@ -304,12 +292,13 @@ class _GamificationScreenState extends State<GamificationScreen>
           // --- Leaderboard ---
           ListView(
             padding: const EdgeInsets.all(16),
-            children: leaderboard.map((u) {
-              final bool isMe = u["isMe"] == true;
+            children: _leaderboard!.map((u) {
+              // The global 'supabase' variable is also accessible here
+              final bool isMe = u["id"] == supabase.auth.currentUser?.id;
               return Card(
                 color: isMe ? Colors.blue.shade50 : null,
                 child: ListTile(
-                  leading: Text(u["avatar"] as String, style: const TextStyle(fontSize: 28)),
+                  leading: CircleAvatar(child: Text(u["rank"].toString())),
                   title: Text(u["name"] as String,
                       style: TextStyle(fontWeight: isMe ? FontWeight.bold : null)),
                   subtitle: Text("${u["xp"]} XP • ${u["badges"]} Badges"),
@@ -322,8 +311,8 @@ class _GamificationScreenState extends State<GamificationScreen>
           // --- Achievements ---
           ListView(
             padding: const EdgeInsets.all(16),
-            children: achievements.map((a) {
-              final progress = ((a["progress"] as num?) ?? 0) / ((a["max"] as num?) ?? 1);
+            children: _achievements!.map((a) {
+              final progress = (a["progress"] as int? ?? 0) / (a["max"] as int? ?? 1);
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -344,7 +333,7 @@ class _GamificationScreenState extends State<GamificationScreen>
                                 Chip(label: Text(a["reward"] as String), labelStyle: const TextStyle(fontSize: 12)),
                               ],
                             ),
-                            Text(a["desc"] as String, style: theme.textTheme.bodySmall),
+                            Text(a["description"] as String, style: theme.textTheme.bodySmall),
                             const SizedBox(height: 8),
                             LinearProgressIndicator(value: progress),
                             Text("${a["progress"]}/${a["max"]}", style: theme.textTheme.bodySmall),

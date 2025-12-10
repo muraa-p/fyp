@@ -9,6 +9,11 @@ import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
 
+// =================================================================
+// ADD THIS LINE: Create a global Supabase client
+// =================================================================
+final supabase = Supabase.instance.client;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
