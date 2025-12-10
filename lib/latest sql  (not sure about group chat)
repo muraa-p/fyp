@@ -778,3 +778,455 @@ END;
 ALTER TABLE workshops
 ALTER COLUMN date TYPE TEXT USING to_char(date, 'YYYY-MM-DD'),
 ALTER COLUMN time TYPE TEXT USING to_char(date, 'HH24:MI:SS');
+
+
+
+
+
+
+
+
+
+-- =================================================================
+-- GAMIFICATION SYSTEM SCHEMA FOR SUPABASE
+-- =================================================================
+
+-- 1. Modify the existing 'users' table to include gamification fields
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
+
+-- 2. Create a table for all possible badge definitions
+CREATE TABLE IF NOT EXISTS badge_definitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  icon TEXT, -- e.g., '🎯', '👑'
+  rarity TEXT NOT NULL CHECK (rarity IN ('Common', 'Uncommon', 'Rare', 'Epic', 'Legendary')),
+  requirement_type TEXT NOT NULL, -- e.g., 'workshops_attended', 'workshops_taught'
+  requirement_value INTEGER NOT NULL -- e.g., 1, 10, 50
+);
+
+-- 3. Create a join table to track user progress on badges
+CREATE TABLE IF NOT EXISTS user_badges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  badge_id UUID REFERENCES badge_definitions(id) ON DELETE CASCADE,
+  earned BOOLEAN DEFAULT FALSE,
+  progress INTEGER DEFAULT 0,
+  earned_at TIMESTAMPTZ,
+  UNIQUE(user_id, badge_id) -- Ensures a user can only have one entry per badge
+);
+
+-- 4. Create a table for all possible achievement definitions
+CREATE TABLE IF NOT EXISTS achievement_definitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT UNIQUE NOT NULL,
+  description TEXT,
+  icon TEXT, -- e.g., '🎯', '🦋'
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('xp', 'badge')),
+  reward_value TEXT NOT NULL, -- e.g., '150' for XP or 'Skill Explorer Badge' for a badge name
+  requirement_type TEXT NOT NULL, -- e.g., 'monthly_workshop_attendance'
+  requirement_value INTEGER NOT NULL -- e.g., 5
+);
+
+-- 5. Create a join table to track user progress on achievements
+CREATE TABLE IF NOT EXISTS user_achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  achievement_id UUID REFERENCES achievement_definitions(id) ON DELETE CASCADE,
+  progress INTEGER DEFAULT 0,
+  is_completed BOOLEAN DEFAULT FALSE,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(user_id, achievement_id)
+);
+
+-- 6. Create indexes for better performance
+CREATE INDEX IF NOT EXISTS user_badges_user_id_idx ON user_badges(user_id);
+CREATE INDEX IF NOT EXISTS user_badges_badge_id_idx ON user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS user_achievements_user_id_idx ON user_achievements(user_id);
+CREATE INDEX IF NOT EXISTS user_achievements_achievement_id_idx ON user_achievements(achievement_id);
+CREATE INDEX IF NOT EXISTS users_xp_idx ON users(xp DESC); -- For leaderboard
+
+-- 7. Enable RLS on the new tables
+ALTER TABLE badge_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievement_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
+-- The 'users' table should already have RLS enabled from your previous schema.
+
+-- 8. Create RLS Policies
+
+-- Badge Definitions are public read-only
+CREATE POLICY "Badge definitions are viewable by everyone."
+ON badge_definitions FOR SELECT
+USING ( true );
+
+-- Achievement Definitions are public read-only
+CREATE POLICY "Achievement definitions are viewable by everyone."
+ON achievement_definitions FOR SELECT
+USING ( true );
+
+-- Users can view their own badge progress
+CREATE POLICY "Users can view their own badge progress."
+ON user_badges FOR SELECT
+USING ( auth.uid() = user_id );
+
+-- Users can view their own achievement progress
+CREATE POLICY "Users can view their own achievement progress."
+ON user_achievements FOR SELECT
+USING ( auth.uid() = user_id );
+
+-- Users can update their own badge/achievement progress (this would be done by a backend function)
+-- For now, we'll keep it simple. A real system would use database functions or edge functions
+-- to grant XP and update progress to prevent cheating.
+CREATE POLICY "Users can update their own progress." ON user_badges FOR UPDATE
+USING ( auth.uid() = user_id );
+CREATE POLICY "Users can update their own progress." ON user_achievements FOR UPDATE
+USING ( auth.uid() = user_id );
+
+-- 9. (Optional but Recommended) Populate the tables with initial data
+-- This is where you define the badges and achievements from your Dart code.
+
+INSERT INTO badge_definitions (name, description, icon, rarity, requirement_type, requirement_value) VALUES
+  ('First Steps', 'Complete your first workshop', '🎯', 'Common', 'workshops_attended', 1),
+  ('Knowledge Seeker', 'Attend 10 workshops', '📚', 'Common', 'workshops_attended', 10),
+  ('Rising Star', 'Teach your first workshop', '⭐', 'Uncommon', 'workshops_taught', 1),
+  ('Community Leader', 'Teach 10 workshops', '👑', 'Rare', 'workshops_taught', 10),
+  ('Skill Master', 'Earn endorsements in 5 skills', '🏆', 'Epic', 'skills_endorsed', 5),
+  ('Legendary Mentor', 'Teach 50 workshops', '🌟', 'Legendary', 'workshops_taught', 50)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO achievement_definitions (title, description, icon, reward_type, reward_value, requirement_type, requirement_value) VALUES
+  ('Perfect Attendance', 'Attend 5 workshops this month', '🎯', 'xp', '150', 'monthly_workshop_attendance', 5),
+  ('Social Butterfly', 'Start chats with 10 new people', '🦋', 'xp', '100', 'new_conversations', 10),
+  ('Skill Collector', 'Learn 3 new skills this month', '🎪', 'badge', 'Skill Explorer Badge', 'monthly_skills_learned', 3)
+ON CONFLICT (title) DO NOTHING;
+
+-- 10. Create a Postgres Function to get all user gamification data in one go
+-- This is much more efficient than making multiple separate calls from the app.
+CREATE OR REPLACE FUNCTION get_user_gamification_data(current_user_id UUID)
+RETURNS TABLE(
+  -- User stats
+  user_xp INT,
+  user_level INT,
+  workshops_attended BIGINT,
+  workshops_taught BIGINT,
+  badges_earned BIGINT,
+  endorsements_count BIGINT,
+  -- Leaderboard
+  leaderboard JSONB,
+  -- Badges
+  user_badges_data JSONB,
+  -- Achievements
+  user_achievements_data JSONB
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
+    -- User Stats
+    u.xp,
+    u.level,
+    (SELECT count(*) FROM workshop_enrollments WHERE user_id = current_user_id),
+    (SELECT count(*) FROM workshops WHERE creator_id = current_user_id),
+    (SELECT count(*) FROM user_badges WHERE user_id = current_user_id AND earned = true),
+    (SELECT count(*) FROM endorsements WHERE endorsed_user = current_user_id),
+
+    -- Leaderboard (Top 20 + current user)
+    (SELECT jsonb_agg(row_to_json(lb))
+     FROM (
+       SELECT
+         row_number() OVER (ORDER BY xp DESC) AS rank,
+         id,
+         name,
+         avatar_url,
+         xp,
+         (SELECT count(*) FROM user_badges WHERE user_id = u.id AND earned = true) AS badges
+       FROM users u
+       ORDER BY xp DESC
+       LIMIT 20
+     ) AS lb
+    ),
+
+    -- User Badges (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(badge_data))
+     FROM (
+       SELECT
+         bd.id,
+         bd.name,
+         bd.description,
+         bd.icon,
+         bd.rarity,
+         COALESCE(ub.earned, false) AS earned,
+         COALESCE(ub.progress, 0) AS progress,
+         bd.requirement_value AS max
+       FROM badge_definitions bd
+       LEFT JOIN user_badges ub ON bd.id = ub.badge_id AND ub.user_id = current_user_id
+     ) AS badge_data
+    ),
+
+    -- User Achievements (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(ach_data))
+     FROM (
+       SELECT
+         ad.id,
+         ad.title,
+         ad.description,
+         ad.icon,
+         ad.reward_value AS reward,
+         COALESCE(ua.progress, 0) AS progress,
+         ad.requirement_value AS max
+       FROM achievement_definitions ad
+       LEFT JOIN user_achievements ua ON ad.id = ua.achievement_id AND ua.user_id = current_user_id
+     ) AS ach_data
+    )
+
+  FROM users u WHERE u.id = current_user_id;
+ $$;
+
+-- Grant permission to execute the function
+GRANT EXECUTE ON FUNCTION get_user_gamification_data(UUID) TO authenticated;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- This table will track the completion status of each lesson for each enrolled user.
+CREATE TABLE IF NOT EXISTS user_syllabus_progress (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
+  lesson_index INTEGER NOT NULL, -- The index of the lesson in the syllabus array
+  completed_at TIMESTAMPTZ,
+  UNIQUE(user_id, workshop_id, lesson_index) -- A user can only have one status per lesson
+);
+
+-- Enable RLS
+ALTER TABLE user_syllabus_progress ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+-- Users can view their own progress
+CREATE POLICY "Users can view their own syllabus progress."
+ON user_syllabus_progress FOR SELECT
+USING ( auth.uid() = user_id );
+
+-- The system (via a function) can insert/update progress
+CREATE POLICY "System can manage syllabus progress."
+ON user_syllabus_progress FOR ALL
+USING ( auth.role() = 'service_role' );
+
+-- Create an index for performance
+CREATE INDEX IF NOT EXISTS user_syllabus_progress_idx ON user_syllabus_progress(user_id, workshop_id);
+
+
+
+
+-- This function is the main engine for awarding XP and checking badges.
+-- It's designed to be called by other functions or triggers.
+CREATE OR REPLACE FUNCTION award_xp_and_check_badges(
+  p_user_id UUID,
+  p_xp_to_award INT,
+  p_action_type TEXT, -- e.g., 'lesson_completed', 'workshop_reviewed'
+  p_workshop_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER -- Runs with elevated privileges, crucial for security
+AS $$ DECLARE
+  current_xp INT;
+  new_level INT;
+  new_total_xp INT;
+  workshops_attended_count INT;
+  workshops_taught_count INT;
+  lesson_count INT;
+BEGIN
+  -- 1. Update user's total XP
+  UPDATE users
+  SET xp = xp + p_xp_to_award
+  WHERE id = p_user_id
+  RETURNING xp, level INTO new_total_xp, new_level;
+
+  -- 2. Check for level up (simple logic: 500 XP per level)
+  new_level := new_total_xp / 500 + 1;
+  IF new_level > (SELECT level FROM users WHERE id = p_user_id) THEN
+    UPDATE users SET level = new_level WHERE id = p_user_id;
+  END IF;
+
+  -- 3. Check and award badges based on the action
+
+  -- Badge: First Steps (complete first lesson of any workshop)
+  IF p_action_type = 'lesson_completed' THEN
+    SELECT COUNT(*) INTO lesson_count
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id;
+
+    IF lesson_count = 1 THEN
+      UPDATE user_badges SET earned = TRUE, earned_at = NOW()
+      WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'First Steps');
+    END IF;
+  END IF;
+
+  -- Badge: Knowledge Seeker (complete lessons in 10 different workshops)
+  SELECT COUNT(DISTINCT workshop_id) INTO workshops_attended_count
+  FROM user_syllabus_progress
+  WHERE user_id = p_user_id;
+
+  IF workshops_attended_count >= 10 THEN
+    UPDATE user_badges SET earned = TRUE, earned_at = NOW()
+    WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'Knowledge Seeker');
+  END IF;
+
+  -- Badge: Rising Star (teach first workshop - awarded when creator marks a lesson for a student)
+  IF p_action_type = 'lesson_completed' AND p_workshop_id IS NOT NULL THEN
+    IF (SELECT creator_id FROM workshops WHERE id = p_workshop_id) = p_user_id THEN
+       -- Check if this is the first time they are marking a lesson for any of their workshops
+       IF (SELECT COUNT(*) FROM user_syllabus_progress usp JOIN workshops w ON usp.workshop_id = w.id WHERE w.creator_id = p_user_id AND usp.completed_at IS NOT NULL) = 1 THEN
+          UPDATE user_badges SET earned = TRUE, earned_at = NOW()
+          WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'Rising Star');
+       END IF;
+    END IF;
+  END IF;
+
+  -- You can add more badge logic here for other actions like submitting reviews, etc.
+
+END;
+ $$;
+
+
+
+
+
+
+
+ -- Function to be called when a creator marks a lesson as complete for an enrolled user.
+CREATE OR REPLACE FUNCTION mark_lesson_complete(
+  p_user_id UUID,       -- The user who is being marked complete
+  p_workshop_id UUID,
+  p_lesson_index INT
+)
+RETURNS TABLE (success BOOLEAN, message TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$ DECLARE
+  is_enrolled BOOLEAN;
+BEGIN
+  -- Check if the user is actually enrolled in the workshop
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+
+  IF NOT is_enrolled THEN
+    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
+    RETURN;
+  END IF;
+
+  -- Insert progress, but only if not already completed
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  -- Check if a new row was inserted (i.e., it wasn't already completed)
+  IF FOUND THEN
+    -- Award XP and check badges for the STUDENT
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    -- Also award XP to the CREATOR for teaching
+    PERFORM award_xp_and_check_badges((SELECT creator_id FROM workshops WHERE id = p_workshop_id), 5, 'lesson_taught', p_workshop_id);
+
+    RETURN QUERY SELECT TRUE, 'Lesson marked as complete and XP awarded.';
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson was already marked as complete.';
+  END IF;
+END;
+ $$;
+
+-- Grant permission for authenticated users to call this function
+GRANT EXECUTE ON FUNCTION mark_lesson_complete(UUID, UUID, INTEGER) TO authenticated;
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION get_user_gamification_data(current_user_id UUID)
+RETURNS TABLE(
+  -- User stats
+  user_xp INT,
+  user_level INT,
+  workshops_attended BIGINT,
+  workshops_taught BIGINT,
+  badges_earned BIGINT,
+  endorsements_count BIGINT,
+  -- Leaderboard
+  leaderboard JSONB,
+  -- Badges
+  user_badges_data JSONB,
+  -- Achievements
+  user_achievements_data JSONB
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
+    -- User Stats
+    u.xp,
+    u.level,
+    (SELECT count(*) FROM workshop_enrollments WHERE user_id = current_user_id),
+    (SELECT count(*) FROM workshops WHERE creator_id = current_user_id),
+    (SELECT count(*) FROM user_badges WHERE user_id = current_user_id AND earned = true),
+    (SELECT count(*) FROM endorsements WHERE endorsed_user = current_user_id),
+
+    -- Leaderboard (Top 20 + current user)
+    (SELECT jsonb_agg(row_to_json(lb))
+     FROM (
+       SELECT
+         row_number() OVER (ORDER BY xp DESC) AS rank,
+         id,
+         name,
+         avatar_url,
+         xp,
+         (SELECT count(*) FROM user_badges WHERE user_id = u.id AND earned = true) AS badges
+       FROM users u
+       ORDER BY xp DESC
+       LIMIT 20
+     ) AS lb
+    ),
+
+    -- User Badges (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(badge_data))
+     FROM (
+       SELECT
+         bd.id,
+         bd.name,
+         bd.description,
+         bd.icon,
+         bd.rarity,
+         COALESCE(ub.earned, false) AS earned,
+         COALESCE(ub.progress, 0) AS progress,
+         bd.requirement_value AS max,
+         ub.earned_at -- <-- ADDED THIS LINE
+       FROM badge_definitions bd
+       LEFT JOIN user_badges ub ON bd.id = ub.badge_id AND ub.user_id = current_user_id
+     ) AS badge_data
+    ),
+
+    -- User Achievements (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(ach_data))
+     FROM (
+       SELECT
+         ad.id,
+         ad.title,
+         ad.description,
+         ad.icon,
+         ad.reward_value AS reward,
+         COALESCE(ua.progress, 0) AS progress,
+         ad.requirement_value AS max
+       FROM achievement_definitions ad
+       LEFT JOIN user_achievements ua ON ad.id = ua.achievement_id AND ua.user_id = current_user_id
+     ) AS ach_data
+    )
+
+  FROM users u WHERE u.id = current_user_id;
+ $$;

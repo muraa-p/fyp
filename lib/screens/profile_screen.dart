@@ -29,8 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // State variables to hold data from Supabase
   Map<String, dynamic>? _profileData;
-  Map<String, int>? _userStats;
-  List<Map<String, dynamic>>? _achievements;
+  Map<String, dynamic>? _gamificationData;
   List<Map<String, dynamic>>? _createdWorkshops;
   List<Map<String, dynamic>>? _enrolledWorkshops;
   List<Map<String, dynamic>>? _skills;
@@ -57,8 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final results = await Future.wait([
         _supabaseService.fetchProfile(widget.userId),
-        _supabaseService.fetchUserStats(widget.userId),
-        _supabaseService.fetchAchievements(widget.userId),
+        _fetchGamificationData(widget.userId),
         _supabaseService.fetchCreatedWorkshops(widget.userId),
         _supabaseService.fetchEnrolledWorkshops(widget.userId),
         _supabaseService.fetchUserSkills(widget.userId),
@@ -68,18 +66,36 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!mounted) return;
       setState(() {
         _profileData = results[0] as Map<String, dynamic>?;
-        _userStats = results[1] as Map<String, int>?;
-        _achievements = results[2] as List<Map<String, dynamic>>?;
-        _createdWorkshops = results[3] as List<Map<String, dynamic>>?;
-        _enrolledWorkshops = results[4] as List<Map<String, dynamic>>?;
-        _skills = results[5] as List<Map<String, dynamic>>?;
-        _reviews = results[6] as List<Map<String, dynamic>>?;
+        _gamificationData = results[1] as Map<String, dynamic>?;
+        _createdWorkshops = results[2] as List<Map<String, dynamic>>?;
+        _enrolledWorkshops = results[3] as List<Map<String, dynamic>>?;
+        _skills = results[4] as List<Map<String, dynamic>>?;
+        _reviews = results[5] as List<Map<String, dynamic>>?;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showSnack("Error loading profile: ${e.toString()}");
+    }
+  }
+
+  // Function to fetch gamification data
+  Future<Map<String, dynamic>?> _fetchGamificationData(String? userId) async {
+    if (userId == null || userId.isEmpty) return null;
+
+    try {
+      final response = await Supabase.instance.client.rpc('get_user_gamification_data',
+          params: {'current_user_id': userId});
+
+      // The response from an RPC that returns a table is a list.
+      // We need to get the first element, which contains our data.
+      final data = response is List ? response.first : response;
+
+      return data;
+    } catch (e) {
+      print('Error fetching gamification data: $e');
+      return null;
     }
   }
 
@@ -105,17 +121,31 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
+    // Extract gamification data or use defaults
+    final userXP = _gamificationData?['user_xp'] ?? 0;
+    final userLevel = _gamificationData?['user_level'] ?? 1;
+    final workshopsAttended = _gamificationData?['workshops_attended'] ?? 0;
+    final workshopsTaught = _gamificationData?['workshops_taught'] ?? 0;
+    final badgesEarned = _gamificationData?['badges_earned'] ?? 0;
+    final endorsements = _gamificationData?['endorsements_count'] ?? 0;
+
+    // Extract user badges
+    final userBadges = _gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
+
+    // Extract user achievements
+    final userAchievements = _gamificationData?['user_achievements_data'] as List<dynamic>? ?? [];
+
     final stats = [
-      {"label": "Workshops Taught", "value": _userStats?['workshopsTaught'] ?? 0, "icon": Icons.book_outlined, "color": theme.colorScheme.primary},
-      {"label": "Students Taught", "value": _userStats?['studentsTaught'] ?? 0, "icon": Icons.group_outlined, "color": theme.colorScheme.secondary},
-      {"label": "Total XP", "value": _userStats?['totalXp'] ?? 0, "icon": Icons.flash_on, "color": Colors.amber},
-      {"label": "Badges Earned", "value": _userStats?['badgesEarned'] ?? 0, "icon": Icons.emoji_events_outlined, "color": Colors.purple},
+      {"label": "Workshops Taught", "value": workshopsTaught, "icon": Icons.book_outlined, "color": theme.colorScheme.primary},
+      {"label": "Workshops Attended", "value": workshopsAttended, "icon": Icons.school_outlined, "color": theme.colorScheme.secondary},
+      {"label": "Total XP", "value": userXP, "icon": Icons.flash_on, "color": Colors.amber},
+      {"label": "Badges Earned", "value": badgesEarned, "icon": Icons.emoji_events_outlined, "color": Colors.purple},
     ];
 
     return Scaffold(
       body: Column(
         children: [
-          _buildHeader(theme),
+          _buildHeader(theme, userLevel, userXP),
           _buildStats(theme, stats),
           TabBar(
             controller: _tabController,
@@ -127,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildAboutTab(theme, _achievements ?? []),
+                _buildAboutTab(theme, userBadges, userAchievements),
                 _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
                 _buildSkillsTab(theme, _skills ?? []),
                 _buildReviewsTab(theme, _reviews ?? []),
@@ -142,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildHeader(ThemeData theme) {
+  Widget _buildHeader(ThemeData theme, int userLevel, int userXP) {
     final userName = _profileData?['name'] ?? 'User';
     final userUniversity = _profileData?['university'] ?? 'Member since 2024';
     final userAvatarUrl = _profileData?['avatar_url'];
@@ -171,8 +201,27 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(userName, style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        Text(userName, style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            "Level $userLevel",
+                            style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(userUniversity, style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.7))),
+                    const SizedBox(height: 4),
+                    Text("$userXP XP", style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.9))),
                   ],
                 ),
               ),
@@ -244,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildAboutTab(ThemeData theme, List<Map<String, dynamic>> achievements) {
+  Widget _buildAboutTab(ThemeData theme, List<dynamic> badges, List<dynamic> achievements) {
     final userBio = _profileData?['bio'] ?? 'No bio available.';
     final userName = _profileData?['name'] ?? 'User';
 
@@ -255,24 +304,78 @@ class _ProfileScreenState extends State<ProfileScreen>
         const SizedBox(height: 8),
         Text(userBio, style: theme.textTheme.bodyMedium),
         const SizedBox(height: 20),
-        Text("Achievements", style: theme.textTheme.titleMedium),
+
+        // Badges Section
+        Text("Badges", style: theme.textTheme.titleMedium),
         const SizedBox(height: 12),
-        if (achievements.isEmpty)
-          const Text("No achievements earned yet.")
+        if (badges.isEmpty)
+          const Text("No badges earned yet.")
         else
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: achievements.map((b) {
+            children: badges.where((b) => b["earned"] == true).map((badge) {
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(b["icon"] ?? "🏆", style: const TextStyle(fontSize: 22)),
+                      Text(badge["icon"] ?? "🏆", style: const TextStyle(fontSize: 22)),
                       const SizedBox(height: 4),
-                      Text(b["name"] ?? "Achievement", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
-                      Text(b["description"] ?? "No description", style: theme.textTheme.bodySmall),
+                      Text(badge["name"] ?? "Badge", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
+                      Text(badge["description"] ?? "No description", style: theme.textTheme.bodySmall),
+                      const SizedBox(height: 4),
+                      Chip(
+                        label: Text(badge["rarity"] ?? "Common"),
+                        backgroundColor: _getRarityColor(badge["rarity"] ?? "Common"),
+                        labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+        const SizedBox(height: 20),
+
+        // Achievements Section
+        Text("Achievements", style: theme.textTheme.titleMedium),
+        const SizedBox(height: 12),
+        if (achievements.isEmpty)
+          const Text("No achievements in progress.")
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: achievements.map((achievement) {
+              final progress = (achievement["progress"] as int? ?? 0) / (achievement["max"] as int? ?? 1);
+              final isCompleted = progress >= 1.0;
+
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(achievement["icon"] ?? "🎯", style: const TextStyle(fontSize: 22)),
+                      const SizedBox(height: 4),
+                      Text(achievement["title"] ?? "Achievement", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
+                      Text(achievement["description"] ?? "No description", style: theme.textTheme.bodySmall),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        minHeight: 6,
+                      ),
+                      const SizedBox(height: 4),
+                      Text("${achievement["progress"]}/${achievement["max"]}", style: theme.textTheme.bodySmall),
+                      if (isCompleted)
+                        Chip(
+                          label: const Text("Completed"),
+                          backgroundColor: Colors.green,
+                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
                     ],
                   ),
                 ),
@@ -281,6 +384,23 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
       ],
     );
+  }
+
+  Color _getRarityColor(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case "common":
+        return Colors.grey;
+      case "uncommon":
+        return Colors.green;
+      case "rare":
+        return Colors.blue;
+      case "epic":
+        return Colors.purple;
+      case "legendary":
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
   }
 
   Widget _buildWorkshopsTab(ThemeData theme, List created, List enrolled) {
@@ -308,8 +428,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       ],
     );
   }
-
-  // In ProfileScreen.dart, modify the _buildSkillsTab method to calculate workshop counts dynamically
 
   Widget _buildSkillsTab(ThemeData theme, List skills) {
     // Create a map to store workshop counts for each skill
@@ -496,7 +614,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 8),
           _buildToggle("Show on Leaderboards", true, "Display your ranking publicly", theme, (val) {}),
           _buildToggle("Profile Visibility", true, "Allow others to view your profile", theme, (val) {}),
-          _buildToggle("Workshop History", true, "Show workshops you’ve attended", theme, (val) {}),
+          _buildToggle("Workshop History", true, "Show workshops you've attended", theme, (val) {}),
           const Divider(height: 32),
 
           // 🔔 Notifications
@@ -639,8 +757,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               );
             },
           ),
-
-// In _buildSettingsTab(ThemeData theme) method...
 
           ListTile(
             leading: _isLoggingOut // ✅ UPDATED: Conditional leading icon

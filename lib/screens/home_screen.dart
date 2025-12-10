@@ -80,11 +80,10 @@ class _HomeScreenState extends State<HomeScreen> {
 //
 // --- DASHBOARD PAGE ---
 //
-
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
-// Function to fetch user workshops from database - moved outside build method
+  // Function to fetch user workshops from database - moved outside build method
   Future<List<Map<String, dynamic>>> _fetchUserWorkshops(String? userId) async {
     if (userId == null || userId.isEmpty) return [];
 
@@ -190,19 +189,36 @@ class DashboardPage extends StatelessWidget {
     }
   }
 
+  // Function to fetch gamification data
+  Future<Map<String, dynamic>?> _fetchGamificationData(String? userId) async {
+    if (userId == null || userId.isEmpty) return null;
+
+    try {
+      final response = await Supabase.instance.client.rpc('get_user_gamification_data',
+          params: {'current_user_id': userId});
+
+      // The response from an RPC that returns a table is a list.
+      // We need to get the first element, which contains our data.
+      final data = response is List ? response.first : response;
+
+      return data;
+    } catch (e) {
+      print('Error fetching gamification data: $e');
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = context.watch<AppState>().user;
 
-    // Fake XP progress
-    int currentXP = 120;
-    int nextLevelXP = 300;
-    double progress = currentXP / nextLevelXP;
-
-    // Fetch workshops from database
+    // Fetch workshops and gamification data from database
     return FutureBuilder(
-        future: _fetchUserWorkshops(user?.id),
+        future: Future.wait([
+          _fetchUserWorkshops(user?.id),
+          _fetchGamificationData(user?.id)
+        ]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -212,7 +228,8 @@ class DashboardPage extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final workshops = snapshot.data ?? [];
+          final workshops = snapshot.data?[0] as List<Map<String, dynamic>>? ?? [];
+          final gamificationData = snapshot.data?[1] as Map<String, dynamic>?;
 
           // Debug: Print the number of workshops
           print('Total workshops: ${workshops.length}');
@@ -258,6 +275,27 @@ class DashboardPage extends StatelessWidget {
           // Debug: Print the number of workshops in each category
           print('Upcoming workshops: ${upcomingWorkshops.length}');
           print('Teaching workshops: ${teachingWorkshops.length}');
+
+          // Extract gamification data or use defaults
+          final userXP = gamificationData?['user_xp'] ?? 0;
+          final userLevel = gamificationData?['user_level'] ?? 1;
+          final workshopsAttended = gamificationData?['workshops_attended'] ?? 0;
+          final workshopsTaught = gamificationData?['workshops_taught'] ?? 0;
+          final badgesEarned = gamificationData?['badges_earned'] ?? 0;
+          final endorsements = gamificationData?['endorsements_count'] ?? 0;
+
+          // Calculate progress for next level
+          final nextLevelXP = (userLevel + 1) * 500; // Based on your gamification system
+          final progress = userXP / nextLevelXP;
+
+          // Extract user badges
+          final userBadges = gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
+
+          // Get recent earned badges (up to 4)
+          final recentBadges = userBadges
+              .where((b) => b["earned"] == true)
+              .take(4)
+              .toList();
 
           return SafeArea(
             child: ListView(
@@ -307,7 +345,7 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // XP Progress
+                // XP Progress - Now using real data
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -317,18 +355,26 @@ class DashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Your Progress",
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Your Progress",
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          Text("Level $userLevel",
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: progress,
+                        value: progress.clamp(0.0, 1.0), // Ensure value is between 0 and 1
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "${nextLevelXP - currentXP} XP to next level",
+                        "$userXP XP • ${nextLevelXP - userXP} XP to next level",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onBackground.withOpacity(0.7),
                         ),
@@ -356,27 +402,27 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // Stats cards
+                // Stats cards - Now using real data
                 Row(
                   children: [
                     Expanded(
                         child: StatCard(
                             label: "Workshops Attended",
-                            value: "12",
+                            value: workshopsAttended.toString(),
                             icon: Icons.book_outlined,
                             color: Colors.blue)),
                     const SizedBox(width: 12),
                     Expanded(
                         child: StatCard(
                             label: "Workshops Taught",
-                            value: "5",
+                            value: workshopsTaught.toString(),
                             icon: Icons.group_outlined,
                             color: Colors.green)),
                     const SizedBox(width: 12),
                     Expanded(
                         child: StatCard(
                             label: "Badges Earned",
-                            value: "3",
+                            value: badgesEarned.toString(),
                             icon: Icons.emoji_events_outlined,
                             color: Colors.amber)),
                   ],
@@ -460,7 +506,7 @@ class DashboardPage extends StatelessWidget {
                                     onNavigate: (screen) {
                                       Navigator.pop(context);
                                     },
-                                    initialTab: 2, // 2 = Leaderboard tab
+                                    initialTab: 0, // 0 = Overview tab
                                   ),
                                 ),
                               );
@@ -536,7 +582,7 @@ class DashboardPage extends StatelessWidget {
                                     onNavigate: (screen) {
                                       Navigator.pop(context);
                                     },
-                                    initialTab: 1, // 1 = Achievements tab
+                                    initialTab: 3, // 3 = Achievements tab
                                   ),
                                 ),
                               );
@@ -558,7 +604,7 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
 
-                // Recent Achievements
+                // Recent Achievements - Now using real data
                 Text("Recent Achievements",
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
@@ -569,17 +615,24 @@ class DashboardPage extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  children: const [
-                    AchievementCard(name: "First Workshop", icon: "🎯", earned: true),
-                    AchievementCard(name: "Quick Learner", icon: "⚡", earned: true),
-                    AchievementCard(name: "Community Helper", icon: "🤝", earned: false),
-                    AchievementCard(name: "Workshop Master", icon: "🏆", earned: false),
-                  ],
+                  children: recentBadges.isEmpty
+                      ? [
+                    const AchievementCard(name: "No badges earned yet", icon: "🔒", earned: false),
+                    const AchievementCard(name: "Keep learning!", icon: "📚", earned: false),
+                  ]
+                      : recentBadges.map((badge) {
+                    return AchievementCard(
+                      name: badge["name"] as String,
+                      icon: badge["icon"] as String,
+                      earned: badge["earned"] as bool,
+                    );
+                  }).toList(),
                 ),
               ],
             ),
           );
-        });
+        }
+    );
   }
 }
 

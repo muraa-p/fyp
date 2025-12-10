@@ -150,28 +150,56 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     await _checkEnrollmentAndConversation();
   }
 
-  void _toggleLessonComplete(int index) {
-    final currentUser = Supabase.instance.client.auth.currentUser;
+// In WorkshopDetailScreen.dart
+  void _toggleLessonComplete(int index) async {
+    final currentUser = supabase.auth.currentUser;
     final isCreator = currentUser != null && widget.workshop['creator_id'] == currentUser.id;
 
-    // Only allow creator to toggle lesson completion
     if (!isCreator) return;
 
+    // Optimistically update the UI
     setState(() {
       syllabus[index]['completed'] = !syllabus[index]['completed'];
     });
+    await _updateWorkshopSyllabus();
 
-    // Update global progress
-    final appState = context.read<AppState>();
-    final ws = widget.workshop;
+    // If the lesson is being marked as completed, call our new function
+    if (syllabus[index]['completed']) {
+      try {
+        // Get all enrolled users for this workshop
+        final enrolledUsersResponse = await supabase
+            .from('workshop_enrollments')
+            .select('user_id')
+            .eq('workshop_id', widget.workshop['id']);
 
-    appState.enrollWorkshop({
-      ...ws,
-      "progress": syllabus,
-    });
+        final List<dynamic> enrolledUsers = enrolledUsersResponse;
 
-    // Update the workshop in the database
-    _updateWorkshopSyllabus();
+        // Call the database function for each enrolled user
+        for (final enrollment in enrolledUsers) {
+          await supabase.rpc('mark_lesson_complete', params: {
+            'p_user_id': enrollment['user_id'],
+            'p_workshop_id': widget.workshop['id'],
+            'p_lesson_index': index,
+          });
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Lesson marked complete for all participants!')),
+          );
+        }
+      } catch (e) {
+        // Revert the UI change on error
+        setState(() {
+          syllabus[index]['completed'] = !syllabus[index]['completed'];
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error marking lesson complete: $e')),
+          );
+        }
+      }
+    }
   }
 
   // Update workshop syllabus in the database
@@ -335,33 +363,51 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
   // Submit workshop review
   Future<void> _submitWorkshopReview(int rating, String review) async {
-    final currentUser = Supabase.instance.client.auth.currentUser;
+    final currentUser = supabase.auth.currentUser;
     if (currentUser == null) return;
 
     try {
-      // Save the review to the database
-      await Supabase.instance.client
+      // 1. Save the review to the database (this part is unchanged)
+      await supabase
           .from('workshop_ratings')
           .upsert({
         'workshop_id': widget.workshop['id'],
         'user_id': currentUser.id,
         'rating': rating,
         'review': review,
-        'created_at': DateTime.now().toIso8601String(),
+        // 'created_at' is automatically handled by Supabase default, no need to set it here
       }, onConflict: 'workshop_id,user_id');
 
+      // 2. Award XP and check for badges using our secure backend function
+      // This is the new gamification logic!
+      await supabase.rpc('award_xp_and_check_badges', params: {
+        'p_user_id': currentUser.id,
+        'p_xp_to_award': 20, // Award 20 XP for submitting a workshop review
+        'p_action_type': 'workshop_reviewed',
+        'p_workshop_id': widget.workshop['id'],
+      });
+
+      // 3. Update the UI state
       setState(() {
         hasReviewedWorkshop = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Workshop review submitted!')),
-      );
+      // 4. Show a success message that includes the XP reward
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Workshop review submitted! +20 XP'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
       print('Error submitting workshop review: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting review: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error submitting review: ${e.toString()}')),
+        );
+      }
     }
   }
 
