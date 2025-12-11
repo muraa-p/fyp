@@ -371,10 +371,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                       const SizedBox(height: 4),
                       Text("${achievement["progress"]}/${achievement["max"]}", style: theme.textTheme.bodySmall),
                       if (isCompleted)
-                        Chip(
-                          label: const Text("Completed"),
+                        const Chip(
+                          label: Text("Completed"),
                           backgroundColor: Colors.green,
-                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                          labelStyle: TextStyle(color: Colors.white, fontSize: 12),
                         ),
                     ],
                   ),
@@ -505,7 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 const SizedBox(height: 6),
                 LinearProgressIndicator(value: progress, minHeight: 6),
                 const SizedBox(height: 6),
-                Text("${s["endorsements"]} endorsements • ${workshopCount} workshops"),
+                Text("${s["endorsements"]} endorsements • $workshopCount workshops"),
               ],
             ),
           ),
@@ -662,9 +662,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 context: context,
                 builder: (_) => AlertDialog(
                   title: const Text("Update Password"),
-                  content: Column(
+                  content: const Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       TextField(
                         obscureText: true,
                         decoration: InputDecoration(labelText: "Current Password"),
@@ -701,9 +701,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 context: context,
                 builder: (_) => AlertDialog(
                   title: const Text("Change Email"),
-                  content: Column(
+                  content: const Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       TextField(
                         decoration: InputDecoration(labelText: "New Email Address"),
                       ),

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../main.dart';
 import 'workshop_detail_screen.dart';
 
 class ScheduleScreen extends StatelessWidget {
@@ -82,7 +80,7 @@ Widget _WorkshopCard(Map<String, dynamic> ws, BuildContext context, {bool isTeac
     print('Error parsing date for workshop ${ws['id']}: $e');
   }
 
-  final time = ws['time'] != null ? ws['time'].toString() : null;
+  final time = ws['time']?.toString();
 
   return Card(
     margin: const EdgeInsets.only(bottom: 12),

@@ -28,7 +28,7 @@ class CustomBottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: Colors.grey.shade300, width: 0.8)),
-        color: Theme.of(context).colorScheme.background,
+        color: Theme.of(context).colorScheme.surface,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: Row(

@@ -112,13 +112,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     print("▶ SUPABASE RESPONSE:");
     print(response);
 
-    if (response == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to update profile. RESPONSE NULL")),
-      );
-      return;
-    }
-
     widget.onUpdate(updatedUser);
 
     ScaffoldMessenger.of(context).showSnackBar(

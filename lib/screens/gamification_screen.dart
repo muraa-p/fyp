@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../main.dart';
 
@@ -356,7 +355,7 @@ class _StatCard extends StatelessWidget {
   final String icon;
   final String title;
   final String value;
-  const _StatCard(this.icon, this.title, this.value, {super.key});
+  const _StatCard(this.icon, this.title, this.value);
 
   @override
   Widget build(BuildContext context) {

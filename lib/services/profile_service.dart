@@ -33,8 +33,6 @@ class ProfileService {
     final response =
     await _client.from('users').select().eq('id', id).single();
 
-    if (response == null) throw Exception("User not found");
-
     return {
       "id": response['id'],
       "email": response['email'],

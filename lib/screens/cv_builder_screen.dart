@@ -193,7 +193,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       padding: const EdgeInsets.all(16),
       children: [
         Card(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -253,7 +253,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       itemBuilder: (context, i) {
         final item = stats[i];
         return Card(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child:
@@ -277,7 +277,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
   Widget _buildAchievements(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      color: theme.colorScheme.surfaceVariant,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -302,7 +302,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
   Widget _buildCVPreview(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      color: theme.colorScheme.surfaceVariant,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -337,7 +337,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       padding: const EdgeInsets.all(16),
       children: [
         ...skills.map((s) => Card(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child:
@@ -395,7 +395,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       padding: const EdgeInsets.all(16),
       children: [
         Card(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -426,7 +426,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
         ),
         const SizedBox(height: 12),
         Card(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child:

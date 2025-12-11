@@ -309,7 +309,7 @@ class DashboardPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Welcome back, ${user?.name?.isNotEmpty == true ? user!.name : "Student"}!",
+                          "Welcome back, ${user?.name.isNotEmpty == true ? user!.name : "Student"}!",
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -317,7 +317,7 @@ class DashboardPage extends StatelessWidget {
                         Text(
                           user?.email ?? "University",
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onBackground.withOpacity(0.7),
+                            color: theme.colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                       ],
@@ -376,7 +376,7 @@ class DashboardPage extends StatelessWidget {
                       Text(
                         "$userXP XP • ${nextLevelXP - userXP} XP to next level",
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onBackground.withOpacity(0.7),
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -459,7 +459,7 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 // Combined horizontal scrollable list with auto-sizing
-                Container(
+                SizedBox(
                   height: 185, // Further reduced height
                   child: allScheduledWorkshops.isEmpty
                       ? const Center(child: Text("No workshops scheduled",
@@ -640,7 +640,7 @@ class StatCard extends StatelessWidget {
   final String label, value;
   final IconData icon;
   final Color color;
-  const StatCard({required this.label, required this.value, required this.icon, required this.color});
+  const StatCard({super.key, required this.label, required this.value, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -661,7 +661,7 @@ class StatCard extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onBackground.withOpacity(0.7),
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ],
@@ -711,7 +711,7 @@ class _WorkshopCardState extends State<WorkshopCard> {
       print('Error parsing date for workshop ${widget.workshop['id']}: $e');
     }
 
-    final time = widget.workshop['time'] != null ? widget.workshop['time'].toString() : null;
+    final time = widget.workshop['time']?.toString();
 
     return GestureDetector(
       onTap: () {
@@ -833,7 +833,7 @@ class QuickActionCard extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
-  const QuickActionCard({
+  const QuickActionCard({super.key, 
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -862,7 +862,7 @@ class QuickActionCard extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onBackground.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
             ],
@@ -878,7 +878,7 @@ class AchievementCard extends StatelessWidget {
   final String icon;
   final bool earned;
 
-  const AchievementCard({
+  const AchievementCard({super.key, 
     required this.name,
     required this.icon,
     required this.earned,
@@ -890,7 +890,7 @@ class AchievementCard extends StatelessWidget {
     return Card(
       color: earned
           ? theme.colorScheme.secondary.withOpacity(0.15)
-          : theme.colorScheme.surfaceVariant,
+          : theme.colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -918,7 +918,7 @@ class AchievementCard extends StatelessWidget {
               ),
               backgroundColor: earned
                   ? theme.colorScheme.secondary.withOpacity(0.2)
-                  : theme.colorScheme.surfaceVariant,
+                  : theme.colorScheme.surfaceContainerHighest,
               visualDensity: VisualDensity.compact,
             ),
           ],

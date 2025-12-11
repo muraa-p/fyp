@@ -627,7 +627,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       'duration': selectedDuration ?? "1 hour",
       'max_participants': int.tryParse(maxParticipantsController.text) ?? 10, // Store as an integer
       'date': finalDateTime?.toIso8601String(), // Store as a full timestamp
-      'time': selectedTime != null ? selectedTime!.format(context) : null,
+      'time': selectedTime?.format(context),
       'location': locationController.text.isNotEmpty ? locationController.text : (locationType == "virtual" ? "Online" : "In-person"),
       'syllabus': syllabus,
       'prerequisites': prerequisites,

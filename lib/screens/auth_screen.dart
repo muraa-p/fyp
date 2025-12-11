@@ -123,7 +123,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       }
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text("Verification not completed yet."),
                         ),
                       );

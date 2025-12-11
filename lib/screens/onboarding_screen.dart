@@ -64,7 +64,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             subtitle,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onBackground.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
         ],
@@ -88,9 +88,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         subtitle: "So we can personalize your experience.",
         child: TextField(
           controller: _name,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: "Enter your name",
-            prefixIcon: const Icon(Icons.person_outline),
+            prefixIcon: Icon(Icons.person_outline),
           ),
         ),
       ),
@@ -144,7 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Text(
                   "Skip",
                   style: TextStyle(
-                      color: theme.colorScheme.onBackground.withOpacity(0.8)),
+                      color: theme.colorScheme.onSurface.withOpacity(0.8)),
                 ),
               ),
             ),
@@ -175,7 +175,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     shape: BoxShape.circle,
                     color: _currentPage == index
                         ? theme.colorScheme.primary
-                        : theme.colorScheme.onBackground.withOpacity(0.3),
+                        : theme.colorScheme.onSurface.withOpacity(0.3),
                   ),
                 ),
               ),

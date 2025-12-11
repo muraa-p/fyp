@@ -141,8 +141,9 @@ class SupabaseService {
           .count(CountOption.exact);
 
       String level = "Beginner";
-      if (endorsementsCount.count > 40) level = "Expert";
-      else if (endorsementsCount.count > 20) level = "Advanced";
+      if (endorsementsCount.count > 40) {
+        level = "Expert";
+      } else if (endorsementsCount.count > 20) level = "Advanced";
       else if (endorsementsCount.count > 5) level = "Intermediate";
 
       skillsWithEndorsements.add({

@@ -131,9 +131,9 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: "Search workshops...",
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
               ),
               onChanged: (_) => _filterWorkshops(), // Re-filter on text change
             ),
@@ -183,7 +183,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 "No workshops found",
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color:
-                  theme.colorScheme.onBackground.withOpacity(0.7),
+                  theme.colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
             )
@@ -242,7 +242,7 @@ class _WorkshopCard extends StatelessWidget {
                     workshop["image_url"] ?? "https://via.placeholder.com/160", // Use image_url from DB
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       child: const Center(
                         child: Icon(Icons.broken_image, size: 40),
                       ),
@@ -347,7 +347,7 @@ class _WorkshopCard extends StatelessWidget {
                       Text(
                         "Instructor: ${workshop["instructor"]}",
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onBackground
+                          color: theme.colorScheme.onSurface
                               .withOpacity(0.7),
                         ),
                       ),

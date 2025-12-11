@@ -122,7 +122,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         value: activeChat!['id'],
       ),
       callback: (payload) {
-        final newMsg = payload.newRecord!;
+        final newMsg = payload.newRecord;
         final senderId = newMsg['sender_id'] as String;
 
         // Check if this is a message sent by the current user
@@ -322,7 +322,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       _fetchConversations();
     } catch (e) {
       print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to send')));
       setState(() => messages.removeWhere((m) => m['id'] == tempId));
     }
   }
@@ -468,7 +468,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       _fetchWorkshopRequests();
     } catch (e) {
       print('Error declining request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to decline')));
     }
   }
 
@@ -717,7 +717,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceVariant,
+                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Text(

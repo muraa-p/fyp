@@ -6,10 +6,8 @@ class AppTheme {
     return base.copyWith(
       colorScheme: base.colorScheme.copyWith(
         primary: const Color(0xFF2563EB), // blue-600
-        secondary: const Color(0xFF10B981), // green-500
-        background: const Color(0xFFF8FAFC),
+        secondary: const Color(0xFF10B981),
         surface: Colors.white,
-        onBackground: Colors.black87,
         onSurface: Colors.black87,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
@@ -51,10 +49,8 @@ class AppTheme {
     return base.copyWith(
       colorScheme: base.colorScheme.copyWith(
         primary: const Color(0xFF60A5FA), // blue-400
-        secondary: const Color(0xFF34D399), // green-400
-        background: const Color(0xFF0F172A),
+        secondary: const Color(0xFF34D399),
         surface: const Color(0xFF1E293B),
-        onBackground: Colors.white,
         onSurface: Colors.white,
         onPrimary: Colors.black,
         onSecondary: Colors.black,

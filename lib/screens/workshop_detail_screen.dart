@@ -229,7 +229,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('How would you rate this lesson?'),
+            const Text('How would you rate this lesson?'),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -315,7 +315,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('How would you rate this workshop?'),
+            const Text('How would you rate this workshop?'),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

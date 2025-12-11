@@ -93,8 +93,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         )
                       ],
                     ),
-                    child: Column(
-                      children: const [
+                    child: const Column(
+                      children: [
                         Icon(Icons.school,
                             size: 90, color: Colors.white),
                         SizedBox(height: 24),
