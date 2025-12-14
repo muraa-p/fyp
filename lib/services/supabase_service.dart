@@ -98,16 +98,55 @@ class SupabaseService {
     }).toList();
   }
 
-  // Fetch workshops the user is enrolled in
+// Replace the fetchEnrolledWorkshops method in SupabaseService with this:
   Future<List<Map<String, dynamic>>> fetchEnrolledWorkshops(String userId) async {
-    final data = await _supabase
-        .from('workshop_enrollments')
-        .select('workshops!inner(id, title, creator_id, users!workshops_creator_id_fkey(name))')
-        .eq('user_id', userId)
-        .eq('status', 'enrolled')
-        .order('enrolled_at', ascending: false);
+    try {
+      final data = await _supabase
+          .from('workshop_enrollments')
+          .select('''
+          workshops!inner(
+            id,
+            title,
+            description,
+            date,
+            time,
+            duration,
+            image_url,
+            status,
+            creator_id,
+            users!inner(
+              id,
+              name,
+              avatar_url
+            )
+          ),
+          enrolled_at,
+          status
+        ''')
+          .eq('user_id', userId)
+          .order('enrolled_at', ascending: false);
 
-    return data.map((e) => e['workshops'] as Map<String, dynamic>).toList();
+      // Transform the nested data to a flatter structure
+      List<Map<String, dynamic>> workshops = [];
+      for (var enrollment in data) {
+        final workshop = Map<String, dynamic>.from(enrollment['workshops']);
+        final creator = workshop['users'] as Map<String, dynamic>;
+
+        // Add the creator info directly to the workshop object
+        workshop['users'] = creator;
+
+        // Add enrollment info
+        workshop['enrollment_status'] = enrollment['status'];
+        workshop['enrolled_at'] = enrollment['enrolled_at'];
+
+        workshops.add(workshop);
+      }
+
+      return workshops;
+    } catch (e) {
+      print('Error fetching enrolled workshops: $e');
+      return [];
+    }
   }
 
   // Fetch user skills with endorsements
@@ -156,12 +195,47 @@ class SupabaseService {
     return skillsWithEndorsements;
   }
 
-  // Fetch reviews for workshops created by the user
+// Replace the fetchReviews method in SupabaseService with this:
   Future<List<Map<String, dynamic>>> fetchReviews(String userId) async {
-    return await _supabase
-        .from('workshop_ratings')
-        .select('rating, review, created_at, workshops!inner(title), users!workshop_ratings_user_id_fkey(name)')
-        .eq('workshops.creator_id', userId)
-        .order('created_at', ascending: false);
+    try {
+      final data = await _supabase
+          .from('workshop_ratings')
+          .select('''
+          rating,
+          review,
+          created_at,
+          workshops!inner(
+            title
+          ),
+          users!inner(
+            name
+          )
+        ''')
+          .eq('workshops.creator_id', userId)
+          .order('created_at', ascending: false);
+
+      // Transform the nested data to a flatter structure
+      List<Map<String, dynamic>> reviews = [];
+      for (var review in data) {
+        final workshop = review['workshops'] as Map<String, dynamic>;
+        final user = review['users'] as Map<String, dynamic>;
+
+        // Create a flattened review object
+        final flattenedReview = {
+          'rating': review['rating'],
+          'review': review['review'],
+          'created_at': review['created_at'],
+          'workshops': workshop,
+          'users': user,
+        };
+
+        reviews.add(flattenedReview);
+      }
+
+      return reviews;
+    } catch (e) {
+      print('Error fetching reviews: $e');
+      return [];
+    }
   }
 }

@@ -1,9 +1,6 @@
 -- =================================================================
 -- COMPLETE DATABASE SCHEMA WITH FIXED RLS POLICIES
 -- =================================================================
--- This schema fixes the RLS policy issues that were preventing
--- conversations from being created
--- =================================================================
 
 -- =================================================================
 -- 1. DROP ALL TABLES
@@ -22,6 +19,11 @@ DROP TABLE IF EXISTS cv_entries CASCADE;
 DROP TABLE IF EXISTS follows CASCADE;
 DROP TABLE IF EXISTS skills CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS user_badges CASCADE;
+DROP TABLE IF EXISTS badge_definitions CASCADE;
+DROP TABLE IF EXISTS user_achievements CASCADE;
+DROP TABLE IF EXISTS achievement_definitions CASCADE;
+DROP TABLE IF EXISTS user_syllabus_progress CASCADE;
 
 -- =================================================================
 -- 2. CREATE TABLES (in correct dependency order)
@@ -43,6 +45,8 @@ CREATE TABLE users (
   skills_to_teach TEXT[],
   skills_to_learn TEXT[],
   social JSONB DEFAULT '{}'::JSONB,
+  xp INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -61,7 +65,7 @@ CREATE TABLE follows (
   UNIQUE(follower_id, following_id)
 );
 
--- Conversation tables (created before workshops to avoid dependency issues)
+-- Conversation tables (create base tables first)
 CREATE TABLE conversations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -70,6 +74,7 @@ CREATE TABLE conversations (
   name TEXT,
   avatar_url TEXT,
   created_by UUID REFERENCES users(id) ON DELETE CASCADE
+  -- last_message_id will be added later after messages table exists
 );
 
 CREATE TABLE messages (
@@ -93,7 +98,7 @@ CREATE TABLE conversation_participants (
   UNIQUE(conversation_id, user_id)
 );
 
--- Add the foreign key to conversations table
+-- Now add the foreign key to conversations table
 ALTER TABLE conversations
 ADD COLUMN last_message_id UUID REFERENCES messages(id) ON DELETE SET NULL;
 
@@ -117,13 +122,16 @@ CREATE TABLE workshops (
   time TEXT,
   location TEXT,
   status TEXT DEFAULT 'upcoming',
+  workshop_status TEXT DEFAULT 'upcoming' CHECK (workshop_status IN ('upcoming', 'in_progress', 'finished', 'cancelled')),
   rating FLOAT DEFAULT 0.0,
   syllabus JSONB DEFAULT '[]'::JSONB,
   prerequisites TEXT[] DEFAULT '{}',
   outcomes TEXT[] DEFAULT '{}',
   tags TEXT[] DEFAULT '{}'
+  -- conversation_id will be added later
 );
 
+-- Add conversation_id after workshops table exists
 ALTER TABLE workshops
 ADD COLUMN conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL;
 
@@ -133,6 +141,7 @@ CREATE TABLE workshop_enrollments (
   workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'enrolled',
   enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
   UNIQUE(user_id, workshop_id)
 );
 
@@ -194,6 +203,57 @@ CREATE TABLE cv_entries (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Gamification tables
+CREATE TABLE badge_definitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  icon TEXT,
+  rarity TEXT NOT NULL CHECK (rarity IN ('Common', 'Uncommon', 'Rare', 'Epic', 'Legendary')),
+  requirement_type TEXT NOT NULL,
+  requirement_value INTEGER NOT NULL
+);
+
+CREATE TABLE user_badges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  badge_id UUID REFERENCES badge_definitions(id) ON DELETE CASCADE,
+  earned BOOLEAN DEFAULT FALSE,
+  progress INTEGER DEFAULT 0,
+  earned_at TIMESTAMPTZ,
+  UNIQUE(user_id, badge_id)
+);
+
+CREATE TABLE achievement_definitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT UNIQUE NOT NULL,
+  description TEXT,
+  icon TEXT,
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('xp', 'badge')),
+  reward_value TEXT NOT NULL,
+  requirement_type TEXT NOT NULL,
+  requirement_value INTEGER NOT NULL
+);
+
+CREATE TABLE user_achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  achievement_id UUID REFERENCES achievement_definitions(id) ON DELETE CASCADE,
+  progress INTEGER DEFAULT 0,
+  is_completed BOOLEAN DEFAULT FALSE,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(user_id, achievement_id)
+);
+
+CREATE TABLE user_syllabus_progress (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
+  lesson_index INTEGER NOT NULL,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(user_id, workshop_id, lesson_index)
+);
+
 -- =================================================================
 -- 3. CREATE INDEXES FOR PERFORMANCE
 -- =================================================================
@@ -207,29 +267,32 @@ CREATE INDEX IF NOT EXISTS conversation_participants_conversation_id_idx ON conv
 CREATE INDEX IF NOT EXISTS conversation_participants_user_id_idx ON conversation_participants(user_id);
 CREATE INDEX IF NOT EXISTS workshop_requests_workshop_id_idx ON workshop_requests(workshop_id);
 CREATE INDEX IF NOT EXISTS workshop_requests_requester_id_idx ON workshop_requests(requester_id);
+CREATE INDEX IF NOT EXISTS user_badges_user_id_idx ON user_badges(user_id);
+CREATE INDEX IF NOT EXISTS user_badges_badge_id_idx ON user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS user_achievements_user_id_idx ON user_achievements(user_id);
+CREATE INDEX IF NOT EXISTS user_achievements_achievement_id_idx ON user_achievements(achievement_id);
+CREATE INDEX IF NOT EXISTS users_xp_idx ON users(xp DESC);
+CREATE INDEX IF NOT EXISTS user_syllabus_progress_idx ON user_syllabus_progress(user_id, workshop_id);
 
 -- =================================================================
 -- 4. CREATE FUNCTIONS
 -- =================================================================
 
 -- Helper function to check conversation participation
--- FIXED: Added STABLE keyword for better performance
 CREATE OR REPLACE FUNCTION is_conversation_participant(conv_id UUID, user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
-SECURITY DEFINER
+SECURITY INVOKER
 STABLE
-AS $$
-  SELECT EXISTS (
+AS $$   SELECT EXISTS (
     SELECT 1 FROM conversation_participants cp
     WHERE cp.conversation_id = conv_id AND cp.user_id = user_id
   );
-$$;
+ $$;
 
 -- Check if a conversation exists between two users
 CREATE OR REPLACE FUNCTION get_existing_conversation(user1_id UUID, user2_id UUID)
-RETURNS TABLE(id UUID) AS $$
-BEGIN
+RETURNS TABLE(id UUID) AS $$ BEGIN
   RETURN QUERY
   SELECT c.id
   FROM conversations c
@@ -238,9 +301,9 @@ BEGIN
   WHERE cp1.user_id = user1_id
     AND cp2.user_id = user2_id
     AND c.is_group = FALSE
-  LIMIT 1;  -- Added LIMIT 1 for safety
+  LIMIT 1;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Get all conversations for a user with details
 CREATE OR REPLACE FUNCTION get_user_conversations(current_user_id UUID)
@@ -256,8 +319,7 @@ RETURNS TABLE(
   other_user JSON,
   unread_count BIGINT,
   workshop_id UUID
-) LANGUAGE sql STABLE SECURITY DEFINER AS $$
-  SELECT
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
     c.id,
     c.is_group,
     c.name,
@@ -292,7 +354,7 @@ RETURNS TABLE(
   GROUP BY c.id, c.is_group, c.name, c.avatar_url, c.updated_at,
            m.content, m.created_at, sender.name, u.id, u.name, u.avatar_url, w.id
   ORDER BY c.updated_at DESC NULLS LAST, m.created_at DESC NULLS LAST;
-$$;
+ $$;
 
 -- Create a workshop group chat
 CREATE OR REPLACE FUNCTION create_workshop_group_chat(
@@ -300,8 +362,7 @@ CREATE OR REPLACE FUNCTION create_workshop_group_chat(
   workshop_title TEXT,
   creator_id UUID
 )
-RETURNS UUID AS $$
-DECLARE
+RETURNS UUID AS $$ DECLARE
   conversation_uuid UUID;
 BEGIN
   INSERT INTO conversations (is_group, name, created_by)
@@ -324,15 +385,14 @@ BEGIN
 
   RETURN conversation_uuid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Add a user to a workshop group chat
 CREATE OR REPLACE FUNCTION add_user_to_workshop_chat(
   workshop_id UUID,
-  user_id UUID
+  participant_id UUID
 )
-RETURNS VOID AS $$
-DECLARE
+RETURNS VOID AS $$ DECLARE
   conv_id UUID;
 BEGIN
   SELECT conversation_id INTO conv_id
@@ -341,11 +401,278 @@ BEGIN
 
   IF conv_id IS NOT NULL THEN
     INSERT INTO conversation_participants (conversation_id, user_id)
-    VALUES (conv_id, user_id)
+    VALUES (conv_id, participant_id)
     ON CONFLICT (conversation_id, user_id) DO NOTHING;
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to mark a lesson as complete
+CREATE OR REPLACE FUNCTION mark_lesson_complete(
+  p_user_id UUID,
+  p_workshop_id UUID,
+  p_lesson_index INT
+)
+RETURNS TABLE (success BOOLEAN, message TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$ DECLARE
+  is_enrolled BOOLEAN;
+  total_lessons INT;
+  completed_lessons INT;
+BEGIN
+  -- Check if the user is actually enrolled in the workshop
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+
+  IF NOT is_enrolled THEN
+    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
+    RETURN;
+  END IF;
+
+  -- Insert progress, but only if not already completed
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  -- Check if a new row was inserted (i.e., it wasn't already completed)
+  IF FOUND THEN
+    -- Award XP and check badges for the STUDENT
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    -- Also award XP to the CREATOR for teaching
+    PERFORM award_xp_and_check_badges((SELECT creator_id FROM workshops WHERE id = p_workshop_id), 5, 'lesson_taught', p_workshop_id);
+
+    -- Get workshop details for completion check
+    SELECT jsonb_array_length(syllabus) INTO total_lessons
+    FROM workshops
+    WHERE id = p_workshop_id;
+
+    -- Get the number of completed lessons for the user
+    SELECT COUNT(*) INTO completed_lessons
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+    -- Check if all lessons are completed
+    IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+      -- Mark the workshop as completed in the enrollments table
+      UPDATE workshop_enrollments
+      SET status = 'completed', completed_at = NOW()
+      WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+      -- Award XP and check for completion badges
+      PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+      RETURN QUERY SELECT TRUE, 'Lesson marked as complete and workshop completed! XP awarded.';
+    ELSE
+      RETURN QUERY SELECT TRUE, 'Lesson marked as complete and XP awarded.';
+    END IF;
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson was already marked as complete.';
+  END IF;
+END;
+ $$;
+
+-- Function to award XP and check badges
+CREATE OR REPLACE FUNCTION award_xp_and_check_badges(
+  p_user_id UUID,
+  p_xp_to_award INT,
+  p_action_type TEXT,
+  p_workshop_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$ DECLARE
+  new_total_xp INT;
+  new_level INT;
+  workshops_attended_count INT;
+  workshops_completed_count INT;
+  lesson_count INT;
+  current_badge_id UUID;
+BEGIN
+  -- 1. Update user's total XP
+  UPDATE users
+  SET xp = xp + p_xp_to_award
+  WHERE id = p_user_id
+  RETURNING xp INTO new_total_xp;
+
+  -- 2. Check for level up (simple logic: 500 XP per level)
+  new_level := new_total_xp / 500 + 1;
+  IF new_level > (SELECT level FROM users WHERE id = p_user_id) THEN
+    UPDATE users SET level = new_level WHERE id = p_user_id;
+  END IF;
+
+  -- 3. Check and award badges based on the action
+
+  -- Badge: First Steps (complete first lesson of any workshop)
+  IF p_action_type = 'lesson_completed' THEN
+    SELECT COUNT(*) INTO lesson_count
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id;
+
+    -- Update progress for First Steps badge
+    SELECT id INTO current_badge_id FROM badge_definitions WHERE name = 'First Steps';
+    IF current_badge_id IS NOT NULL THEN
+      INSERT INTO user_badges (user_id, badge_id, progress, earned)
+      VALUES (p_user_id, current_badge_id, LEAST(lesson_count, 1), lesson_count >= 1)
+      ON CONFLICT (user_id, badge_id)
+      DO UPDATE SET
+        progress = LEAST(lesson_count, 1),
+        earned = EXCLUDED.progress >= 1 AND user_badges.earned = FALSE,
+        earned_at = CASE WHEN EXCLUDED.progress >= 1 AND user_badges.earned = FALSE THEN NOW() ELSE user_badges.earned_at END;
+    END IF;
+  END IF;
+
+  -- Badge: Knowledge Seeker (complete lessons in 10 different workshops)
+  SELECT COUNT(DISTINCT workshop_id) INTO workshops_attended_count
+  FROM user_syllabus_progress
+  WHERE user_id = p_user_id;
+
+  -- Update progress for Knowledge Seeker badge
+  SELECT id INTO current_badge_id FROM badge_definitions WHERE name = 'Knowledge Seeker';
+  IF current_badge_id IS NOT NULL THEN
+    INSERT INTO user_badges (user_id, badge_id, progress, earned)
+    VALUES (p_user_id, current_badge_id, workshops_attended_count, workshops_attended_count >= 10)
+    ON CONFLICT (user_id, badge_id)
+    DO UPDATE SET
+      progress = EXCLUDED.progress,
+      earned = EXCLUDED.progress >= 10 AND user_badges.earned = FALSE,
+      earned_at = CASE WHEN EXCLUDED.progress >= 10 AND user_badges.earned = FALSE THEN NOW() ELSE user_badges.earned_at END;
+  END IF;
+
+  -- Badge: Workshop Graduate (complete first workshop)
+  IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed') THEN
+    SELECT COUNT(*) INTO workshops_completed_count
+    FROM workshop_enrollments
+    WHERE user_id = p_user_id AND status = 'completed';
+
+    -- Update progress for Workshop Graduate badge
+    SELECT id INTO current_badge_id FROM badge_definitions WHERE name = 'Workshop Graduate';
+    IF current_badge_id IS NOT NULL THEN
+      INSERT INTO user_badges (user_id, badge_id, progress, earned)
+      VALUES (p_user_id, current_badge_id, workshops_completed_count, workshops_completed_count >= 1)
+      ON CONFLICT (user_id, badge_id)
+      DO UPDATE SET
+        progress = EXCLUDED.progress,
+        earned = EXCLUDED.progress >= 1 AND user_badges.earned = FALSE,
+        earned_at = CASE WHEN EXCLUDED.progress >= 1 AND user_badges.earned = FALSE THEN NOW() ELSE user_badges.earned_at END;
+    END IF;
+  END IF;
+
+  -- Badge: Dedicated Learner (complete 5 workshops)
+  IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed') THEN
+    SELECT COUNT(*) INTO workshops_completed_count
+    FROM workshop_enrollments
+    WHERE user_id = p_user_id AND status = 'completed';
+
+    -- Update progress for Dedicated Learner badge
+    SELECT id INTO current_badge_id FROM badge_definitions WHERE name = 'Dedicated Learner';
+    IF current_badge_id IS NOT NULL THEN
+      INSERT INTO user_badges (user_id, badge_id, progress, earned)
+      VALUES (p_user_id, current_badge_id, workshops_completed_count, workshops_completed_count >= 5)
+      ON CONFLICT (user_id, badge_id)
+      DO UPDATE SET
+        progress = EXCLUDED.progress,
+        earned = EXCLUDED.progress >= 5 AND user_badges.earned = FALSE,
+        earned_at = CASE WHEN EXCLUDED.progress >= 5 AND user_badges.earned = FALSE THEN NOW() ELSE user_badges.earned_at END;
+    END IF;
+  END IF;
+
+  -- Badge: Rising Star (teach first workshop)
+  IF p_action_type = 'lesson_completed' AND p_workshop_id IS NOT NULL THEN
+    IF (SELECT creator_id FROM workshops WHERE id = p_workshop_id) = p_user_id THEN
+       -- Check if this is the first time they are marking a lesson for any of their workshops
+       IF (SELECT COUNT(*) FROM user_syllabus_progress usp JOIN workshops w ON usp.workshop_id = w.id WHERE w.creator_id = p_user_id AND usp.completed_at IS NOT NULL) = 1 THEN
+          -- Update progress for Rising Star badge
+          SELECT id INTO current_badge_id FROM badge_definitions WHERE name = 'Rising Star';
+          IF current_badge_id IS NOT NULL THEN
+            INSERT INTO user_badges (user_id, badge_id, progress, earned)
+            VALUES (p_user_id, current_badge_id, 1, true)
+            ON CONFLICT (user_id, badge_id)
+            DO UPDATE SET
+              progress = 1,
+              earned = true,
+              earned_at = CASE WHEN user_badges.earned = FALSE THEN NOW() ELSE user_badges.earned_at END;
+          END IF;
+       END IF;
+    END IF;
+  END IF;
+END;
+ $$;
+
+-- Function to get all user gamification data
+CREATE OR REPLACE FUNCTION get_user_gamification_data(current_user_id UUID)
+RETURNS TABLE(
+  user_xp INT,
+  user_level INT,
+  workshops_attended BIGINT,
+  workshops_taught BIGINT,
+  badges_earned BIGINT,
+  endorsements_count BIGINT,
+  leaderboard JSONB,
+  user_badges_data JSONB,
+  user_achievements_data JSONB
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
+    -- User Stats
+    u.xp,
+    u.level,
+    (SELECT count(*) FROM workshop_enrollments WHERE user_id = current_user_id),
+    (SELECT count(*) FROM workshops WHERE creator_id = current_user_id),
+    (SELECT count(*) FROM user_badges WHERE user_id = current_user_id AND earned = true),
+    (SELECT count(*) FROM endorsements WHERE endorsed_user = current_user_id),
+
+    -- Leaderboard (Top 20)
+    (SELECT jsonb_agg(row_to_json(lb))
+     FROM (
+       SELECT
+         row_number() OVER (ORDER BY xp DESC) AS rank,
+         id,
+         name,
+         avatar_url,
+         xp,
+         (SELECT count(*) FROM user_badges WHERE user_id = u.id AND earned = true) AS badges
+       FROM users u
+       ORDER BY xp DESC
+       LIMIT 20
+     ) AS lb
+    ),
+
+    -- User Badges (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(badge_data))
+     FROM (
+       SELECT
+         bd.id,
+         bd.name,
+         bd.description,
+         bd.icon,
+         bd.rarity,
+         COALESCE(ub.earned, false) AS earned,
+         COALESCE(ub.progress, 0) AS progress,
+         bd.requirement_value AS max,
+         ub.earned_at
+       FROM badge_definitions bd
+       LEFT JOIN user_badges ub ON bd.id = ub.badge_id AND ub.user_id = current_user_id
+     ) AS badge_data
+    ),
+
+    -- User Achievements (merged with definitions)
+    (SELECT jsonb_agg(row_to_json(ach_data))
+     FROM (
+       SELECT
+         ad.id,
+         ad.title,
+         ad.description,
+         ad.icon,
+         ad.reward_value AS reward,
+         COALESCE(ua.progress, 0) AS progress,
+         ad.requirement_value AS max
+       FROM achievement_definitions ad
+       LEFT JOIN user_achievements ua ON ad.id = ua.achievement_id AND ua.user_id = current_user_id
+     ) AS ach_data
+    )
+
+  FROM users u WHERE u.id = current_user_id;
+ $$;
 
 -- =================================================================
 -- 5. CREATE TRIGGERS
@@ -353,14 +680,13 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Create a trigger to automatically create a group chat for non-Teach4Learn workshops
 CREATE OR REPLACE FUNCTION auto_create_workshop_chat()
-RETURNS TRIGGER AS $$
-BEGIN
+RETURNS TRIGGER AS $$ BEGIN
   IF NEW.type != 'Teach4Learn' THEN
     PERFORM create_workshop_group_chat(NEW.id, NEW.title, NEW.creator_id);
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER create_workshop_chat_trigger
 AFTER INSERT ON workshops
@@ -373,15 +699,17 @@ EXECUTE FUNCTION auto_create_workshop_chat();
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE badge_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievement_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_syllabus_progress ENABLE ROW LEVEL SECURITY;
 
 -- =================================================================
--- 7. CREATE RLS POLICIES (FIXED VERSION)
+-- 7. CREATE RLS POLICIES
 -- =================================================================
 
--- ============================================================
--- MESSAGES POLICIES
--- ============================================================
-
+-- Messages policies
 CREATE POLICY "Users can view messages in their conversations"
 ON messages FOR SELECT
 USING (
@@ -421,291 +749,19 @@ WITH CHECK (
   )
 );
 
--- ============================================================
--- CONVERSATIONS POLICIES (MAIN FIX IS HERE)
--- ============================================================
-
--- FIX #1: Allow users to create conversations
--- The key fix: No ::uuid cast needed - auth.uid() already returns UUID
-CREATE POLICY "Users can create conversations"
-ON conversations FOR INSERT
-WITH CHECK (
-  created_by = auth.uid()
-);
-
--- FIX #2: Allow users to view their conversations
-CREATE POLICY "Users can view their conversations"
-ON conversations FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conversations.id
-    AND cp.user_id = auth.uid()
-  )
-);
-
--- FIX #3: Allow participants to update conversation metadata
-CREATE POLICY "Participants can update conversation metadata"
-ON conversations FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conversations.id
-    AND cp.user_id = auth.uid()
-  )
-);
-
--- ============================================================
--- CONVERSATION PARTICIPANTS POLICIES
--- ============================================================
-
-CREATE POLICY "Users can view participants in their conversations"
-ON conversation_participants FOR SELECT
-USING (
-  user_id = auth.uid()
-  OR EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conversation_participants.conversation_id
-    AND cp.user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "Allow inserting participants"
-ON conversation_participants FOR INSERT
-WITH CHECK (
-  -- You can always add yourself
-  user_id = auth.uid()
-
-  -- OR you can add others if you're already a participant
-  OR EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conversation_participants.conversation_id
-    AND cp.user_id = auth.uid()
-  )
-
-  -- OR you can add the second person right after creating the conversation
-  OR EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = conversation_participants.conversation_id
-    AND c.created_by = auth.uid()
-  )
-
-  -- OR workshop creator can add people
-  OR EXISTS (
-    SELECT 1 FROM workshops w
-    WHERE w.conversation_id = conversation_participants.conversation_id
-    AND w.creator_id = auth.uid()
-  )
-
-  -- OR auto-add via enrollment
-  OR EXISTS (
-    SELECT 1 FROM workshop_enrollments we
-    JOIN workshops w ON we.workshop_id = w.id
-    WHERE w.conversation_id = conversation_participants.conversation_id
-    AND we.user_id = conversation_participants.user_id
-    AND we.status = 'enrolled'
-  )
-);
-
--- =================================================================
--- 8. CONFIGURE REALTIME
--- =================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
-
--- =================================================================
--- 9. GRANT PERMISSIONS (IMPORTANT!)
--- =================================================================
--- This ensures authenticated users can actually use these tables
-
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-
--- =================================================================
--- DONE!
--- =================================================================
--- Main fixes applied:
--- 1. Removed ::uuid casts from RLS policies (auth.uid() already returns UUID)
--- 2. Changed all policies to use EXISTS subqueries for clarity
--- 3. Added STABLE and SECURITY DEFINER to functions where appropriate
--- 4. Added explicit GRANT statements for authenticated users
--- 5. Simplified policy logic for better performance
--- =================================================================
-
-
-
-
-
--- =================================================================
--- QUICK FIX: Just update the problematic policies
--- Run this instead of the full schema if you don't want to drop tables
--- =================================================================
-
--- Drop existing policies
-DROP POLICY IF EXISTS "Users can view participants in their conversations" ON conversation_participants;
-DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
-DROP POLICY IF EXISTS "Allow inserting participants when creating a chat or already in it" ON conversation_participants;
-
--- Create new policies without recursion
-CREATE POLICY "Users can view participants in their conversations"
-ON conversation_participants FOR SELECT
-USING (true);  -- Allow viewing all participants
-
-CREATE POLICY "Allow inserting participants"
-ON conversation_participants FOR INSERT
-WITH CHECK (
-  -- You can always add yourself
-  user_id = auth.uid()
-
-  -- OR you're the creator of the conversation
-  OR EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = conversation_participants.conversation_id
-    AND c.created_by = auth.uid()
-  )
-
-  -- OR workshop creator can add people
-  OR EXISTS (
-    SELECT 1 FROM workshops w
-    WHERE w.conversation_id = conversation_participants.conversation_id
-    AND w.creator_id = auth.uid()
-  )
-);
-
--- Also update the helper function to use SECURITY INVOKER
-DROP FUNCTION IF EXISTS is_conversation_participant(UUID, UUID);
-
-CREATE OR REPLACE FUNCTION is_conversation_participant(conv_id UUID, user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY INVOKER  -- Changed from SECURITY DEFINER
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conv_id AND cp.user_id = user_id
-  );
-$$;
-
-
-
-
-
-
-
-
-
-
--- See ALL policies on conversations table
-SELECT
-  schemaname,
-  tablename,
-  policyname,
-  permissive,
-  roles,
-  cmd,
-  qual,
-  with_check
-FROM pg_policies
-WHERE tablename = 'conversations';
-
-
-
-
-
-
-
-
--- 1. DROP ALL INSERT POLICIES ON CONVERSATIONS (safe if you replace immediately)
-DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
-DROP POLICY IF EXISTS "Allow conversation creation" ON conversations;
-DROP POLICY IF EXISTS "Enable insert for authenticated users" ON conversations;
--- add more drops if you see others in pg_policies
-
--- 2. Create ONE clean, correct policy
-CREATE POLICY "Users can create conversations"
-ON conversations FOR INSERT
-WITH CHECK (
-  created_by = auth.uid()
-);
-
--- 3. Double-check SELECT policy exists
-CREATE POLICY "Users can view their conversations"
-ON conversations FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM conversation_participants cp
-    WHERE cp.conversation_id = conversations.id
-      AND cp.user_id = auth.uid()
-  )
-  OR created_by = auth.uid()  -- Allow creator to see it even before joining participants
-);
-
--- 4. Make sure participants can be added by creator
-DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
-CREATE POLICY "Allow inserting participants"
-ON conversation_participants FOR INSERT
-WITH CHECK (
-  user_id = auth.uid()  -- can add self
-  OR EXISTS (           -- or creator of convo can add anyone
-    SELECT 1 FROM conversations c
-    WHERE c.id = conversation_participants.conversation_id
-      AND c.created_by = auth.uid()
-  )
-);
-
-
-
-
-
-
-
-
-
-
-
-
-
--- Allow the creator to always see their own conversations (even before participants exist)
-CREATE POLICY "Creator can always see their conversations"
-ON conversations FOR SELECT
-USING (created_by = auth.uid());
-
-
-
-
-
-
--- This should now work
-INSERT INTO conversations (is_group, created_by)
-VALUES (false, auth.uid())
-RETURNING id;
-
-
-
-
-
-
--- CLEANUP ALL POLICIES ON CONVERSATIONS
-DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
-DROP POLICY IF EXISTS "Users can view their conversations" ON conversations;
-DROP POLICY IF EXISTS "Creator can always see their conversations" ON conversations;
-DROP POLICY IF EXISTS "Participants can update conversation metadata" ON conversations;
-
--- RECREATE CLEAN ONES
+-- Conversations policies
 CREATE POLICY "Users can create conversations"
 ON conversations FOR INSERT
 WITH CHECK (created_by = auth.uid());
 
-CREATE POLICY "Users can view their own conversations"
+CREATE POLICY "Users can view their conversations"
 ON conversations FOR SELECT
 USING (
   created_by = auth.uid()
   OR EXISTS (
     SELECT 1 FROM conversation_participants cp
     WHERE cp.conversation_id = conversations.id
-      AND cp.user_id = auth.uid()
+    AND cp.user_id = auth.uid()
   )
 );
 
@@ -715,19 +771,14 @@ USING (
   EXISTS (
     SELECT 1 FROM conversation_participants cp
     WHERE cp.conversation_id = conversations.id
-      AND cp.user_id = auth.uid()
+    AND cp.user_id = auth.uid()
   )
 );
 
-
-
-
-
-
-
-
-
-DROP POLICY IF EXISTS "Allow inserting participants" ON conversation_participants;
+-- Conversation participants policies
+CREATE POLICY "Users can view participants in their conversations"
+ON conversation_participants FOR SELECT
+USING (true);
 
 CREATE POLICY "Allow inserting participants"
 ON conversation_participants FOR INSERT
@@ -740,161 +791,62 @@ WITH CHECK (
   )
 );
 
-
-
-
-
-
-
-
--- First drop the existing function
-DROP FUNCTION IF EXISTS add_user_to_workshop_chat(uuid,uuid);
-
--- Then create the new function with a different parameter name
-CREATE OR REPLACE FUNCTION add_user_to_workshop_chat(
-  workshop_id UUID,
-  participant_id UUID  -- Changed from user_id to avoid ambiguity
-)
-RETURNS VOID AS $$ DECLARE
-  conv_id UUID;
-BEGIN
-  SELECT conversation_id INTO conv_id
-  FROM workshops
-  WHERE id = workshop_id;
-
-  IF conv_id IS NOT NULL THEN
-    INSERT INTO conversation_participants (conversation_id, user_id)
-    VALUES (conv_id, participant_id)  -- Using the renamed parameter
-    ON CONFLICT (conversation_id, user_id) DO NOTHING;
-  END IF;
-END;
- $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-
-
-
-
- -- Update the workshops table to ensure consistent date/time handling
-ALTER TABLE workshops
-ALTER COLUMN date TYPE TEXT USING to_char(date, 'YYYY-MM-DD'),
-ALTER COLUMN time TYPE TEXT USING to_char(date, 'HH24:MI:SS');
-
-
-
-
-
-
-
-
-
--- =================================================================
--- GAMIFICATION SYSTEM SCHEMA FOR SUPABASE
--- =================================================================
-
--- 1. Modify the existing 'users' table to include gamification fields
-ALTER TABLE users
-ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
-
--- 2. Create a table for all possible badge definitions
-CREATE TABLE IF NOT EXISTS badge_definitions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT UNIQUE NOT NULL,
-  description TEXT,
-  icon TEXT, -- e.g., '🎯', '👑'
-  rarity TEXT NOT NULL CHECK (rarity IN ('Common', 'Uncommon', 'Rare', 'Epic', 'Legendary')),
-  requirement_type TEXT NOT NULL, -- e.g., 'workshops_attended', 'workshops_taught'
-  requirement_value INTEGER NOT NULL -- e.g., 1, 10, 50
-);
-
--- 3. Create a join table to track user progress on badges
-CREATE TABLE IF NOT EXISTS user_badges (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  badge_id UUID REFERENCES badge_definitions(id) ON DELETE CASCADE,
-  earned BOOLEAN DEFAULT FALSE,
-  progress INTEGER DEFAULT 0,
-  earned_at TIMESTAMPTZ,
-  UNIQUE(user_id, badge_id) -- Ensures a user can only have one entry per badge
-);
-
--- 4. Create a table for all possible achievement definitions
-CREATE TABLE IF NOT EXISTS achievement_definitions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  title TEXT UNIQUE NOT NULL,
-  description TEXT,
-  icon TEXT, -- e.g., '🎯', '🦋'
-  reward_type TEXT NOT NULL CHECK (reward_type IN ('xp', 'badge')),
-  reward_value TEXT NOT NULL, -- e.g., '150' for XP or 'Skill Explorer Badge' for a badge name
-  requirement_type TEXT NOT NULL, -- e.g., 'monthly_workshop_attendance'
-  requirement_value INTEGER NOT NULL -- e.g., 5
-);
-
--- 5. Create a join table to track user progress on achievements
-CREATE TABLE IF NOT EXISTS user_achievements (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  achievement_id UUID REFERENCES achievement_definitions(id) ON DELETE CASCADE,
-  progress INTEGER DEFAULT 0,
-  is_completed BOOLEAN DEFAULT FALSE,
-  completed_at TIMESTAMPTZ,
-  UNIQUE(user_id, achievement_id)
-);
-
--- 6. Create indexes for better performance
-CREATE INDEX IF NOT EXISTS user_badges_user_id_idx ON user_badges(user_id);
-CREATE INDEX IF NOT EXISTS user_badges_badge_id_idx ON user_badges(badge_id);
-CREATE INDEX IF NOT EXISTS user_achievements_user_id_idx ON user_achievements(user_id);
-CREATE INDEX IF NOT EXISTS user_achievements_achievement_id_idx ON user_achievements(achievement_id);
-CREATE INDEX IF NOT EXISTS users_xp_idx ON users(xp DESC); -- For leaderboard
-
--- 7. Enable RLS on the new tables
-ALTER TABLE badge_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE achievement_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
--- The 'users' table should already have RLS enabled from your previous schema.
-
--- 8. Create RLS Policies
-
--- Badge Definitions are public read-only
+-- Gamification policies
 CREATE POLICY "Badge definitions are viewable by everyone."
 ON badge_definitions FOR SELECT
-USING ( true );
+USING (true);
 
--- Achievement Definitions are public read-only
 CREATE POLICY "Achievement definitions are viewable by everyone."
 ON achievement_definitions FOR SELECT
-USING ( true );
+USING (true);
 
--- Users can view their own badge progress
 CREATE POLICY "Users can view their own badge progress."
 ON user_badges FOR SELECT
-USING ( auth.uid() = user_id );
+USING (auth.uid() = user_id);
 
--- Users can view their own achievement progress
 CREATE POLICY "Users can view their own achievement progress."
 ON user_achievements FOR SELECT
-USING ( auth.uid() = user_id );
+USING (auth.uid() = user_id);
 
--- Users can update their own badge/achievement progress (this would be done by a backend function)
--- For now, we'll keep it simple. A real system would use database functions or edge functions
--- to grant XP and update progress to prevent cheating.
 CREATE POLICY "Users can update their own progress." ON user_badges FOR UPDATE
-USING ( auth.uid() = user_id );
+USING (auth.uid() = user_id);
+
 CREATE POLICY "Users can update their own progress." ON user_achievements FOR UPDATE
-USING ( auth.uid() = user_id );
+USING (auth.uid() = user_id);
 
--- 9. (Optional but Recommended) Populate the tables with initial data
--- This is where you define the badges and achievements from your Dart code.
+CREATE POLICY "Users can view their own syllabus progress."
+ON user_syllabus_progress FOR SELECT
+USING (auth.uid() = user_id);
 
+CREATE POLICY "System can manage syllabus progress."
+ON user_syllabus_progress FOR ALL
+USING (auth.role() = 'service_role');
+
+-- =================================================================
+-- 8. CONFIGURE REALTIME
+-- =================================================================
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
+-- =================================================================
+-- 9. GRANT PERMISSIONS
+-- =================================================================
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- =================================================================
+-- 10. INITIALIZE GAMIFICATION DATA
+-- =================================================================
 INSERT INTO badge_definitions (name, description, icon, rarity, requirement_type, requirement_value) VALUES
   ('First Steps', 'Complete your first workshop', '🎯', 'Common', 'workshops_attended', 1),
   ('Knowledge Seeker', 'Attend 10 workshops', '📚', 'Common', 'workshops_attended', 10),
   ('Rising Star', 'Teach your first workshop', '⭐', 'Uncommon', 'workshops_taught', 1),
   ('Community Leader', 'Teach 10 workshops', '👑', 'Rare', 'workshops_taught', 10),
   ('Skill Master', 'Earn endorsements in 5 skills', '🏆', 'Epic', 'skills_endorsed', 5),
-  ('Legendary Mentor', 'Teach 50 workshops', '🌟', 'Legendary', 'workshops_taught', 50)
+  ('Legendary Mentor', 'Teach 50 workshops', '🌟', 'Legendary', 'workshops_taught', 50),
+  ('Workshop Graduate', 'Complete your first workshop', '🎓', 'Common', 'workshops_completed', 1),
+  ('Dedicated Learner', 'Complete 5 workshops', '📖', 'Uncommon', 'workshops_completed', 5)
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO achievement_definitions (title, description, icon, reward_type, reward_value, requirement_type, requirement_value) VALUES
@@ -902,331 +854,3 @@ INSERT INTO achievement_definitions (title, description, icon, reward_type, rewa
   ('Social Butterfly', 'Start chats with 10 new people', '🦋', 'xp', '100', 'new_conversations', 10),
   ('Skill Collector', 'Learn 3 new skills this month', '🎪', 'badge', 'Skill Explorer Badge', 'monthly_skills_learned', 3)
 ON CONFLICT (title) DO NOTHING;
-
--- 10. Create a Postgres Function to get all user gamification data in one go
--- This is much more efficient than making multiple separate calls from the app.
-CREATE OR REPLACE FUNCTION get_user_gamification_data(current_user_id UUID)
-RETURNS TABLE(
-  -- User stats
-  user_xp INT,
-  user_level INT,
-  workshops_attended BIGINT,
-  workshops_taught BIGINT,
-  badges_earned BIGINT,
-  endorsements_count BIGINT,
-  -- Leaderboard
-  leaderboard JSONB,
-  -- Badges
-  user_badges_data JSONB,
-  -- Achievements
-  user_achievements_data JSONB
-) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
-    -- User Stats
-    u.xp,
-    u.level,
-    (SELECT count(*) FROM workshop_enrollments WHERE user_id = current_user_id),
-    (SELECT count(*) FROM workshops WHERE creator_id = current_user_id),
-    (SELECT count(*) FROM user_badges WHERE user_id = current_user_id AND earned = true),
-    (SELECT count(*) FROM endorsements WHERE endorsed_user = current_user_id),
-
-    -- Leaderboard (Top 20 + current user)
-    (SELECT jsonb_agg(row_to_json(lb))
-     FROM (
-       SELECT
-         row_number() OVER (ORDER BY xp DESC) AS rank,
-         id,
-         name,
-         avatar_url,
-         xp,
-         (SELECT count(*) FROM user_badges WHERE user_id = u.id AND earned = true) AS badges
-       FROM users u
-       ORDER BY xp DESC
-       LIMIT 20
-     ) AS lb
-    ),
-
-    -- User Badges (merged with definitions)
-    (SELECT jsonb_agg(row_to_json(badge_data))
-     FROM (
-       SELECT
-         bd.id,
-         bd.name,
-         bd.description,
-         bd.icon,
-         bd.rarity,
-         COALESCE(ub.earned, false) AS earned,
-         COALESCE(ub.progress, 0) AS progress,
-         bd.requirement_value AS max
-       FROM badge_definitions bd
-       LEFT JOIN user_badges ub ON bd.id = ub.badge_id AND ub.user_id = current_user_id
-     ) AS badge_data
-    ),
-
-    -- User Achievements (merged with definitions)
-    (SELECT jsonb_agg(row_to_json(ach_data))
-     FROM (
-       SELECT
-         ad.id,
-         ad.title,
-         ad.description,
-         ad.icon,
-         ad.reward_value AS reward,
-         COALESCE(ua.progress, 0) AS progress,
-         ad.requirement_value AS max
-       FROM achievement_definitions ad
-       LEFT JOIN user_achievements ua ON ad.id = ua.achievement_id AND ua.user_id = current_user_id
-     ) AS ach_data
-    )
-
-  FROM users u WHERE u.id = current_user_id;
- $$;
-
--- Grant permission to execute the function
-GRANT EXECUTE ON FUNCTION get_user_gamification_data(UUID) TO authenticated;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- This table will track the completion status of each lesson for each enrolled user.
-CREATE TABLE IF NOT EXISTS user_syllabus_progress (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  workshop_id UUID REFERENCES workshops(id) ON DELETE CASCADE,
-  lesson_index INTEGER NOT NULL, -- The index of the lesson in the syllabus array
-  completed_at TIMESTAMPTZ,
-  UNIQUE(user_id, workshop_id, lesson_index) -- A user can only have one status per lesson
-);
-
--- Enable RLS
-ALTER TABLE user_syllabus_progress ENABLE ROW LEVEL SECURITY;
-
--- Create policies
--- Users can view their own progress
-CREATE POLICY "Users can view their own syllabus progress."
-ON user_syllabus_progress FOR SELECT
-USING ( auth.uid() = user_id );
-
--- The system (via a function) can insert/update progress
-CREATE POLICY "System can manage syllabus progress."
-ON user_syllabus_progress FOR ALL
-USING ( auth.role() = 'service_role' );
-
--- Create an index for performance
-CREATE INDEX IF NOT EXISTS user_syllabus_progress_idx ON user_syllabus_progress(user_id, workshop_id);
-
-
-
-
--- This function is the main engine for awarding XP and checking badges.
--- It's designed to be called by other functions or triggers.
-CREATE OR REPLACE FUNCTION award_xp_and_check_badges(
-  p_user_id UUID,
-  p_xp_to_award INT,
-  p_action_type TEXT, -- e.g., 'lesson_completed', 'workshop_reviewed'
-  p_workshop_id UUID DEFAULT NULL
-)
-RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER -- Runs with elevated privileges, crucial for security
-AS $$ DECLARE
-  current_xp INT;
-  new_level INT;
-  new_total_xp INT;
-  workshops_attended_count INT;
-  workshops_taught_count INT;
-  lesson_count INT;
-BEGIN
-  -- 1. Update user's total XP
-  UPDATE users
-  SET xp = xp + p_xp_to_award
-  WHERE id = p_user_id
-  RETURNING xp, level INTO new_total_xp, new_level;
-
-  -- 2. Check for level up (simple logic: 500 XP per level)
-  new_level := new_total_xp / 500 + 1;
-  IF new_level > (SELECT level FROM users WHERE id = p_user_id) THEN
-    UPDATE users SET level = new_level WHERE id = p_user_id;
-  END IF;
-
-  -- 3. Check and award badges based on the action
-
-  -- Badge: First Steps (complete first lesson of any workshop)
-  IF p_action_type = 'lesson_completed' THEN
-    SELECT COUNT(*) INTO lesson_count
-    FROM user_syllabus_progress
-    WHERE user_id = p_user_id;
-
-    IF lesson_count = 1 THEN
-      UPDATE user_badges SET earned = TRUE, earned_at = NOW()
-      WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'First Steps');
-    END IF;
-  END IF;
-
-  -- Badge: Knowledge Seeker (complete lessons in 10 different workshops)
-  SELECT COUNT(DISTINCT workshop_id) INTO workshops_attended_count
-  FROM user_syllabus_progress
-  WHERE user_id = p_user_id;
-
-  IF workshops_attended_count >= 10 THEN
-    UPDATE user_badges SET earned = TRUE, earned_at = NOW()
-    WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'Knowledge Seeker');
-  END IF;
-
-  -- Badge: Rising Star (teach first workshop - awarded when creator marks a lesson for a student)
-  IF p_action_type = 'lesson_completed' AND p_workshop_id IS NOT NULL THEN
-    IF (SELECT creator_id FROM workshops WHERE id = p_workshop_id) = p_user_id THEN
-       -- Check if this is the first time they are marking a lesson for any of their workshops
-       IF (SELECT COUNT(*) FROM user_syllabus_progress usp JOIN workshops w ON usp.workshop_id = w.id WHERE w.creator_id = p_user_id AND usp.completed_at IS NOT NULL) = 1 THEN
-          UPDATE user_badges SET earned = TRUE, earned_at = NOW()
-          WHERE user_id = p_user_id AND badge_id = (SELECT id FROM badge_definitions WHERE name = 'Rising Star');
-       END IF;
-    END IF;
-  END IF;
-
-  -- You can add more badge logic here for other actions like submitting reviews, etc.
-
-END;
- $$;
-
-
-
-
-
-
-
- -- Function to be called when a creator marks a lesson as complete for an enrolled user.
-CREATE OR REPLACE FUNCTION mark_lesson_complete(
-  p_user_id UUID,       -- The user who is being marked complete
-  p_workshop_id UUID,
-  p_lesson_index INT
-)
-RETURNS TABLE (success BOOLEAN, message TEXT)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$ DECLARE
-  is_enrolled BOOLEAN;
-BEGIN
-  -- Check if the user is actually enrolled in the workshop
-  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
-
-  IF NOT is_enrolled THEN
-    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
-    RETURN;
-  END IF;
-
-  -- Insert progress, but only if not already completed
-  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
-  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
-  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
-
-  -- Check if a new row was inserted (i.e., it wasn't already completed)
-  IF FOUND THEN
-    -- Award XP and check badges for the STUDENT
-    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
-
-    -- Also award XP to the CREATOR for teaching
-    PERFORM award_xp_and_check_badges((SELECT creator_id FROM workshops WHERE id = p_workshop_id), 5, 'lesson_taught', p_workshop_id);
-
-    RETURN QUERY SELECT TRUE, 'Lesson marked as complete and XP awarded.';
-  ELSE
-    RETURN QUERY SELECT FALSE, 'Lesson was already marked as complete.';
-  END IF;
-END;
- $$;
-
--- Grant permission for authenticated users to call this function
-GRANT EXECUTE ON FUNCTION mark_lesson_complete(UUID, UUID, INTEGER) TO authenticated;
-
-
-
-
-
-
-
-
-CREATE OR REPLACE FUNCTION get_user_gamification_data(current_user_id UUID)
-RETURNS TABLE(
-  -- User stats
-  user_xp INT,
-  user_level INT,
-  workshops_attended BIGINT,
-  workshops_taught BIGINT,
-  badges_earned BIGINT,
-  endorsements_count BIGINT,
-  -- Leaderboard
-  leaderboard JSONB,
-  -- Badges
-  user_badges_data JSONB,
-  -- Achievements
-  user_achievements_data JSONB
-) LANGUAGE sql STABLE SECURITY DEFINER AS $$   SELECT
-    -- User Stats
-    u.xp,
-    u.level,
-    (SELECT count(*) FROM workshop_enrollments WHERE user_id = current_user_id),
-    (SELECT count(*) FROM workshops WHERE creator_id = current_user_id),
-    (SELECT count(*) FROM user_badges WHERE user_id = current_user_id AND earned = true),
-    (SELECT count(*) FROM endorsements WHERE endorsed_user = current_user_id),
-
-    -- Leaderboard (Top 20 + current user)
-    (SELECT jsonb_agg(row_to_json(lb))
-     FROM (
-       SELECT
-         row_number() OVER (ORDER BY xp DESC) AS rank,
-         id,
-         name,
-         avatar_url,
-         xp,
-         (SELECT count(*) FROM user_badges WHERE user_id = u.id AND earned = true) AS badges
-       FROM users u
-       ORDER BY xp DESC
-       LIMIT 20
-     ) AS lb
-    ),
-
-    -- User Badges (merged with definitions)
-    (SELECT jsonb_agg(row_to_json(badge_data))
-     FROM (
-       SELECT
-         bd.id,
-         bd.name,
-         bd.description,
-         bd.icon,
-         bd.rarity,
-         COALESCE(ub.earned, false) AS earned,
-         COALESCE(ub.progress, 0) AS progress,
-         bd.requirement_value AS max,
-         ub.earned_at -- <-- ADDED THIS LINE
-       FROM badge_definitions bd
-       LEFT JOIN user_badges ub ON bd.id = ub.badge_id AND ub.user_id = current_user_id
-     ) AS badge_data
-    ),
-
-    -- User Achievements (merged with definitions)
-    (SELECT jsonb_agg(row_to_json(ach_data))
-     FROM (
-       SELECT
-         ad.id,
-         ad.title,
-         ad.description,
-         ad.icon,
-         ad.reward_value AS reward,
-         COALESCE(ua.progress, 0) AS progress,
-         ad.requirement_value AS max
-       FROM achievement_definitions ad
-       LEFT JOIN user_achievements ua ON ad.id = ua.achievement_id AND ua.user_id = current_user_id
-     ) AS ach_data
-    )
-
-  FROM users u WHERE u.id = current_user_id;
- $$;

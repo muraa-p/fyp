@@ -150,7 +150,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     await _checkEnrollmentAndConversation();
   }
 
-// In WorkshopDetailScreen.dart
+// In WorkshopDetailScreen.dart, update the _toggleLessonComplete method:
   void _toggleLessonComplete(int index) async {
     final currentUser = supabase.auth.currentUser;
     final isCreator = currentUser != null && widget.workshop['creator_id'] == currentUser.id;
@@ -176,11 +176,23 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
         // Call the database function for each enrolled user
         for (final enrollment in enrolledUsers) {
-          await supabase.rpc('mark_lesson_complete', params: {
+          final result = await supabase.rpc('mark_lesson_complete', params: {
             'p_user_id': enrollment['user_id'],
             'p_workshop_id': widget.workshop['id'],
             'p_lesson_index': index,
           });
+
+          // Check if workshop was completed
+          if (result[0]['success'] && result[0]['message'].contains('workshop completed')) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Lesson marked complete and workshop completed! XP awarded.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          }
         }
 
         if (mounted) {
@@ -367,7 +379,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     if (currentUser == null) return;
 
     try {
-      // 1. Save the review to the database (this part is unchanged)
+      // 1. Save the review to the database
       await supabase
           .from('workshop_ratings')
           .upsert({
@@ -375,11 +387,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         'user_id': currentUser.id,
         'rating': rating,
         'review': review,
-        // 'created_at' is automatically handled by Supabase default, no need to set it here
       }, onConflict: 'workshop_id,user_id');
 
-      // 2. Award XP and check for badges using our secure backend function
-      // This is the new gamification logic!
+      // 2. Mark the workshop as completed if not already marked
+      await supabase.rpc('check_workshop_completion', params: {
+        'p_user_id': currentUser.id,
+        'p_workshop_id': widget.workshop['id'],
+      });
+
+      // 3. Award XP and check for badges using our secure backend function
       await supabase.rpc('award_xp_and_check_badges', params: {
         'p_user_id': currentUser.id,
         'p_xp_to_award': 20, // Award 20 XP for submitting a workshop review
@@ -387,12 +403,12 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         'p_workshop_id': widget.workshop['id'],
       });
 
-      // 3. Update the UI state
+      // 4. Update the UI state
       setState(() {
         hasReviewedWorkshop = true;
       });
 
-      // 4. Show a success message that includes the XP reward
+      // 5. Show a success message that includes the XP reward
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
