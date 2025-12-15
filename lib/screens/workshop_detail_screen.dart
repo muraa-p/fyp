@@ -389,8 +389,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         'review': review,
       }, onConflict: 'workshop_id,user_id');
 
-      // 2. Mark the workshop as completed if not already marked
-      await supabase.rpc('check_workshop_completion', params: {
+      // 2. Check if workshop is completed
+      final isCompleted = await supabase.rpc('check_workshop_completion', params: {
         'p_user_id': currentUser.id,
         'p_workshop_id': widget.workshop['id'],
       });
@@ -408,11 +408,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         hasReviewedWorkshop = true;
       });
 
-      // 5. Show a success message that includes the XP reward
+      // 5. Show a success message that includes the XP reward and completion status
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Workshop review submitted! +20 XP'),
+          SnackBar(
+            content: Text(
+                isCompleted
+                    ? 'Workshop review submitted! Workshop completed! +20 XP'
+                    : 'Workshop review submitted! +20 XP'
+            ),
             backgroundColor: Colors.green,
           ),
         );

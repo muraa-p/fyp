@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EndorsementsScreen extends StatefulWidget {
   final Function(String) onNavigate;
@@ -11,121 +14,453 @@ class EndorsementsScreen extends StatefulWidget {
 class _EndorsementsScreenState extends State<EndorsementsScreen> {
   String? selectedSkill;
   final TextEditingController endorsementText = TextEditingController();
+  final TextEditingController userSearchController = TextEditingController();
+  final TextEditingController workshopSearchController = TextEditingController();
+  final TextEditingController skillSearchController = TextEditingController();
 
-  // Dummy Data
-  final List<Map<String, dynamic>> mySkills = [
-    {
-      "name": "JavaScript",
-      "endorsements": 15,
-      "level": "Expert",
-      "recentEndorsers": [
-        {"name": "Sarah Johnson", "avatar": "👩‍💻", "text": "Excellent teaching style and deep knowledge"},
-        {"name": "Alex Chen", "avatar": "👨‍🎓", "text": "Very patient and explains concepts clearly"},
-        {"name": "Emily Davis", "avatar": "👩‍🔬", "text": "Helped me understand complex JS concepts"},
-      ]
-    },
-    {
-      "name": "React",
-      "endorsements": 12,
-      "level": "Advanced",
-      "recentEndorsers": [
-        {"name": "Michael Park", "avatar": "👨‍🏫", "text": "Great at breaking down React patterns"},
-        {"name": "Lisa Wong", "avatar": "👩‍💼", "text": "Practical examples and real-world projects"},
-      ]
-    },
-    {
-      "name": "Python",
-      "endorsements": 8,
-      "level": "Intermediate",
-      "recentEndorsers": [
-        {"name": "David Kim", "avatar": "👨‍💻", "text": "Good fundamentals and problem-solving approach"},
-        {"name": "Anna Smith", "avatar": "👩‍🎓", "text": "Helped me with data structures"},
-      ]
-    },
-  ];
+  bool isLoading = true;
+  bool isSearchingUsers = false;
+  bool isSearchingWorkshops = false;
+  bool isSearchingSkills = false;
+  bool isLoadingUserDetails = false;
+  bool isLoadingAllUsers = false;
+  bool isSendingEndorsement = false;
 
-  final List<Map<String, dynamic>> endorsementsReceived = [
-    {
-      "skill": "JavaScript",
-      "endorser": "Sarah Johnson",
-      "endorserAvatar": "👩‍💻",
-      "text": "Excellent teaching style and deep knowledge of JavaScript.",
-      "date": "2025-10-05",
-      "rating": 5
-    },
-    {
-      "skill": "React",
-      "endorser": "Michael Park",
-      "endorserAvatar": "👨‍🏫",
-      "text": "Great at breaking down complex React patterns.",
-      "date": "2025-10-03",
-      "rating": 5
-    },
-  ];
+  List<Map<String, dynamic>> mySkills = [];
+  List<Map<String, dynamic>> endorsementsReceived = [];
+  List<Map<String, dynamic>> endorsementsGiven = [];
+  List<Map<String, dynamic>> pendingEndorsements = [];
 
-  final List<Map<String, dynamic>> endorsementsGiven = [
-    {
-      "skill": "Data Science",
-      "recipient": "Alex Chen",
-      "recipientAvatar": "👨‍🎓",
-      "text": "Exceptional knowledge in machine learning and data visualization.",
-      "date": "2025-10-07"
-    },
-    {
-      "skill": "Graphic Design",
-      "recipient": "Emily Davis",
-      "recipientAvatar": "👩‍🔬",
-      "text": "Creative and professional design work with great attention to detail.",
-      "date": "2025-10-01"
-    },
-  ];
+  // For search functionality
+  List<Map<String, dynamic>> allUsers = []; // Store all users
+  List<Map<String, dynamic>> searchResults = [];
+  List<Map<String, dynamic>> workshopSearchResults = [];
+  List<Map<String, dynamic>> skillSearchResults = [];
 
-  final List<Map<String, dynamic>> pendingEndorsements = [
-    {
-      "id": 1,
-      "requester": "Lisa Wong",
-      "avatar": "👩‍💼",
-      "skill": "React",
-      "workshop": "Advanced React Hooks Workshop",
-      "date": "2025-10-09"
-    },
-    {
-      "id": 2,
-      "requester": "James Miller",
-      "avatar": "👨‍💼",
-      "skill": "JavaScript",
-      "workshop": "JavaScript Fundamentals",
-      "date": "2025-10-07"
-    },
-  ];
+  // For selected user details
+  List<Map<String, dynamic>> userWorkshops = [];
+  List<String> userSkills = [];
 
-  // --- Actions ---
-  void sendEndorsement() {
-    if (selectedSkill != null && endorsementText.text.trim().isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Endorsement sent successfully!")),
-      );
-      setState(() {
-        selectedSkill = null;
-        endorsementText.clear();
-      });
-      Navigator.pop(context);
+  // Selected values for endorsement
+  Map<String, dynamic>? selectedUser;
+  Map<String, dynamic>? selectedWorkshop;
+  String? selectedSkillForEndorsement;
+
+  // Timer for debouncing search
+  Timer? _searchTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // Load user's skills from users table (skills_to_teach field)
+      final userResponse = await Supabase.instance.client
+          .from('users')
+          .select('skills_to_teach')
+          .eq('id', user.id)
+          .single();
+
+      // Load endorsements received with explicit relationship names
+      final receivedResponse = await Supabase.instance.client
+          .from('endorsements')
+          .select('*, endorsed_by:users!endorsements_endorsed_by_fkey(name, avatar_url)')
+          .eq('endorsed_user', user.id)
+          .order('created_at', ascending: false);
+
+      // Load endorsements given with explicit relationship names
+      final givenResponse = await Supabase.instance.client
+          .from('endorsements')
+          .select('*, endorsed_user:users!endorsements_endorsed_user_fkey(name, avatar_url), workshops(title)')
+          .eq('endorsed_by', user.id)
+          .order('created_at', ascending: false);
+
+      // Load pending endorsements (workshop requests)
+      final pendingResponse = await Supabase.instance.client
+          .from('workshop_requests')
+          .select('*, requester:users(name, avatar_url), workshops!inner(title, skills, creator_id)')
+          .eq('workshops.creator_id', user.id)
+          .eq('status', 'pending');
+
+      // Count endorsements by skill
+      final skillCounts = <String, int>{};
+      for (var endorsement in receivedResponse) {
+        final skill = endorsement['skill'] as String;
+        skillCounts[skill] = (skillCounts[skill] ?? 0) + 1;
+      }
+
+      // Convert skills_to_teach to mySkills format
+      final List<Map<String, dynamic>> formattedSkills = [];
+      if (userResponse['skills_to_teach'] != null) {
+        for (var skill in userResponse['skills_to_teach']) {
+          formattedSkills.add({
+            'name': skill,
+            'endorsements': skillCounts[skill] ?? 0,
+            'level': _getSkillLevel(skillCounts[skill] ?? 0),
+          });
+        }
+      }
+
+      // Force a complete state update
+      if (mounted) {
+        setState(() {
+          mySkills = formattedSkills;
+          endorsementsReceived = List<Map<String, dynamic>>.from(receivedResponse);
+          endorsementsGiven = List<Map<String, dynamic>>.from(givenResponse);
+          pendingEndorsements = List<Map<String, dynamic>>.from(pendingResponse);
+          isLoading = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading data: $error')),
+        );
+      }
     }
   }
 
-  void requestEndorsement(String skill) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Endorsement request sent for $skill")),
-    );
+  String _getSkillLevel(int endorsements) {
+    if (endorsements >= 15) return 'Expert';
+    if (endorsements >= 8) return 'Advanced';
+    if (endorsements >= 3) return 'Intermediate';
+    return 'Beginner';
   }
 
-  void respondToEndorsement(int id, bool approve) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(approve ? "Endorsement approved!" : "Endorsement declined."),
-      ),
-    );
-    setState(() => pendingEndorsements.removeWhere((e) => e["id"] == id));
+  // Function to load all users
+  Future<void> _loadAllUsers() async {
+    if (allUsers.isNotEmpty) return; // Already loaded
+
+    setState(() {
+      isLoadingAllUsers = true;
+    });
+
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('id, name, avatar_url, skills_to_teach')
+          .order('name')
+          .limit(100); // Limit to prevent loading too many users at once
+
+      setState(() {
+        allUsers = List<Map<String, dynamic>>.from(response);
+        searchResults = allUsers; // Initially show all users
+        isLoadingAllUsers = false;
+      });
+    } catch (error) {
+      setState(() {
+        isLoadingAllUsers = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading users: $error')),
+      );
+    }
+  }
+
+  // Reduce debounce time and improve search responsiveness
+  void _onUserSearchChanged(String query) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
+      _filterUsers(query);
+    });
+  }
+
+  void _onWorkshopSearchChanged(String query) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
+      _searchWorkshops(query);
+    });
+  }
+
+  void _onSkillSearchChanged(String query) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
+      _searchSkills(query);
+    });
+  }
+
+  // Filter users from the already loaded list
+  void _filterUsers(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        searchResults = allUsers;
+        isSearchingUsers = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isSearchingUsers = true;
+    });
+
+    // Filter the already loaded users
+    final filteredUsers = allUsers.where((user) {
+      final name = user['name']?.toString().toLowerCase() ?? '';
+      final searchLower = query.toLowerCase();
+      return name.contains(searchLower);
+    }).toList();
+
+    setState(() {
+      searchResults = filteredUsers;
+      isSearchingUsers = false;
+    });
+  }
+
+  Future<void> _searchWorkshops(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        workshopSearchResults = [];
+        isSearchingWorkshops = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isSearchingWorkshops = true;
+    });
+
+    try {
+      final response = await Supabase.instance.client
+          .from('workshops')
+          .select('id, title, creator_id, creator:users(name), skills')
+          .ilike('title', '%$query%')
+          .limit(10);
+
+      setState(() {
+        workshopSearchResults = List<Map<String, dynamic>>.from(response);
+        isSearchingWorkshops = false;
+      });
+    } catch (error) {
+      setState(() {
+        isSearchingWorkshops = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error searching workshops: $error')),
+      );
+    }
+  }
+
+  Future<void> _searchSkills(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        skillSearchResults = [];
+        isSearchingSkills = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isSearchingSkills = true;
+    });
+
+    try {
+      // Get skills from the skills table
+      final skillsResponse = await Supabase.instance.client
+          .from('skills')
+          .select('id, name')
+          .ilike('name', '%$query%')
+          .limit(10);
+
+      // Also get skills from users' skills_to_teach field
+      final usersResponse = await Supabase.instance.client
+          .from('users')
+          .select('skills_to_teach')
+          .not('skills_to_teach', 'is', null);
+
+      // Extract unique skills from users
+      final Set<String> userSkills = {};
+      for (var user in usersResponse) {
+        if (user['skills_to_teach'] != null) {
+          for (var skill in user['skills_to_teach']) {
+            if (skill.toLowerCase().contains(query.toLowerCase())) {
+              userSkills.add(skill);
+            }
+          }
+        }
+      }
+
+      // Combine results
+      final List<Map<String, dynamic>> combinedResults = [];
+      combinedResults.addAll(List<Map<String, dynamic>>.from(skillsResponse));
+
+      for (var skill in userSkills) {
+        combinedResults.add({
+          'id': null, // No ID for skills from users table
+          'name': skill,
+        });
+      }
+
+      setState(() {
+        skillSearchResults = combinedResults;
+        isSearchingSkills = false;
+      });
+    } catch (error) {
+      setState(() {
+        isSearchingSkills = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error searching skills: $error')),
+      );
+    }
+  }
+
+  // Function to load user details (workshops and skills)
+  Future<void> _loadUserDetails(String userId) async {
+    setState(() {
+      isLoadingUserDetails = true;
+      userWorkshops = [];
+      userSkills = [];
+    });
+
+    try {
+      // Get workshops conducted by the user
+      final workshopsResponse = await Supabase.instance.client
+          .from('workshops')
+          .select('id, title, skills')
+          .eq('creator_id', userId)
+          .order('created_at', ascending: false);
+
+      // Get user details to extract skills
+      final userResponse = await Supabase.instance.client
+          .from('users')
+          .select('skills_to_teach')
+          .eq('id', userId)
+          .single();
+
+      setState(() {
+        userWorkshops = List<Map<String, dynamic>>.from(workshopsResponse);
+        if (userResponse['skills_to_teach'] != null) {
+          userSkills = List<String>.from(userResponse['skills_to_teach']);
+        }
+        isLoadingUserDetails = false;
+      });
+    } catch (error) {
+      setState(() {
+        isLoadingUserDetails = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading user details: $error')),
+      );
+    }
+  }
+
+  Future<void> sendEndorsement() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    if (selectedUser == null || selectedSkillForEndorsement == null || endorsementText.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all required fields")),
+      );
+      return;
+    }
+
+    setState(() {
+      isSendingEndorsement = true;
+    });
+
+    try {
+      await Supabase.instance.client.from('endorsements').insert({
+        'endorsed_user': selectedUser!['id'],
+        'endorsed_by': user.id,
+        'skill': selectedSkillForEndorsement,
+        'workshop_id': selectedWorkshop?['id'],
+        'text': endorsementText.text.trim(),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Endorsement sent successfully!")),
+      );
+
+      // Reset form
+      setState(() {
+        selectedUser = null;
+        selectedWorkshop = null;
+        selectedSkillForEndorsement = null;
+        userWorkshops = [];
+        userSkills = [];
+        endorsementText.clear();
+        userSearchController.clear();
+        workshopSearchController.clear();
+        skillSearchController.clear();
+        searchResults = [];
+        workshopSearchResults = [];
+        skillSearchResults = [];
+        isSendingEndorsement = false;
+      });
+
+      Navigator.pop(context);
+
+      // Refresh all data instead of just endorsements
+      await _loadData();
+
+      // Also refresh the allUsers list to ensure it's up to date
+      setState(() {
+        allUsers = []; // Reset to force reload next time
+      });
+
+    } catch (error) {
+      setState(() {
+        isSendingEndorsement = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending endorsement: $error')),
+      );
+    }
+  }
+
+  Future<void> requestEndorsement(String skill) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // This would create a request for endorsement
+      // Implementation depends on your specific workflow
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Endorsement request sent for $skill")),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error requesting endorsement: $error')),
+      );
+    }
+  }
+
+  Future<void> respondToEndorsement(int id, bool approve) async {
+    try {
+      await Supabase.instance.client
+          .from('workshop_requests')
+          .update({'status': approve ? 'approved' : 'declined'})
+          .eq('id', id);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(approve ? "Endorsement approved!" : "Endorsement declined."),
+        ),
+      );
+
+      _loadData(); // Refresh the data
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error responding to endorsement: $error')),
+      );
+    }
   }
 
   Color getLevelColor(String level) {
@@ -141,7 +476,6 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
     }
   }
 
-  // --- UI BUILD ---
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,91 +491,13 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: "Give Endorsement",
-            onPressed: () {
-              String? selectedWorkshop;
-
-              // Dummy workshops — you can later fetch from AppState or backend
-              final List<String> workshops = [
-                "Flutter Advanced Widgets",
-                "Intro to React Hooks",
-                "JavaScript Fundamentals",
-                "UI/UX Design Basics",
-              ];
-
-              showDialog(
-                context: context,
-                builder: (_) => StatefulBuilder(
-                  builder: (context, setState) => AlertDialog(
-                    title: const Text("Give Endorsement"),
-                    content: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Workshop dropdown
-                          DropdownButtonFormField<String>(
-                            value: selectedWorkshop,
-                            decoration: const InputDecoration(
-                              labelText: "Workshop",
-                              border: OutlineInputBorder(),
-                            ),
-                            items: workshops
-                                .map((w) =>
-                                DropdownMenuItem(value: w, child: Text(w)))
-                                .toList(),
-                            onChanged: (val) => setState(() => selectedWorkshop = val),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Skill input
-                          TextField(
-                            decoration: const InputDecoration(
-                              labelText: "Skill",
-                              hintText: "e.g., Flutter, Python, UI Design...",
-                            ),
-                            onChanged: (val) => selectedSkill = val,
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Endorsement text
-                          TextField(
-                            controller: endorsementText,
-                            decoration: const InputDecoration(
-                              labelText: "Endorsement",
-                              hintText: "Write your endorsement...",
-                            ),
-                            maxLines: 3,
-                          ),
-                        ],
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Cancel"),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (selectedWorkshop == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Please select a workshop.")),
-                            );
-                            return;
-                          }
-                          sendEndorsement();
-                        },
-                        child: const Text("Send"),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-
+            onPressed: () => _showGiveEndorsementDialog(),
           ),
         ],
       ),
-
-      body: DefaultTabController(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : DefaultTabController(
         length: 2,
         child: Column(
           children: [
@@ -267,13 +523,11 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                               children: [
                                 const Row(
                                   children: [
-                                    Icon(Icons.workspace_premium,
-                                        color: Colors.amber),
+                                    Icon(Icons.workspace_premium, color: Colors.amber),
                                     SizedBox(width: 8),
                                     Text(
                                       "Pending Requests",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
+                                      style: TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -286,28 +540,25 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Row(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(req["avatar"],
-                                          style:
-                                          const TextStyle(fontSize: 24)),
+                                      CircleAvatar(
+                                        backgroundImage: NetworkImage(req['requester']['avatar_url'] ?? ''),
+                                        child: req['requester']['avatar_url'] == null
+                                            ? Text(req['requester']['name'][0])
+                                            : null,
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(req["requester"],
-                                                style: const TextStyle(
-                                                    fontWeight:
-                                                    FontWeight.bold)),
+                                            Text(req['requester']['name'],
+                                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                                            Text("Requesting endorsement for ${req['workshop']['skills']}"),
                                             Text(
-                                                "Requesting endorsement for ${req["skill"]}"),
-                                            Text(
-                                              "Workshop: ${req["workshop"]}",
-                                              style: theme
-                                                  .textTheme.bodySmall,
+                                              "Workshop: ${req['workshop']['title']}",
+                                              style: theme.textTheme.bodySmall,
                                             ),
                                           ],
                                         ),
@@ -315,16 +566,11 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                                       Column(
                                         children: [
                                           ElevatedButton(
-                                            onPressed: () =>
-                                                respondToEndorsement(
-                                                    req["id"], true),
-                                            child:
-                                            const Text("Approve"),
+                                            onPressed: () => respondToEndorsement(req['id'], true),
+                                            child: const Text("Approve"),
                                           ),
                                           TextButton(
-                                            onPressed: () =>
-                                                respondToEndorsement(
-                                                    req["id"], false),
+                                            onPressed: () => respondToEndorsement(req['id'], false),
                                             child: const Text("Decline"),
                                           ),
                                         ],
@@ -346,74 +592,43 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text("My Skills & Endorsements",
-                                  style:
-                                  TextStyle(fontWeight: FontWeight.bold)),
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 12),
                               ...mySkills.map((s) => Card(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(
-                                        mainAxisAlignment:
-                                        MainAxisAlignment
-                                            .spaceBetween,
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           Row(
                                             children: [
-                                              Text(s["name"],
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                      FontWeight.bold)),
+                                              Text(s['name'],
+                                                  style: const TextStyle(fontWeight: FontWeight.bold)),
                                               const SizedBox(width: 8),
                                               Chip(
-                                                label: Text(s["level"]),
-                                                backgroundColor:
-                                                getLevelColor(
-                                                    s["level"]),
-                                                labelStyle:
-                                                const TextStyle(
-                                                    color:
-                                                    Colors.white),
+                                                label: Text(s['level']),
+                                                backgroundColor: getLevelColor(s['level']),
+                                                labelStyle: const TextStyle(color: Colors.white),
                                               ),
                                             ],
                                           ),
                                           Row(
                                             children: [
-                                              const Icon(Icons.thumb_up,
-                                                  color: Colors.blue,
-                                                  size: 18),
+                                              const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
                                               const SizedBox(width: 4),
-                                              Text("${s["endorsements"]}"),
+                                              Text("${s['endorsements']}"),
                                             ],
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      ...s["recentEndorsers"]
-                                          .take(2)
-                                          .map<Widget>((e) => Row(
-                                        children: [
-                                          Text(e["avatar"]),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              "${e["name"]}: \"${e["text"]}\"",
-                                              style: theme.textTheme
-                                                  .bodySmall,
-                                            ),
-                                          ),
-                                        ],
-                                      )),
-                                      const SizedBox(height: 8),
                                       TextButton(
-                                        onPressed: () => requestEndorsement(
-                                            s["name"]),
-                                        child:
-                                        const Text("Request More"),
+                                        onPressed: () => requestEndorsement(s['name']),
+                                        child: const Text("Request More"),
                                       ),
                                     ],
                                   ),
@@ -434,33 +649,26 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text("Recent Endorsements Received",
-                                  style:
-                                  TextStyle(fontWeight: FontWeight.bold)),
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 12),
                               ...endorsementsReceived.map((e) => ListTile(
-                                leading:
-                                Text(e["endorserAvatar"], style: const TextStyle(fontSize: 24)),
-                                title: Text(
-                                    "${e["endorser"]} endorsed you for ${e["skill"]}"),
+                                leading: CircleAvatar(
+                                  backgroundImage: NetworkImage(e['endorsed_by']['avatar_url'] ?? ''),
+                                  child: e['endorsed_by']['avatar_url'] == null
+                                      ? Text(e['endorsed_by']['name'][0])
+                                      : null,
+                                ),
+                                title: Text("${e['endorsed_by']['name']} endorsed you for ${e['skill']}"),
                                 subtitle: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: List.generate(
-                                        5,
-                                            (i) => Icon(Icons.star,
-                                            size: 16,
-                                            color: i < e["rating"]
-                                                ? Colors.amber
-                                                : Colors.grey),
-                                      ),
+                                    if (e['text'] != null)
+                                      Text("\"${e['text']}\"",
+                                          style: const TextStyle(fontStyle: FontStyle.italic)),
+                                    Text(
+                                      DateTime.parse(e['created_at']).toString().substring(0, 10),
+                                      style: theme.textTheme.bodySmall,
                                     ),
-                                    Text("\"${e["text"]}\"",
-                                        style: const TextStyle(
-                                            fontStyle: FontStyle.italic)),
-                                    Text(e["date"],
-                                        style: theme.textTheme.bodySmall),
                                   ],
                                 ),
                               )),
@@ -478,18 +686,26 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: ListTile(
-                          leading: Text(e["recipientAvatar"],
-                              style: const TextStyle(fontSize: 24)),
-                          title: Text(
-                              "You endorsed ${e["recipient"]} for ${e["skill"]}"),
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(e['endorsed_user']['avatar_url'] ?? ''),
+                            child: e['endorsed_user']['avatar_url'] == null
+                                ? Text(e['endorsed_user']['name'][0])
+                                : null,
+                          ),
+                          title: Text("You endorsed ${e['endorsed_user']['name']} for ${e['skill']}"),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("\"${e["text"]}\"",
-                                  style: const TextStyle(
-                                      fontStyle: FontStyle.italic)),
-                              Text(e["date"],
-                                  style: theme.textTheme.bodySmall),
+                              if (e['workshops'] != null)
+                                Text("Workshop: ${e['workshops']['title']}",
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                              if (e['text'] != null)
+                                Text("\"${e['text']}\"",
+                                    style: const TextStyle(fontStyle: FontStyle.italic)),
+                              Text(
+                                DateTime.parse(e['created_at']).toString().substring(0, 10),
+                                style: theme.textTheme.bodySmall,
+                              ),
                             ],
                           ),
                         ),
@@ -498,6 +714,510 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGiveEndorsementDialog() {
+    // Load all users when dialog opens
+    _loadAllUsers();
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Give Endorsement"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // User search
+                  const Text("Select User", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: userSearchController,
+                    decoration: InputDecoration(
+                      labelText: "Search users...",
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.person_search),
+                      suffixIcon: isSearchingUsers
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                          : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            userSearchController.clear();
+                            searchResults = allUsers; // Reset to show all users
+                          });
+                        },
+                      ),
+                    ),
+                    onChanged: (value) {
+                      _onUserSearchChanged(value);
+                    },
+                    onTap: () {
+                      // Show all users when field is tapped
+                      if (userSearchController.text.isEmpty) {
+                        setState(() {
+                          searchResults = allUsers;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (isLoadingAllUsers)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (searchResults.isNotEmpty)
+                    Container(
+                      height: 200, // Increased height to show more users
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: ListView.builder(
+                        itemCount: searchResults.length,
+                        itemBuilder: (context, index) {
+                          final user = searchResults[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage: NetworkImage(user['avatar_url'] ?? ''),
+                              child: user['avatar_url'] == null
+                                  ? Text(user['name'][0])
+                                  : null,
+                            ),
+                            title: Text(user['name']),
+                            subtitle: user['skills_to_teach'] != null && user['skills_to_teach'].isNotEmpty
+                                ? Text("Teaches: ${user['skills_to_teach'].join(', ')}")
+                                : null,
+                            onTap: () {
+                              setState(() {
+                                selectedUser = user;
+                                userSearchController.text = user['name'];
+                                searchResults = [];
+                              });
+                              // Load user details when selected
+                              _loadUserDetails(user['id']);
+                            },
+                          );
+                        },
+                      ),
+                    )
+                  else if (!isLoadingAllUsers)
+                      Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Center(
+                          child: Text("No users found"),
+                        ),
+                      ),
+                  if (selectedUser != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(selectedUser!['avatar_url'] ?? ''),
+                                child: selectedUser!['avatar_url'] == null
+                                    ? Text(selectedUser!['name'][0])
+                                    : null,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Selected: ${selectedUser!['name']}",
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  setState(() {
+                                    selectedUser = null;
+                                    userWorkshops = [];
+                                    userSkills = [];
+                                    userSearchController.clear();
+                                    searchResults = allUsers; // Reset to show all users
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // User details section
+                        if (isLoadingUserDetails)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // User's workshops
+                              if (userWorkshops.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "Workshops Conducted",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                SizedBox(
+                                  height: 80,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: userWorkshops.length,
+                                    itemBuilder: (context, index) {
+                                      final workshop = userWorkshops[index];
+                                      return Container(
+                                        width: 150,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              workshop['title'],
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            if (workshop['skills'] != null && workshop['skills'].isNotEmpty)
+                                              Wrap(
+                                                spacing: 4,
+                                                runSpacing: 2,
+                                                children: (workshop['skills'] as List)
+                                                    .take(2)
+                                                    .map<Widget>((skill) => Chip(
+                                                  label: Text(
+                                                    skill,
+                                                    style: const TextStyle(fontSize: 10),
+                                                  ),
+                                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                  visualDensity: VisualDensity.compact,
+                                                ))
+                                                    .toList(),
+                                              ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+
+                              // User's skills
+                              if (userSkills.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                const Text(
+                                  "Skills They Teach",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: userSkills.map((skill) => Chip(
+                                    label: Text(skill),
+                                    backgroundColor: Colors.green.withOpacity(0.1),
+                                  )).toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Workshop search
+                  const Text("Search Workshop (Optional)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: workshopSearchController,
+                    decoration: InputDecoration(
+                      labelText: "Workshop title",
+                      hintText: "Search for a workshop...",
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: isSearchingWorkshops
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                          : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            workshopSearchController.clear();
+                            workshopSearchResults = [];
+                            selectedWorkshop = null;
+                          });
+                        },
+                      ),
+                    ),
+                    onChanged: (value) {
+                      _onWorkshopSearchChanged(value);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (isSearchingWorkshops)
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    )
+                  else if (workshopSearchResults.isNotEmpty)
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: ListView.builder(
+                        itemCount: workshopSearchResults.length,
+                        itemBuilder: (context, index) {
+                          final workshop = workshopSearchResults[index];
+                          return ListTile(
+                            title: Text(workshop['title']),
+                            subtitle: Text("By: ${workshop['creator']['name']}"),
+                            onTap: () {
+                              setState(() {
+                                selectedWorkshop = workshop;
+                                workshopSearchController.text = workshop['title'];
+                                workshopSearchResults = [];
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Center(
+                        child: Text("Type to search for workshops"),
+                      ),
+                    ),
+                  if (selectedWorkshop != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.workspaces, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Selected: ${selectedWorkshop!['title']}",
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                selectedWorkshop = null;
+                                workshopSearchController.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Skill search
+                  const Text("Search Skill", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: skillSearchController,
+                    decoration: InputDecoration(
+                      labelText: "Skill name",
+                      hintText: "Search for a skill...",
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.psychology),
+                      suffixIcon: isSearchingSkills
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                          : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            skillSearchController.clear();
+                            skillSearchResults = [];
+                            selectedSkillForEndorsement = null;
+                          });
+                        },
+                      ),
+                    ),
+                    onChanged: (value) {
+                      _onSkillSearchChanged(value);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (isSearchingSkills)
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    )
+                  else if (skillSearchResults.isNotEmpty)
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: ListView.builder(
+                        itemCount: skillSearchResults.length,
+                        itemBuilder: (context, index) {
+                          final skill = skillSearchResults[index];
+                          return ListTile(
+                            title: Text(skill['name']),
+                            onTap: () {
+                              setState(() {
+                                selectedSkillForEndorsement = skill['name'];
+                                skillSearchController.text = skill['name'];
+                                skillSearchResults = [];
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Center(
+                        child: Text("Type to search for skills"),
+                      ),
+                    ),
+                  if (selectedSkillForEndorsement != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.psychology, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Selected: $selectedSkillForEndorsement",
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                selectedSkillForEndorsement = null;
+                                skillSearchController.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Endorsement text
+                  const Text("Endorsement Message", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: endorsementText,
+                    decoration: const InputDecoration(
+                      labelText: "Your endorsement",
+                      hintText: "Write your endorsement...",
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: isSendingEndorsement ? null : () {
+                sendEndorsement();
+              },
+              child: isSendingEndorsement
+                  ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : const Text("Send"),
             ),
           ],
         ),

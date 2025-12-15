@@ -854,3 +854,106 @@ INSERT INTO achievement_definitions (title, description, icon, reward_type, rewa
   ('Social Butterfly', 'Start chats with 10 new people', '🦋', 'xp', '100', 'new_conversations', 10),
   ('Skill Collector', 'Learn 3 new skills this month', '🎪', 'badge', 'Skill Explorer Badge', 'monthly_skills_learned', 3)
 ON CONFLICT (title) DO NOTHING;
+
+
+
+
+
+
+
+
+
+
+-- =================================================================
+-- ENDORSEMENT SYSTEM UPDATES
+-- =================================================================
+
+-- Update the endorsements table to include workshop_id and text fields
+ALTER TABLE endorsements
+ADD COLUMN workshop_id UUID REFERENCES workshops(id) ON DELETE SET NULL,
+ADD COLUMN text TEXT;
+
+-- Enable RLS on the endorsements table
+ALTER TABLE endorsements ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for the endorsements table
+CREATE POLICY "Users can view all endorsements"
+ON endorsements FOR SELECT
+USING (true);
+
+CREATE POLICY "Users can insert endorsements"
+ON endorsements FOR INSERT
+WITH CHECK (
+  endorsed_by = auth.uid()
+);
+
+CREATE POLICY "Users can update their own endorsements"
+ON endorsements FOR UPDATE
+USING (
+  endorsed_by = auth.uid()
+);
+
+CREATE POLICY "Users can delete their own endorsements"
+ON endorsements FOR DELETE
+USING (
+  endorsed_by = auth.uid()
+);
+
+-- Create an index on the endorsements table for better performance
+CREATE INDEX IF NOT EXISTS endorsements_endorsed_user_idx ON endorsements(endorsed_user);
+CREATE INDEX IF NOT EXISTS endorsements_endorsed_by_idx ON endorsements(endorsed_by);
+CREATE INDEX IF NOT EXISTS endorsements_workshop_id_idx ON endorsements(workshop_id);
+
+
+
+
+
+
+
+
+-- Add this function to your database schema
+CREATE OR REPLACE FUNCTION check_workshop_completion(
+  p_user_id UUID,
+  p_workshop_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$ DECLARE
+  total_lessons INT;
+  completed_lessons INT;
+  is_enrolled BOOLEAN;
+BEGIN
+  -- Check if the user is enrolled in the workshop
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+
+  IF NOT is_enrolled THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Get workshop details for completion check
+  SELECT jsonb_array_length(syllabus) INTO total_lessons
+  FROM workshops
+  WHERE id = p_workshop_id;
+
+  -- Get the number of completed lessons for the user
+  SELECT COUNT(*) INTO completed_lessons
+  FROM user_syllabus_progress
+  WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+  -- Check if all lessons are completed
+  IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+    -- Mark the workshop as completed in the enrollments table if not already marked
+    UPDATE workshop_enrollments
+    SET status = 'completed', completed_at = NOW()
+    WHERE user_id = p_user_id AND workshop_id = p_workshop_id AND status != 'completed';
+
+    -- Award XP and check for completion badges
+    PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
+END;
+ $$;
