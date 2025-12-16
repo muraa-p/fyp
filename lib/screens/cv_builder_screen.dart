@@ -123,17 +123,163 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       // 8. Skills: endorsements + taught
       final endorsementsRes = await supabase
           .from('endorsements')
-          .select('skill')
+          .select('skill, text, workshop_id')
           .eq('endorsed_user', userId);
 
       final endorsementCounts = <String, int>{};
+      final endorsementDetails = <String, List<Map<String, dynamic>>>{};
+
       for (var e in endorsementsRes) {
         final skill = e['skill'] as String?;
         if (skill != null) {
           endorsementCounts[skill] = (endorsementCounts[skill] ?? 0) + 1;
+
+          if (!endorsementDetails.containsKey(skill)) {
+            endorsementDetails[skill] = [];
+          }
+          endorsementDetails[skill]!.add({
+            'text': e['text'],
+            'workshop_id': e['workshop_id'],
+          });
         }
       }
 
+      // 9. Get workshop ratings for evidence
+      final workshopRatings = <String, List<Map<String, dynamic>>>{};
+      if (taughtWorkshopsRes.isNotEmpty) {
+        final taughtWorkshopIds = taughtWorkshopsRes.map((w) => w['id'] as String).toList();
+
+        final ratingsRes = await supabase
+            .from('workshop_ratings')
+            .select('rating, review, user_id, workshop_id')
+            .not('review', 'is', null)
+            .not('review', 'eq', '')
+            .filter('workshop_id', 'in', taughtWorkshopIds);
+
+        // Get user names for reviews
+        final reviewerIds = ratingsRes.map((r) => r['user_id'] as String).toSet().toList();
+        final authorsRes = await supabase
+            .from('users')
+            .select('id, name')
+            .filter('id', 'in', reviewerIds);
+        final authorsMap = {for (var a in authorsRes) a['id'] as String: a['name'] as String?};
+
+        // Organize ratings by workshop
+        for (var rating in ratingsRes) {
+          final workshopId = rating['workshop_id'] as String;
+          if (!workshopRatings.containsKey(workshopId)) {
+            workshopRatings[workshopId] = [];
+          }
+          workshopRatings[workshopId]!.add({
+            'rating': rating['rating'],
+            'review': rating['review'],
+            'author': authorsMap[rating['user_id']] ?? "Anonymous",
+          });
+        }
+      }
+
+      // 10. Get user's skills_to_teach
+      final userSkillsToTeach = user['skills_to_teach'] as List? ?? [];
+
+      // 11. Create enhanced skills data structure
+      skills = [];
+
+      // First, add skills that user has explicitly set as skills_to_teach
+      for (var skillName in userSkillsToTeach) {
+        // Find workshops where this skill was taught
+        final relatedWorkshops = taughtWorkshopsRes.where((w) {
+          final skillsList = w['skills'] as List? ?? [];
+          return skillsList.contains(skillName);
+        }).toList();
+
+        // Calculate average rating for this skill across all workshops
+        double skillRating = 0.0;
+        int ratingCount = 0;
+        for (var workshop in relatedWorkshops) {
+          if (workshop['rating'] is num && (workshop['rating'] as num) > 0) {
+            skillRating += (workshop['rating'] as num).toDouble();
+            ratingCount++;
+          }
+        }
+        skillRating = ratingCount > 0 ? skillRating / ratingCount : 0.0;
+
+        // Determine skill level based on endorsements and workshops taught
+        int endorsements = endorsementCounts[skillName] ?? 0;
+        int workshopsTaught = relatedWorkshops.length;
+
+        String level;
+        if (endorsements >= 10 || workshopsTaught >= 5) {
+          level = "Expert";
+        } else if (endorsements >= 5 || workshopsTaught >= 3) {
+          level = "Advanced";
+        } else if (endorsements >= 1 || workshopsTaught >= 1) {
+          level = "Intermediate";
+        } else {
+          level = "Beginner";
+        }
+
+        // Collect evidence (reviews and endorsements)
+        List<Map<String, dynamic>> evidence = [];
+
+        // Add workshop reviews as evidence
+        for (var workshop in relatedWorkshops) {
+          final workshopId = workshop['id'] as String;
+          if (workshopRatings.containsKey(workshopId)) {
+            for (var rating in workshopRatings[workshopId]!) {
+              evidence.add({
+                'type': 'review',
+                'workshop_title': workshop['title'],
+                'text': rating['review'],
+                'author': rating['author'],
+                'rating': rating['rating'],
+                'date': workshop['date'],
+              });
+            }
+          }
+        }
+
+        // Add endorsements as evidence
+        if (endorsementDetails.containsKey(skillName)) {
+          for (var endorsement in endorsementDetails[skillName]!) {
+            final workshopId = endorsement['workshop_id'] as String?;
+            String workshopTitle = "General";
+
+            if (workshopId != null) {
+              final workshop = taughtWorkshopsRes.firstWhere(
+                    (w) => w['id'] == workshopId,
+                orElse: () => {'title': 'General'},
+              );
+              workshopTitle = workshop['title'] as String? ?? "General";
+            }
+
+            evidence.add({
+              'type': 'endorsement',
+              'workshop_title': workshopTitle,
+              'text': endorsement['text'],
+              'date': null,
+            });
+          }
+        }
+
+        // Sort evidence by date (most recent first)
+        evidence.sort((a, b) {
+          if (a['date'] == null && b['date'] == null) return 0;
+          if (a['date'] == null) return 1;
+          if (b['date'] == null) return -1;
+          return DateTime.parse(b['date']).compareTo(DateTime.parse(a['date']));
+        });
+
+        skills.add({
+          "name": skillName,
+          "level": level,
+          "endorsements": endorsements,
+          "workshops": relatedWorkshops,
+          "average_rating": skillRating,
+          "evidence": evidence.take(5).toList(), // Limit to top 5 evidence items
+        });
+      }
+
+      // Then, add skills from workshops that aren't in skills_to_teach
       final taughtSkills = <String>{};
       for (var w in taughtWorkshopsRes) {
         final skillsList = w['skills'] as List?;
@@ -142,32 +288,104 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
         }
       }
 
-      final allSkills = <String>{...taughtSkills, ...endorsementCounts.keys};
-      skills = allSkills.map((skillName) {
-        int endorsements = endorsementCounts[skillName] ?? 0;
-        bool isTaught = taughtSkills.contains(skillName);
+      for (var skillName in taughtSkills) {
+        if (!userSkillsToTeach.contains(skillName)) {
+          // Find workshops where this skill was taught
+          final relatedWorkshops = taughtWorkshopsRes.where((w) {
+            final skillsList = w['skills'] as List? ?? [];
+            return skillsList.contains(skillName);
+          }).toList();
 
-        String level;
-        if (endorsements >= 10) {
-          level = "Expert";
-        } else if (endorsements >= 5) {
-          level = "Advanced";
-        } else {
-          level = "Intermediate";
+          // Calculate average rating for this skill across all workshops
+          double skillRating = 0.0;
+          int ratingCount = 0;
+          for (var workshop in relatedWorkshops) {
+            if (workshop['rating'] is num && (workshop['rating'] as num) > 0) {
+              skillRating += (workshop['rating'] as num).toDouble();
+              ratingCount++;
+            }
+          }
+          skillRating = ratingCount > 0 ? skillRating / ratingCount : 0.0;
+
+          // Determine skill level based on endorsements and workshops taught
+          int endorsements = endorsementCounts[skillName] ?? 0;
+          int workshopsTaught = relatedWorkshops.length;
+
+          String level;
+          if (endorsements >= 10 || workshopsTaught >= 5) {
+            level = "Expert";
+          } else if (endorsements >= 5 || workshopsTaught >= 3) {
+            level = "Advanced";
+          } else if (endorsements >= 1 || workshopsTaught >= 1) {
+            level = "Intermediate";
+          } else {
+            level = "Beginner";
+          }
+
+          // Collect evidence (reviews and endorsements)
+          List<Map<String, dynamic>> evidence = [];
+
+          // Add workshop reviews as evidence
+          for (var workshop in relatedWorkshops) {
+            final workshopId = workshop['id'] as String;
+            if (workshopRatings.containsKey(workshopId)) {
+              for (var rating in workshopRatings[workshopId]!) {
+                evidence.add({
+                  'type': 'review',
+                  'workshop_title': workshop['title'],
+                  'text': rating['review'],
+                  'author': rating['author'],
+                  'rating': rating['rating'],
+                  'date': workshop['date'],
+                });
+              }
+            }
+          }
+
+          // Add endorsements as evidence
+          if (endorsementDetails.containsKey(skillName)) {
+            for (var endorsement in endorsementDetails[skillName]!) {
+              final workshopId = endorsement['workshop_id'] as String?;
+              String workshopTitle = "General";
+
+              if (workshopId != null) {
+                final workshop = taughtWorkshopsRes.firstWhere(
+                      (w) => w['id'] == workshopId,
+                  orElse: () => {'title': 'General'},
+                );
+                workshopTitle = workshop['title'] as String? ?? "General";
+              }
+
+              evidence.add({
+                'type': 'endorsement',
+                'workshop_title': workshopTitle,
+                'text': endorsement['text'],
+                'date': null,
+              });
+            }
+          }
+
+          // Sort evidence by date (most recent first)
+          evidence.sort((a, b) {
+            if (a['date'] == null && b['date'] == null) return 0;
+            if (a['date'] == null) return 1;
+            if (b['date'] == null) return -1;
+            return DateTime.parse(b['date']).compareTo(DateTime.parse(a['date']));
+          });
+
+          skills.add({
+            "name": skillName,
+            "level": level,
+            "endorsements": endorsements,
+            "workshops": relatedWorkshops,
+            "average_rating": skillRating,
+            "evidence": evidence.take(5).toList(), // Limit to top 5 evidence items
+            "from_workshop": true, // Mark as derived from workshop
+          });
         }
+      }
 
-        return {
-          "name": skillName,
-          "level": level,
-          "endorsements": endorsements,
-          "taught": isTaught ? 1 : 0,
-          "attended": workshopsCompleted,
-          "certs": <String>[],
-          "projects": <String>[],
-        };
-      }).toList();
-
-      // 9. Testimonials & Reviews (IMPROVED & COMPATIBLE)
+      // 12. Testimonials & Reviews (IMPROVED & COMPATIBLE)
       testimonials = [];
       if (taughtWorkshopsRes.isNotEmpty) {
         // Get a list of IDs for workshops taught by the user
@@ -549,56 +767,355 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        ...skills.map((s) => Card(
-          color: theme.colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        if (skills.isEmpty)
+          Card(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("${s["name"]} (${s["level"]})",
-                            style: theme.textTheme.titleMedium),
-                        IconButton(
-                          onPressed: () => addToLinkedInProfile(s["name"]),
-                          icon: const Icon(Icons.link),
-                          color: theme.colorScheme.primary,
-                        ),
-                      ]),
-                  const SizedBox(height: 6),
+                  Icon(Icons.school_outlined,
+                      size: 48,
+                      color: theme.colorScheme.onSurface.withAlpha(128)),
+                  const SizedBox(height: 12),
                   Text(
-                    "Endorsements: ${s["endorsements"]} | Taught: ${s["taught"]} | Attended: ${s["attended"]}",
-                    style: theme.textTheme.bodySmall,
+                    "No skills added yet",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(179),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: (s["certs"] as List)
-                        .map((c) => Chip(
-                      label: Text(c),
-                      backgroundColor:
-                      theme.colorScheme.surface.withAlpha(128),
-                    ))
-                        .toList(),
+                  Text(
+                    "Add skills you've taught or learned through workshops",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(128),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  CustomButton(
+                    label: "Add Your First Skill",
+                    onPressed: () => _showAddSkillDialog(context),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...skills.map((s) => Card(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "${s["name"]} (${s["level"]})",
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      Row(
+                        children: [
+                          if (s["from_workshop"] == true)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "From Workshop",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => addToLinkedInProfile(s["name"]),
+                            icon: const Icon(Icons.link),
+                            color: theme.colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    children: (s["projects"] as List)
-                        .map((p) => Chip(
-                      label: Text(p),
-                      backgroundColor:
-                      theme.colorScheme.surface.withAlpha(128),
-                    ))
-                        .toList(),
+                  Row(
+                    children: [
+                      Text(
+                        "Endorsements: ${s["endorsements"]}",
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        "Workshops: ${s["workshops"].length}",
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 16),
+                      if (s["average_rating"] > 0)
+                        Row(
+                          children: [
+                            Text(
+                              "Rating: ",
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            ...List.generate(
+                              5,
+                                  (i) => Icon(
+                                Icons.star,
+                                size: 14,
+                                color: i < s["average_rating"]
+                                    ? Colors.amber
+                                    : theme.disabledColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
-                ]),
-          ),
-        )),
+
+                  // Show related workshops
+                  if (s["workshops"].isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      "Related Workshops",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...s["workshops"].take(3).map((w) => Padding(
+                      padding: const EdgeInsets.only(left: 8, top: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "${w["title"]} (${_formatDate(w["date"])})",
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                    if (s["workshops"].length > 3)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 4),
+                        child: Text(
+                          "+${s["workshops"].length - 3} more workshops",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+
+                  // Show evidence (reviews and endorsements)
+                  if (s["evidence"].isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      "Evidence",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...s["evidence"].map((e) => Padding(
+                      padding: const EdgeInsets.only(left: 8, top: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                e["type"] == "review"
+                                    ? Icons.rate_review
+                                    : Icons.thumb_up,
+                                size: 16,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                e["type"] == "review"
+                                    ? "Review from ${e["author"]}"
+                                    : "Endorsement",
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (e["type"] == "review" && e["rating"] != null) ...[
+                                const SizedBox(width: 8),
+                                ...List.generate(
+                                  5,
+                                      (i) => Icon(
+                                    Icons.star,
+                                    size: 12,
+                                    color: i < e["rating"]
+                                        ? Colors.amber
+                                        : theme.disabledColor,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(width: 24),
+                          Text(
+                            "\"${e["text"]}\"",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          if (e["workshop_title"] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 24),
+                              child: Text(
+                                "From: ${e["workshop_title"]}",
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withAlpha(179),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )),
+                  ],
+                ],
+              ),
+            ),
+          )),
         const SizedBox(height: 12),
-        CustomButton(label: "Add New Skill", onPressed: () {}),
+        CustomButton(
+          label: "Add New Skill",
+          onPressed: () => _showAddSkillDialog(context),
+        ),
       ],
+    );
+  }
+
+  // Add this method to show a dialog for adding a new skill
+  void _showAddSkillDialog(BuildContext context) {
+    final TextEditingController skillController = TextEditingController();
+    final List<String> skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
+    String selectedLevel = 'Intermediate';
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final theme = Theme.of(context);
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Add New Skill"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: skillController,
+                    decoration: const InputDecoration(
+                      labelText: "Skill Name",
+                      hintText: "e.g., Flutter, Public Speaking",
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text("Proficiency Level"),
+                  const SizedBox(height: 8),
+                  DropdownButton<String>(
+                    value: selectedLevel,
+                    isExpanded: true,
+                    items: skillLevels.map((String level) {
+                      return DropdownMenuItem<String>(
+                        value: level,
+                        child: Text(level),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          selectedLevel = newValue;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text("Cancel"),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (skillController.text.trim().isNotEmpty) {
+                      final userId = supabase.auth.currentSession?.user.id;
+                      if (userId != null) {
+                        try {
+                          // Get current skills_to_teach
+                          final currentUserRes = await supabase
+                              .from('users')
+                              .select('skills_to_teach')
+                              .eq('id', userId)
+                              .single();
+
+                          final currentSkills = currentUserRes['skills_to_teach'] as List? ?? [];
+
+                          // Add new skill if not already present
+                          if (!currentSkills.contains(skillController.text.trim())) {
+                            final updatedSkills = [...currentSkills, skillController.text.trim()];
+
+                            // Update user's skills_to_teach
+                            await supabase
+                                .from('users')
+                                .update({
+                              'skills_to_teach': updatedSkills
+                            })
+                                .eq('id', userId);
+
+                            // Refresh data
+                            _loadData();
+
+                            if (mounted) {
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Skill added successfully!")),
+                              );
+                            }
+                          } else {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Skill already exists")),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error adding skill: ${e.toString()}")),
+                            );
+                          }
+                        }
+                      }
+                    }
+                  },
+                  child: const Text("Add"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
