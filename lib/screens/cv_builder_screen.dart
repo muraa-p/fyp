@@ -27,7 +27,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
   List<Map<String, dynamic>> skills = [];
   List<Map<String, dynamic>> testimonials = [];
 
-  // Add this to store workshops taught by the user
+  // Add this to store workshops taught by user
   List<Map<String, dynamic>> taughtWorkshops = [];
 
   // Quick stats
@@ -35,6 +35,9 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
   int workshopsTaught = 0;
   int badgesEarned = 0;
   double averageRating = 0.0;
+
+  // User profile data
+  Map<String, dynamic>? userProfile;
 
   final supabase = Supabase.instance.client;
 
@@ -53,18 +56,18 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     }
 
     try {
-      // 1. Fetch user profile
+      // 1. Fetch user profile - FIXED: Added email to the select statement
       final userRes = await supabase
           .from('users')
           .select(
-          'name,phone,bio,website,skills_to_teach,avatar_url,xp,level')
+          'name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location')
           .eq('id', userId)
           .single();
 
-      final user = userRes;
+      userProfile = userRes;
 
       // 2. Calculate completeness & suggestions
-      _calculateCompletenessAndSuggestions(user);
+      _calculateCompletenessAndSuggestions(userRes);
 
       // 3. Fetch gamification data
       final gamificationRes = await supabase
@@ -77,7 +80,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       // 4. Workshops taught - Modified to fetch more fields
       final taughtWorkshopsRes = await supabase
           .from('workshops')
-          .select('id, title, date, rating, skills, category, duration, difficulty')
+          .select('id, title, date, rating, skills, category, duration, difficulty, description')
           .eq('creator_id', userId);
 
       // Store the workshops in state
@@ -179,7 +182,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       }
 
       // 10. Get user's skills_to_teach
-      final userSkillsToTeach = user['skills_to_teach'] as List? ?? [];
+      final userSkillsToTeach = userRes['skills_to_teach'] as List? ?? [];
 
       // 11. Create enhanced skills data structure
       skills = [];
@@ -388,7 +391,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       // 12. Testimonials & Reviews (IMPROVED & COMPATIBLE)
       testimonials = [];
       if (taughtWorkshopsRes.isNotEmpty) {
-        // Get a list of IDs for workshops taught by the user
+        // Get a list of IDs for workshops taught by user
         final taughtWorkshopIds = taughtWorkshopsRes.map((w) => w['id'] as String).toList();
 
         // Fetch ratings only for those specific workshops
@@ -553,8 +556,19 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("CV exported to PDF!")),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CVPreviewScreen(
+                    userProfile: userProfile!,
+                    skills: skills,
+                    taughtWorkshops: taughtWorkshops,
+                    achievements: achievements,
+                    testimonials: testimonials,
+                    averageRating: averageRating,
+                    workshopsCompleted: workshopsCompleted,
+                  ),
+                ),
               );
             },
           ),
@@ -740,7 +754,22 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text("CV Preview", style: theme.textTheme.titleMedium),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CVPreviewScreen(
+                      userProfile: userProfile!,
+                      skills: skills,
+                      taughtWorkshops: taughtWorkshops,
+                      achievements: achievements,
+                      testimonials: testimonials,
+                      averageRating: averageRating,
+                      workshopsCompleted: workshopsCompleted,
+                    ),
+                  ),
+                );
+              },
               child: Text("View Full",
                   style: TextStyle(color: theme.colorScheme.primary)),
             ),
@@ -1249,6 +1278,590 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     } catch (e) {
       return 'Recently created';
+    }
+  }
+}
+
+// CV Preview Screen
+class CVPreviewScreen extends StatelessWidget {
+  final Map<String, dynamic> userProfile;
+  final List<Map<String, dynamic>> skills;
+  final List<Map<String, dynamic>> taughtWorkshops;
+  final List<Map<String, dynamic>> achievements;
+  final List<Map<String, dynamic>> testimonials;
+  final double averageRating;
+  final int workshopsCompleted;
+
+  const CVPreviewScreen({
+    super.key,
+    required this.userProfile,
+    required this.skills,
+    required this.taughtWorkshops,
+    required this.achievements,
+    required this.testimonials,
+    required this.averageRating,
+    required this.workshopsCompleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("CV Preview"),
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Share functionality coming soon!")),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("PDF download coming soon!")),
+              );
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with name and contact info
+            _buildHeader(context),
+            const SizedBox(height: 24),
+
+            // Professional Summary
+            _buildSection(
+              context,
+              "PROFESSIONAL SUMMARY",
+              _buildProfessionalSummary(context),
+            ),
+            const SizedBox(height: 24),
+
+            // Skills section
+            _buildSection(
+              context,
+              "SKILLS",
+              _buildSkillsSection(context),
+            ),
+            const SizedBox(height: 24),
+
+            // Experience section
+            _buildSection(
+              context,
+              "EXPERIENCE",
+              _buildExperienceSection(context),
+            ),
+            const SizedBox(height: 24),
+
+            // Education section
+            _buildSection(
+              context,
+              "EDUCATION",
+              _buildEducationSection(context),
+            ),
+            const SizedBox(height: 24),
+
+            // Achievements section
+            if (achievements.isNotEmpty)
+              _buildSection(
+                context,
+                "ACHIEVEMENTS",
+                _buildAchievementsSection(context),
+              ),
+            if (achievements.isNotEmpty) const SizedBox(height: 24),
+
+            // Testimonials section
+            if (testimonials.isNotEmpty)
+              _buildSection(
+                context,
+                "TESTIMONIALS",
+                _buildTestimonialsSection(context),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final name = userProfile['name'] as String? ?? "Your Name";
+    final phone = userProfile['phone'] as String?;
+    final email = userProfile['email'] as String? ?? "your.email@example.com"; // FIXED: Now using actual email from database
+    final location = userProfile['location'] as String?;
+    final website = userProfile['website'] as String?;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 16,
+          runSpacing: 4,
+          children: [
+            if (phone != null) _buildContactItem(Icons.phone, phone),
+            _buildContactItem(Icons.email, email),
+            if (location != null) _buildContactItem(Icons.location_on, location),
+            if (website != null) _buildContactItem(Icons.language, website),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactItem(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.black54),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSection(BuildContext context, String title, Widget content) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            decoration: TextDecoration.underline,
+            decorationThickness: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        content,
+      ],
+    );
+  }
+
+  Widget _buildProfessionalSummary(BuildContext context) {
+    final theme = Theme.of(context);
+    final bio = userProfile['bio'] as String? ?? "";
+
+    // Create a summary based on user's data
+    String summary = bio.isNotEmpty ? bio : "";
+
+    if (summary.isEmpty) {
+      summary = "Passionate educator and workshop facilitator with expertise in ";
+      if (skills.isNotEmpty) {
+        final skillNames = skills.map((s) => s['name'] as String).toList();
+        if (skillNames.length > 3) {
+          summary += "${skillNames.take(3).join(', ')} and more";
+        } else {
+          summary += skillNames.join(', ');
+        }
+      } else {
+        summary += "various subjects";
+      }
+
+      summary += ". ";
+
+      if (workshopsCompleted > 0) {
+        summary += "Has completed $workshopsCompleted workshops and ";
+      }
+
+      if (taughtWorkshops.isNotEmpty) {
+        summary += "conducted ${taughtWorkshops.length} workshops with an average rating of ${averageRating.toStringAsFixed(1)}. ";
+      }
+
+      summary += "Committed to continuous learning and sharing knowledge with others.";
+    }
+
+    return Text(
+      summary,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: Colors.black87,
+        height: 1.5,
+      ),
+    );
+  }
+
+  Widget _buildSkillsSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Group skills by level
+    final expertSkills = skills.where((s) => s['level'] == 'Expert').toList();
+    final advancedSkills = skills.where((s) => s['level'] == 'Advanced').toList();
+    final intermediateSkills = skills.where((s) => s['level'] == 'Intermediate').toList();
+    final beginnerSkills = skills.where((s) => s['level'] == 'Beginner').toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (expertSkills.isNotEmpty) ...[
+          _buildSkillCategory("Expert", expertSkills),
+          const SizedBox(height: 12),
+        ],
+        if (advancedSkills.isNotEmpty) ...[
+          _buildSkillCategory("Advanced", advancedSkills),
+          const SizedBox(height: 12),
+        ],
+        if (intermediateSkills.isNotEmpty) ...[
+          _buildSkillCategory("Intermediate", intermediateSkills),
+          const SizedBox(height: 12),
+        ],
+        if (beginnerSkills.isNotEmpty) ...[
+          _buildSkillCategory("Beginner", beginnerSkills),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSkillCategory(String level, List<Map<String, dynamic>> skillList) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          level,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: skillList.map((skill) {
+            return Chip(
+              label: Text(
+                skill['name'] as String,
+                style: const TextStyle(fontSize: 12),
+              ),
+              backgroundColor: Colors.grey[200],
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExperienceSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Sort workshops by date (most recent first)
+    final sortedWorkshops = List<Map<String, dynamic>>.from(taughtWorkshops);
+    sortedWorkshops.sort((a, b) {
+      if (a['date'] == null && b['date'] == null) return 0;
+      if (a['date'] == null) return 1;
+      if (b['date'] == null) return -1;
+      return DateTime.parse(b['date']).compareTo(DateTime.parse(a['date']));
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sortedWorkshops.map((workshop) {
+        final title = workshop['title'] as String? ?? "Untitled Workshop";
+        final date = workshop['date'] as String?;
+        final description = workshop['description'] as String? ?? "";
+        final category = workshop['category'] as String? ?? "General";
+        final duration = workshop['duration'] as String? ?? "";
+        final skills = workshop['skills'] as List? ?? [];
+        final rating = workshop['rating'] as num? ?? 0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Workshop Instructor",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.black54,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (date != null)
+                  Text(
+                    _formatDate(date),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (description.isNotEmpty)
+              Text(
+                description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (category.isNotEmpty) ...[
+                  Text(
+                    "Category: $category",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+                if (duration.isNotEmpty) ...[
+                  Text(
+                    "Duration: $duration",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+                if (rating > 0) ...[
+                  Text(
+                    "Rating: ",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+                  ...List.generate(
+                    5,
+                        (i) => Icon(
+                      Icons.star,
+                      size: 14,
+                      color: i < rating ? Colors.amber : Colors.grey[300],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (skills.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                "Skills taught: ${skills.join(', ')}",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.black54,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildEducationSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final university = userProfile['university'] as String?;
+    final major = userProfile['major'] as String?;
+    final year = userProfile['year'] as String?;
+
+    if (university == null && major == null && year == null) {
+      return Text(
+        "Education information not provided",
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: Colors.black54,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (university != null)
+          Text(
+            university,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        if (major != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            major,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.black87,
+            ),
+          ),
+        ],
+        if (year != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            "Graduated: $year",
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.black54,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAchievementsSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: achievements.map((achievement) {
+        final title = achievement['title'] as String? ?? "";
+        final desc = achievement['desc'] as String? ?? "";
+        final earned = achievement['earned'] as String? ?? "";
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (earned != "N/A")
+                  Text(
+                    earned,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+              ],
+            ),
+            if (desc.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                desc,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTestimonialsSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: testimonials.map((testimonial) {
+        final author = testimonial['author'] as String? ?? "";
+        final text = testimonial['text'] as String? ?? "";
+        final rating = testimonial['rating'] as int? ?? 0;
+        final skill = testimonial['skill'] as String? ?? "";
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  "\"$text\"",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.black87,
+                    height: 1.5,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  "- $author",
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.black54,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (skill.isNotEmpty)
+                  Text(
+                    "($skill)",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                ...List.generate(
+                  5,
+                      (i) => Icon(
+                    Icons.star,
+                    size: 14,
+                    color: i < rating ? Colors.amber : Colors.grey[300],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return "${date.month}/${date.year}";
+    } catch (e) {
+      return dateString;
     }
   }
 }
