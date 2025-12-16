@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../components/custom_button.dart';
 import '../main.dart';
+// Import your existing HuggingFaceService
+import '../services/hugging_face_service.dart'; // Adjust the path as needed
 
 class CVBuilderScreen extends StatefulWidget {
   final Function(String, {Map<String, dynamic>? data})? onNavigate;
@@ -996,7 +998,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
                               ],
                             ],
                           ),
-                          const SizedBox(width: 24),
+                          const SizedBox(height: 8),
                           Text(
                             "\"${e["text"]}\"",
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -1283,7 +1285,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
 }
 
 // CV Preview Screen
-class CVPreviewScreen extends StatelessWidget {
+class CVPreviewScreen extends StatefulWidget {
   final Map<String, dynamic> userProfile;
   final List<Map<String, dynamic>> skills;
   final List<Map<String, dynamic>> taughtWorkshops;
@@ -1302,6 +1304,96 @@ class CVPreviewScreen extends StatelessWidget {
     required this.averageRating,
     required this.workshopsCompleted,
   });
+
+  @override
+  State<CVPreviewScreen> createState() => _CVPreviewScreenState();
+}
+
+class _CVPreviewScreenState extends State<CVPreviewScreen> {
+  bool _isGeneratingSummary = false;
+  String _professionalSummary = "";
+  bool _useAIGeneration = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateProfessionalSummary();
+  }
+
+  Future<void> _generateProfessionalSummary() async {
+    setState(() {
+      _isGeneratingSummary = true;
+    });
+
+    try {
+      if (_useAIGeneration) {
+        // Generate summary using AI (Hugging Face or similar service)
+        _professionalSummary = await _generateAISummary();
+      } else {
+        // Generate summary using template-based approach
+        _professionalSummary = _generateTemplateSummary();
+      }
+    } catch (e) {
+      debugPrint('Error generating summary: $e');
+      // Fallback to template-based approach
+      _professionalSummary = _generateTemplateSummary();
+    } finally {
+      setState(() {
+        _isGeneratingSummary = false;
+      });
+    }
+  }
+
+  Future<String> _generateAISummary() async {
+    final name = widget.userProfile['name'] as String? ?? "Professional";
+    final skillNames = widget.skills.map((s) => s['name'] as String).toList();
+    final workshopCount = widget.taughtWorkshops.length;
+    final rating = widget.averageRating.toStringAsFixed(1);
+
+    return await HuggingFaceService.generateSummary(
+      name: name,
+      skills: skillNames,
+      workshopCount: workshopCount,
+      rating: rating,
+    );
+  }
+
+  String _generateTemplateSummary() {
+    final name = widget.userProfile['name'] as String? ?? "Professional";
+    final bio = widget.userProfile['bio'] as String? ?? "";
+    final skillNames = widget.skills.map((s) => s['name'] as String).toList();
+    final workshopCount = widget.taughtWorkshops.length;
+    final rating = widget.averageRating.toStringAsFixed(1);
+
+    if (bio.isNotEmpty) {
+      return bio;
+    } else {
+      String summary = "Passionate educator and workshop facilitator with expertise in ";
+      if (skillNames.isNotEmpty) {
+        if (skillNames.length > 3) {
+          summary += "${skillNames.take(3).join(', ')} and more";
+        } else {
+          summary += skillNames.join(', ');
+        }
+      } else {
+        summary += "various subjects";
+      }
+
+      summary += ". ";
+
+      if (widget.workshopsCompleted > 0) {
+        summary += "Has completed ${widget.workshopsCompleted} workshops and ";
+      }
+
+      if (workshopCount > 0) {
+        summary += "conducted $workshopCount workshops with an average rating of $rating. ";
+      }
+
+      summary += "Committed to continuous learning and sharing knowledge with others.";
+
+      return summary;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1349,7 +1441,55 @@ class CVPreviewScreen extends StatelessWidget {
             _buildSection(
               context,
               "PROFESSIONAL SUMMARY",
-              _buildProfessionalSummary(context),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Professional Summary",
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            "AI Generated",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _useAIGeneration ? Colors.green : Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Switch(
+                            value: _useAIGeneration,
+                            onChanged: (value) {
+                              setState(() {
+                                _useAIGeneration = value;
+                              });
+                              _generateProfessionalSummary();
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _isGeneratingSummary
+                      ? const Center(child: CircularProgressIndicator())
+                      : Text(
+                    _professionalSummary,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.black87,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -1378,16 +1518,16 @@ class CVPreviewScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Achievements section
-            if (achievements.isNotEmpty)
+            if (widget.achievements.isNotEmpty)
               _buildSection(
                 context,
                 "ACHIEVEMENTS",
                 _buildAchievementsSection(context),
               ),
-            if (achievements.isNotEmpty) const SizedBox(height: 24),
+            if (widget.achievements.isNotEmpty) const SizedBox(height: 24),
 
             // Testimonials section
-            if (testimonials.isNotEmpty)
+            if (widget.testimonials.isNotEmpty)
               _buildSection(
                 context,
                 "TESTIMONIALS",
@@ -1401,11 +1541,11 @@ class CVPreviewScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
-    final name = userProfile['name'] as String? ?? "Your Name";
-    final phone = userProfile['phone'] as String?;
-    final email = userProfile['email'] as String? ?? "your.email@example.com"; // FIXED: Now using actual email from database
-    final location = userProfile['location'] as String?;
-    final website = userProfile['website'] as String?;
+    final name = widget.userProfile['name'] as String? ?? "Your Name";
+    final phone = widget.userProfile['phone'] as String?;
+    final email = widget.userProfile['email'] as String? ?? "your.email@example.com"; // FIXED: Now using actual email from database
+    final location = widget.userProfile['location'] as String?;
+    final website = widget.userProfile['website'] as String?;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1470,56 +1610,14 @@ class CVPreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfessionalSummary(BuildContext context) {
-    final theme = Theme.of(context);
-    final bio = userProfile['bio'] as String? ?? "";
-
-    // Create a summary based on user's data
-    String summary = bio.isNotEmpty ? bio : "";
-
-    if (summary.isEmpty) {
-      summary = "Passionate educator and workshop facilitator with expertise in ";
-      if (skills.isNotEmpty) {
-        final skillNames = skills.map((s) => s['name'] as String).toList();
-        if (skillNames.length > 3) {
-          summary += "${skillNames.take(3).join(', ')} and more";
-        } else {
-          summary += skillNames.join(', ');
-        }
-      } else {
-        summary += "various subjects";
-      }
-
-      summary += ". ";
-
-      if (workshopsCompleted > 0) {
-        summary += "Has completed $workshopsCompleted workshops and ";
-      }
-
-      if (taughtWorkshops.isNotEmpty) {
-        summary += "conducted ${taughtWorkshops.length} workshops with an average rating of ${averageRating.toStringAsFixed(1)}. ";
-      }
-
-      summary += "Committed to continuous learning and sharing knowledge with others.";
-    }
-
-    return Text(
-      summary,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: Colors.black87,
-        height: 1.5,
-      ),
-    );
-  }
-
   Widget _buildSkillsSection(BuildContext context) {
     final theme = Theme.of(context);
 
     // Group skills by level
-    final expertSkills = skills.where((s) => s['level'] == 'Expert').toList();
-    final advancedSkills = skills.where((s) => s['level'] == 'Advanced').toList();
-    final intermediateSkills = skills.where((s) => s['level'] == 'Intermediate').toList();
-    final beginnerSkills = skills.where((s) => s['level'] == 'Beginner').toList();
+    final expertSkills = widget.skills.where((s) => s['level'] == 'Expert').toList();
+    final advancedSkills = widget.skills.where((s) => s['level'] == 'Advanced').toList();
+    final intermediateSkills = widget.skills.where((s) => s['level'] == 'Intermediate').toList();
+    final beginnerSkills = widget.skills.where((s) => s['level'] == 'Beginner').toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1544,6 +1642,7 @@ class CVPreviewScreen extends StatelessWidget {
   }
 
   Widget _buildSkillCategory(String level, List<Map<String, dynamic>> skillList) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1576,7 +1675,7 @@ class CVPreviewScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     // Sort workshops by date (most recent first)
-    final sortedWorkshops = List<Map<String, dynamic>>.from(taughtWorkshops);
+    final sortedWorkshops = List<Map<String, dynamic>>.from(widget.taughtWorkshops);
     sortedWorkshops.sort((a, b) {
       if (a['date'] == null && b['date'] == null) return 0;
       if (a['date'] == null) return 1;
@@ -1698,9 +1797,9 @@ class CVPreviewScreen extends StatelessWidget {
 
   Widget _buildEducationSection(BuildContext context) {
     final theme = Theme.of(context);
-    final university = userProfile['university'] as String?;
-    final major = userProfile['major'] as String?;
-    final year = userProfile['year'] as String?;
+    final university = widget.userProfile['university'] as String?;
+    final major = widget.userProfile['major'] as String?;
+    final year = widget.userProfile['year'] as String?;
 
     if (university == null && major == null && year == null) {
       return Text(
@@ -1750,7 +1849,7 @@ class CVPreviewScreen extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: achievements.map((achievement) {
+      children: widget.achievements.map((achievement) {
         final title = achievement['title'] as String? ?? "";
         final desc = achievement['desc'] as String? ?? "";
         final earned = achievement['earned'] as String? ?? "";
@@ -1799,7 +1898,7 @@ class CVPreviewScreen extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: testimonials.map((testimonial) {
+      children: widget.testimonials.map((testimonial) {
         final author = testimonial['author'] as String? ?? "";
         final text = testimonial['text'] as String? ?? "";
         final rating = testimonial['rating'] as int? ?? 0;
