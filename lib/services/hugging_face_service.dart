@@ -17,7 +17,7 @@ class HuggingFaceService {
   static const Duration _retryDelay = Duration(seconds: 2);
   static const Duration _requestTimeout = Duration(seconds: 20);
 
-  // Existing: Professional Summary
+  // Professional Summary
   static Future<String> generateSummary({
     required String name,
     required List<String> skills,
@@ -53,16 +53,15 @@ $name is an accomplished workshop facilitator specializing in ${skills.take(3).j
     return _generateTemplateSummary(name, skills, workshopCount, rating);
   }
 
-  // NEW: Skills Section (bullet points)
+  // Skills Section
   static Future<String> generateSkillsSection({
-    required List<Map<String, dynamic>> skillsData, // Your skills list from CVBuilderScreen
+    required List<Map<String, dynamic>> skillsData,
   }) async {
     debugPrint('Starting AI skills section generation');
 
-    // Prepare skills input
     final skillsText = skillsData.map((s) =>
-    '${s['name']} (${s['level']}, ${s['endorsements']} endorsements, ${s['workshops'].length} workshops)'
-    ).join('\n');
+    '${s['name']} (${s['level']}, ${s['endorsements']} endorsements, ${s['workshops'].length} workshops)')
+        .join('\n');
 
     for (String model in _models) {
       String? result = await _tryGenerateWithModel(
@@ -85,11 +84,10 @@ Make descriptions concise, professional, and evidence-based. Use strong verbs.
       if (result != null && result.trim().isNotEmpty) return result.trim();
     }
 
-    // Fallback: simple bullets
     return skillsData.map((s) => '• ${s['name']} (${s['level']})').join('\n');
   }
 
-  // NEW: Experience Section (workshop entries)
+  // Experience Section
   static Future<String> generateExperienceSection({
     required List<Map<String, dynamic>> taughtWorkshops,
     required String name,
@@ -97,8 +95,8 @@ Make descriptions concise, professional, and evidence-based. Use strong verbs.
     debugPrint('Starting AI experience section generation');
 
     final workshopsText = taughtWorkshops.map((w) =>
-    'Title: ${w['title']}\nDate: ${w['date']}\nCategory: ${w['category'] ?? 'General'}\nDuration: ${w['duration'] ?? 'N/A'}\nDescription: ${w['description'] ?? ''}\nSkills: ${(w['skills'] as List?)?.join(', ') ?? ''}\nRating: ${w['rating'] ?? 0}'
-    ).join('\n\n');
+    'Title: ${w['title']}\nDate: ${w['date']}\nCategory: ${w['category'] ?? 'General'}\nDuration: ${w['duration'] ?? 'N/A'}\nDescription: ${w['description'] ?? ''}\nSkills: ${(w['skills'] as List?)?.join(', ') ?? ''}\nRating: ${w['rating'] ?? 0}')
+        .join('\n\n');
 
     for (String model in _models) {
       String? result = await _tryGenerateWithModel(
@@ -123,13 +121,12 @@ For each workshop, create 2-4 strong, quantifiable bullet points highlighting te
       if (result != null && result.trim().isNotEmpty) return result.trim();
     }
 
-    // Fallback
     return taughtWorkshops.map((w) =>
-    '${w['title']} | ${_formatDate(w['date'])}\nWorkshop Instructor\n• Delivered interactive workshop on ${(w['skills'] as List?)?.join(', ') ?? 'relevant skills'}'
-    ).join('\n\n');
+    '${w['title']} | ${_formatDate(w['date'])}\nWorkshop Instructor\n• Delivered interactive workshop on ${(w['skills'] as List?)?.join(', ') ?? 'relevant skills'}')
+        .join('\n\n');
   }
 
-  // NEW: Education Section
+  // Education Section
   static Future<String> generateEducationSection({
     required Map<String, dynamic> userProfile,
   }) async {
@@ -164,15 +161,15 @@ If limited info, enhance professionally but stay factual.
     return '$university\n$major${year.isNotEmpty ? ', Graduated $year' : ''}';
   }
 
-  // NEW: Achievements Section
+  // Achievements Section
   static Future<String> generateAchievementsSection({
     required List<Map<String, dynamic>> achievements,
   }) async {
     debugPrint('Starting AI achievements section generation');
 
-    final achievementsText = achievements.map((a) =>
-    '${a['title']}: ${a['desc']} (Earned: ${a['earned']})'
-    ).join('\n');
+    final achievementsText = achievements
+        .map((a) => '${a['title']}: ${a['desc']} (Earned: ${a['earned']})')
+        .join('\n');
 
     for (String model in _models) {
       String? result = await _tryGenerateWithModel(
@@ -195,8 +192,51 @@ Enhance phrasing to be more professional and quantifiable where possible.
       if (result != null && result.trim().isNotEmpty) return result.trim();
     }
 
-    // Fallback
-    return achievements.map((a) => '• ${a['title']} — ${a['desc']} (Earned: ${a['earned']})').join('\n');
+    return achievements
+        .map((a) => '• ${a['title']} — ${a['desc']} (Earned: ${a['earned']})')
+        .join('\n');
+  }
+
+  // NEW: Workshop Summary for WorkshopDetailScreen
+  static Future<String> summarizeWorkshop({
+    required String title,
+    required String description,
+    required List<String> skills,
+    required String duration,
+    required String difficulty,
+  }) async {
+    debugPrint('Generating workshop summary...');
+
+    final prompt = '''
+You are an expert at summarizing educational workshops.
+
+Create a concise, engaging summary (3-5 sentences) of this workshop for potential participants.
+
+Workshop Title: $title
+Duration: $duration
+Difficulty: $difficulty
+Skills Covered: ${skills.join(', ')}
+Full Description: $description
+
+Summary should be:
+- Exciting and inviting
+- Highlight key benefits and what participants will learn
+- Professional yet friendly tone
+- Start directly with the content (no "Here is a summary" or headers)
+
+Example:
+"$title is a hands-on workshop where you'll master ${skills.take(3).join(', ')} through practical projects. Perfect for $difficulty learners, this $duration session will guide you from fundamentals to building real applications with expert instruction."
+''';
+
+    for (String model in _models) {
+      String? result = await _tryGenerateWithModel(model: model, prompt: prompt);
+      if (result != null && result.trim().isNotEmpty) {
+        return _cleanGeneratedText(result);
+      }
+    }
+
+    // Fallback summary
+    return "Join this $difficulty-level workshop on $title! You'll learn ${skills.take(3).join(', ')} in just $duration through interactive, hands-on practice.";
   }
 
   // Core generation method (shared)
@@ -249,10 +289,16 @@ Enhance phrasing to be more professional and quantifiable where possible.
 
   static String _cleanGeneratedText(String text) {
     text = text.trim();
-    // Remove common unwanted prefixes
     final prefixes = [
-      'Here is', 'Here are', 'Skills Section:', 'Experience:', 'Education:', 'Achievements:',
-      'Professional Summary:', 'The skills section', 'Below is'
+      'Here is',
+      'Here are',
+      'Skills Section:',
+      'Experience:',
+      'Education:',
+      'Achievements:',
+      'Professional Summary:',
+      'The skills section',
+      'Below is'
     ];
     for (var prefix in prefixes) {
       if (text.toLowerCase().startsWith(prefix.toLowerCase())) {
@@ -260,7 +306,6 @@ Enhance phrasing to be more professional and quantifiable where possible.
         if (text.startsWith(':')) text = text.substring(1).trim();
       }
     }
-    // Remove quotes
     if (text.startsWith('"') && text.endsWith('"')) {
       text = text.substring(1, text.length - 1);
     }
@@ -268,7 +313,6 @@ Enhance phrasing to be more professional and quantifiable where possible.
   }
 
   static String _generateTemplateSummary(String name, List<String> skills, int workshopCount, String rating) {
-    // Your existing fallback
     return "$name is a skilled workshop facilitator with expertise in ${skills.join(', ')}. Conducted $workshopCount workshops with an average rating of $rating/5.";
   }
 

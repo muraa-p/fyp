@@ -1,5 +1,3 @@
-// Update the WorkshopDetailScreen.dart file
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/create_workshop_screen.dart';
@@ -7,6 +5,7 @@ import 'package:skillx/screens/user_profile_screen.dart';
 import 'package:skillx/screens/chat_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import '../services/hugging_face_service.dart'; // Ensure this path is correct
 
 class WorkshopDetailScreen extends StatefulWidget {
   final Map<String, dynamic> workshop;
@@ -22,16 +21,21 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   bool isLiked = false;
   bool isLoadingEnrollment = false;
   Map<String, dynamic>? workshopConversation;
-  String enrollmentStatus = 'none'; // Track the status: 'none', 'pending', 'enrolled'
+  String enrollmentStatus = 'none'; // 'none', 'pending', 'enrolled'
 
   late List<Map<String, dynamic>> syllabus;
-  Map<String, dynamic>? lessonReviews; // Track reviews for each lesson
-  bool hasReviewedWorkshop = false; // Track if user has reviewed the entire workshop
+  Map<String, dynamic>? lessonReviews;
+  bool hasReviewedWorkshop = false;
+
+  // NEW: AI Workshop Summary
+  bool _isSummarizing = false;
+  String _workshopSummary = "";
+
+  final supabase = Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
-    // Use the workshop's own syllabus if it exists, otherwise fallback to default
     final passed = widget.workshop["syllabus"];
     syllabus = passed != null && passed is List
         ? List<Map<String, dynamic>>.from(passed)
@@ -41,25 +45,20 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       {"title": "Project Practice", "duration": "30 min", "completed": false},
     ];
 
-    // Initialize lesson reviews map
     lessonReviews = {};
     for (int i = 0; i < syllabus.length; i++) {
-      lessonReviews![i.toString()] = null; // No review initially
+      lessonReviews![i.toString()] = null;
     }
 
-    // Check if user is enrolled and get workshop conversation
     _checkEnrollmentAndConversation();
     _checkExistingReviews();
   }
-
-// Update the _checkEnrollmentAndConversation function in WorkshopDetailScreen.dart
 
   Future<void> _checkEnrollmentAndConversation() async {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return;
 
     try {
-      // Check if user is enrolled in the workshop
       final enrollmentData = await Supabase.instance.client
           .from('workshop_enrollments')
           .select()
@@ -67,15 +66,13 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           .eq('workshop_id', widget.workshop['id'])
           .maybeSingle();
 
-      // Check if user has a pending enrollment request
       final requestData = await Supabase.instance.client
           .from('workshop_requests')
           .select()
-          .eq('requester_id', currentUser.id)  // Changed from user_id to requester_id
+          .eq('requester_id', currentUser.id)
           .eq('workshop_id', widget.workshop['id'])
           .maybeSingle();
 
-      // Set the appropriate status - enrollment takes precedence over request
       String status = 'none';
       if (enrollmentData != null) {
         status = 'enrolled';
@@ -88,7 +85,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         enrollmentStatus = status;
       });
 
-      // If enrolled, get the workshop conversation
       if (isEnrolled) {
         final conversationData = await Supabase.instance.client
             .from('workshops')
@@ -97,10 +93,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             .single();
 
         if (conversationData['conversation_id'] != null) {
-          // Make sure the user is added to the conversation participants
           await Supabase.instance.client.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': widget.workshop['id'],
-            'user_id': currentUser.id,  // Use user_id instead of participant_id
+            'user_id': currentUser.id,
           });
 
           final conversation = await Supabase.instance.client
@@ -119,13 +114,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Check for existing reviews
   Future<void> _checkExistingReviews() async {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return;
 
     try {
-      // Check if user has already reviewed the workshop
       final existingWorkshopReview = await Supabase.instance.client
           .from('workshop_ratings')
           .select()
@@ -136,37 +129,28 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       setState(() {
         hasReviewedWorkshop = existingWorkshopReview != null;
       });
-
-      // Check for lesson reviews if we have a lesson_reviews table
-      // This is a placeholder for where you would fetch lesson reviews
-      // You might need to create a new table for lesson reviews
     } catch (e) {
       print('Error checking existing reviews: $e');
     }
   }
 
-  // Also add a refresh method to manually check enrollment status
   Future<void> _refreshEnrollmentStatus() async {
     await _checkEnrollmentAndConversation();
   }
 
-// In WorkshopDetailScreen.dart, update the _toggleLessonComplete method:
   void _toggleLessonComplete(int index) async {
     final currentUser = supabase.auth.currentUser;
     final isCreator = currentUser != null && widget.workshop['creator_id'] == currentUser.id;
 
     if (!isCreator) return;
 
-    // Optimistically update the UI
     setState(() {
       syllabus[index]['completed'] = !syllabus[index]['completed'];
     });
     await _updateWorkshopSyllabus();
 
-    // If the lesson is being marked as completed, call our new function
     if (syllabus[index]['completed']) {
       try {
-        // Get all enrolled users for this workshop
         final enrolledUsersResponse = await supabase
             .from('workshop_enrollments')
             .select('user_id')
@@ -174,7 +158,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
         final List<dynamic> enrolledUsers = enrolledUsersResponse;
 
-        // Call the database function for each enrolled user
         for (final enrollment in enrolledUsers) {
           final result = await supabase.rpc('mark_lesson_complete', params: {
             'p_user_id': enrollment['user_id'],
@@ -182,7 +165,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             'p_lesson_index': index,
           });
 
-          // Check if workshop was completed
           if (result[0]['success'] && result[0]['message'].contains('workshop completed')) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -201,7 +183,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           );
         }
       } catch (e) {
-        // Revert the UI change on error
         setState(() {
           syllabus[index]['completed'] = !syllabus[index]['completed'];
         });
@@ -214,7 +195,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Update workshop syllabus in the database
   Future<void> _updateWorkshopSyllabus() async {
     try {
       await Supabase.instance.client
@@ -229,10 +209,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Show dialog to review a lesson
   void _showLessonReviewDialog(int lessonIndex) {
     final TextEditingController reviewController = TextEditingController();
-    int rating = 5; // Default rating
+    int rating = 5;
 
     showDialog(
       context: context,
@@ -287,13 +266,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  // Submit lesson review
   Future<void> _submitLessonReview(int lessonIndex, int rating, String review) async {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return;
 
     try {
-      // Store the review locally
       setState(() {
         lessonReviews![lessonIndex.toString()] = {
           'rating': rating,
@@ -302,8 +279,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         };
       });
 
-      // In a real implementation, you would save this to a lesson_reviews table
-      // For now, we'll just show a success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lesson review submitted!')),
       );
@@ -315,10 +290,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Show dialog to review the entire workshop
   void _showWorkshopReviewDialog() {
     final TextEditingController reviewController = TextEditingController();
-    int rating = 5; // Default rating
+    int rating = 5;
 
     showDialog(
       context: context,
@@ -373,13 +347,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  // Submit workshop review
   Future<void> _submitWorkshopReview(int rating, String review) async {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) return;
 
     try {
-      // 1. Save the review to the database
       await supabase
           .from('workshop_ratings')
           .upsert({
@@ -389,34 +361,29 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         'review': review,
       }, onConflict: 'workshop_id,user_id');
 
-      // 2. Check if workshop is completed
       final isCompleted = await supabase.rpc('check_workshop_completion', params: {
         'p_user_id': currentUser.id,
         'p_workshop_id': widget.workshop['id'],
       });
 
-      // 3. Award XP and check for badges using our secure backend function
       await supabase.rpc('award_xp_and_check_badges', params: {
         'p_user_id': currentUser.id,
-        'p_xp_to_award': 20, // Award 20 XP for submitting a workshop review
+        'p_xp_to_award': 20,
         'p_action_type': 'workshop_reviewed',
         'p_workshop_id': widget.workshop['id'],
       });
 
-      // 4. Update the UI state
       setState(() {
         hasReviewedWorkshop = true;
       });
 
-      // 5. Show a success message that includes the XP reward and completion status
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
                 isCompleted
                     ? 'Workshop review submitted! Workshop completed! +20 XP'
-                    : 'Workshop review submitted! +20 XP'
-            ),
+                    : 'Workshop review submitted! +20 XP'),
             backgroundColor: Colors.green,
           ),
         );
@@ -431,13 +398,77 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Format date for display
+  // NEW: AI-powered workshop summary
+  Future<void> _summarizeWorkshop() async {
+    final description = widget.workshop['description']?.toString() ?? "";
+    if (description.trim().isEmpty || description.length < 30) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Not enough content to summarize")),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSummarizing = true;
+      _workshopSummary = "";
+    });
+
+    try {
+      final summary = await HuggingFaceService.summarizeWorkshop(
+        title: widget.workshop['title'] ?? "Workshop",
+        description: description,
+        skills: (widget.workshop['skills'] as List?)?.cast<String>() ?? [],
+        duration: widget.workshop['duration']?.toString() ?? "",
+        difficulty: widget.workshop['difficulty']?.toString() ?? "Beginner",
+      );
+
+      setState(() {
+        _workshopSummary = summary;
+      });
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.deepPurple),
+                SizedBox(width: 8),
+                Text("Workshop Summary"),
+              ],
+            ),
+            content: Text(
+              _workshopSummary,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Summary error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to generate summary")),
+        );
+      }
+    } finally {
+      setState(() {
+        _isSummarizing = false;
+      });
+    }
+  }
+
   String _formatDate(DateTime? date) {
     if (date == null) return 'Date to be announced';
-
     final now = DateTime.now();
     final difference = date.difference(now);
-
     if (difference.inDays > 0) {
       return '${date.day}/${date.month}/${date.year}';
     } else if (difference.inDays == 0) {
@@ -449,10 +480,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     }
   }
 
-  // Format time for display
   String _formatTime(TimeOfDay? time) {
     if (time == null) return 'Time to be announced';
-
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
@@ -466,19 +495,12 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     final currentUser = Supabase.instance.client.auth.currentUser;
     final isCreator = currentUser != null && ws['creator_id'] == currentUser.id;
 
-    final completedCount =
-        syllabus.where((item) => item['completed']).length;
-    final progressPercent = syllabus.isEmpty
-        ? 0.0
-        : completedCount / syllabus.length;
-
-    // Check if all lessons are completed
+    final completedCount = syllabus.where((item) => item['completed']).length;
+    final progressPercent = syllabus.isEmpty ? 0.0 : completedCount / syllabus.length;
     final allLessonsCompleted = syllabus.every((lesson) => lesson['completed'] == true);
 
-    // Parse date and time from workshop data
     DateTime? workshopDate;
     TimeOfDay? workshopTime;
-
     if (ws['date'] != null) {
       try {
         workshopDate = DateTime.parse(ws['date']);
@@ -491,12 +513,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isTeach4Learn
-              ? (ws['title'] ?? 'Skill Exchange')
-              : (ws['title'] ?? 'Workshop Details'),
+          isTeach4Learn ? (ws['title'] ?? 'Skill Exchange') : (ws['title'] ?? 'Workshop Details'),
         ),
         actions: [
-          // Add a debug refresh button (remove in production)
           if (!isCreator)
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -504,18 +523,12 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               tooltip: 'Refresh enrollment status',
             ),
           IconButton(
-            icon: Icon(
-              isLiked ? Icons.favorite : Icons.favorite_border,
-              color: isLiked ? Colors.red : null,
-            ),
+            icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? Colors.red : null),
             onPressed: () {
               setState(() => isLiked = !isLiked);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isLiked ? "Added to favorites" : "Removed from favorites",
-                  ),
-                ),
+                SnackBar(content: Text(isLiked ? "Added to favorites" : "Removed from favorites")),
               );
             },
           ),
@@ -532,20 +545,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // --- Banner ---
           if (isTeach4Learn)
             _banner(theme, "Teach4Learn Exchange", Icons.swap_horiz, Colors.blue)
           else
             _banner(theme, "Free Workshop", Icons.school, Colors.deepPurple),
 
           const SizedBox(height: 16),
-
-          // --- Cover Image ---
           _coverImage(ws),
-
           const SizedBox(height: 20),
 
-          // --- Date and Time Card ---
           if (!isTeach4Learn)
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -554,46 +562,14 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Date & Time",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
+                    const Text("Date & Time", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today, color: theme.colorScheme.primary),
-                        const SizedBox(width: 12),
-                        Text(
-                          _formatDate(workshopDate),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
+                    Row(children: [Icon(Icons.calendar_today, color: theme.colorScheme.primary), const SizedBox(width: 12), Text(_formatDate(workshopDate), style: const TextStyle(fontSize: 16))]),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, color: theme.colorScheme.primary),
-                        const SizedBox(width: 12),
-                        Text(
-                          _formatTime(workshopTime),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
+                    Row(children: [Icon(Icons.access_time, color: theme.colorScheme.primary), const SizedBox(width: 12), Text(_formatTime(workshopTime), style: const TextStyle(fontSize: 16))]),
                     if (ws['location'] != null && ws['location'].toString().isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, color: theme.colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              ws['location'],
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ],
-                      ),
+                      Row(children: [Icon(Icons.location_on, color: theme.colorScheme.primary), const SizedBox(width: 12), Expanded(child: Text(ws['location'], style: const TextStyle(fontSize: 16)))]),
                     ],
                   ],
                 ),
@@ -602,33 +578,20 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           if (!isTeach4Learn) const SizedBox(height: 20),
 
-          // --- Stats ---
           if (!isTeach4Learn)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _StatItem(
-                    icon: Icons.star,
-                    label: "${ws['rating'] ?? 'N/A'}",
-                    color: Colors.amber),
-                _StatItem(
-                    icon: Icons.group,
-                    label: "${ws['participants'] ?? '0/0'}",
-                    color: Colors.green),
-                _StatItem(
-                    icon: Icons.access_time,
-                    label: ws['duration'] ?? '',
-                    color: Colors.blue),
+                _StatItem(icon: Icons.star, label: "${ws['rating'] ?? 'N/A'}", color: Colors.amber),
+                _StatItem(icon: Icons.group, label: "${ws['participants'] ?? '0/0'}", color: Colors.green),
+                _StatItem(icon: Icons.access_time, label: ws['duration'] ?? '', color: Colors.blue),
               ],
             ),
           if (!isTeach4Learn) const SizedBox(height: 20),
 
-          // --- Instructor / Exchange Partner ---
           _instructorCard(context, ws, theme, isTeach4Learn),
-
           const SizedBox(height: 20),
 
-          // --- Workshop Group Chat Button ---
           if (isEnrolled && workshopConversation != null)
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -658,18 +621,14 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
           if (isEnrolled && workshopConversation != null) const SizedBox(height: 20),
 
-          // --- About Section ---
           _aboutCard(ws, theme, isTeach4Learn),
-
           const SizedBox(height: 20),
 
-          // --- Syllabus ---
           if ((ws['syllabus'] ?? []).isNotEmpty)
             _syllabusCard(theme, progressPercent, isCreator),
 
           const SizedBox(height: 20),
 
-          // --- Workshop Review Button (only for enrolled users when all lessons are completed) ---
           if (isEnrolled && allLessonsCompleted && !hasReviewedWorkshop)
             Container(
               width: double.infinity,
@@ -686,43 +645,44 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               ),
             ),
 
-          // --- Prerequisites ---
           if ((ws['prerequisites'] ?? '').toString().trim().isNotEmpty)
-            _infoCard(
-              title: "Prerequisites",
-              content: ws['prerequisites'],
-              icon: Icons.check_circle_outline,
-              color: Colors.orange,
-            ),
+            _infoCard(title: "Prerequisites", content: ws['prerequisites'], icon: Icons.check_circle_outline, color: Colors.orange),
 
           const SizedBox(height: 20),
 
-          // --- Learning Outcomes ---
           if ((ws['outcomes'] ?? '').toString().trim().isNotEmpty)
-            _infoCard(
-              title: "Learning Outcomes",
-              content: ws['outcomes'],
-              icon: Icons.emoji_events_outlined,
-              color: Colors.green,
-            ),
+            _infoCard(title: "Learning Outcomes", content: ws['outcomes'], icon: Icons.emoji_events_outlined, color: Colors.green),
 
           const SizedBox(height: 20),
 
-          // --- Tags ---
-          if ((ws['tags'] ?? []).isNotEmpty)
-            _tagsCard(ws['tags']),
+          if ((ws['tags'] ?? []).isNotEmpty) _tagsCard(ws['tags']),
 
           const SizedBox(height: 20),
 
-          // --- Reviews ---
           _reviewCard(),
 
           const SizedBox(height: 80),
         ],
       ),
-
-      // --- Bottom Button ---
       bottomNavigationBar: _bottomButton(context, theme, isTeach4Learn),
+
+      // Floating Summarize Button
+      floatingActionButton: (ws['description'] != null && (ws['description'] as String).trim().isNotEmpty)
+          ? FloatingActionButton(
+        onPressed: _isSummarizing ? null : _summarizeWorkshop,
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: Colors.white,
+        tooltip: "Summarize this workshop",
+        child: _isSummarizing
+            ? const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+        )
+            : const Icon(Icons.summarize),
+      )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
