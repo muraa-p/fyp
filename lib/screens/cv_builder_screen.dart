@@ -1320,44 +1320,79 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     _generateProfessionalSummary();
   }
 
+// In CVPreviewScreen class
   Future<void> _generateProfessionalSummary() async {
+    if (!mounted) return;
+
     setState(() {
       _isGeneratingSummary = true;
     });
 
     try {
+      String summary;
       if (_useAIGeneration) {
-        // Generate summary using AI (Hugging Face or similar service)
-        _professionalSummary = await _generateAISummary();
+        summary = await HuggingFaceService.generateSummary(
+          name: widget.userProfile['name'] ?? "Professional",
+          skills: widget.skills.map((s) => s['name'] as String).toList(),
+          workshopCount: widget.taughtWorkshops.length,
+          rating: widget.averageRating.toStringAsFixed(1),
+        );
       } else {
-        // Generate summary using template-based approach
-        _professionalSummary = _generateTemplateSummary();
+        summary = _generateTemplateSummary();
       }
+
+      if (!mounted) return;
+
+      setState(() {
+        _professionalSummary = summary;
+      });
     } catch (e) {
       debugPrint('Error generating summary: $e');
-      // Fallback to template-based approach
-      _professionalSummary = _generateTemplateSummary();
+      final fallbackSummary = _generateTemplateSummary();
+
+      if (!mounted) return;
+
+      setState(() {
+        _professionalSummary = fallbackSummary;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("AI generation failed, using template summary"),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: "Details",
+              textColor: Colors.white,
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text("AI Generation Failed"),
+                    content: Text("Error: $e"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("OK"),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
     } finally {
+      if (!mounted) return;
+
       setState(() {
         _isGeneratingSummary = false;
       });
     }
   }
-
-  Future<String> _generateAISummary() async {
-    final name = widget.userProfile['name'] as String? ?? "Professional";
-    final skillNames = widget.skills.map((s) => s['name'] as String).toList();
-    final workshopCount = widget.taughtWorkshops.length;
-    final rating = widget.averageRating.toStringAsFixed(1);
-
-    return await HuggingFaceService.generateSummary(
-      name: name,
-      skills: skillNames,
-      workshopCount: workshopCount,
-      rating: rating,
-    );
-  }
-
+  
   String _generateTemplateSummary() {
     final name = widget.userProfile['name'] as String? ?? "Professional";
     final bio = widget.userProfile['bio'] as String? ?? "";
