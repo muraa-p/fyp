@@ -1310,124 +1310,109 @@ class CVPreviewScreen extends StatefulWidget {
 }
 
 class _CVPreviewScreenState extends State<CVPreviewScreen> {
-  bool _isGeneratingSummary = false;
-  String _professionalSummary = "";
+  bool _isGenerating = false;
   bool _useAIGeneration = false;
+
+  // AI-generated content
+  String _professionalSummary = "";
+  String _skillsText = "";
+  String _experienceText = "";
+  String _educationText = "";
+  String _achievementsText = "";
 
   @override
   void initState() {
     super.initState();
-    _generateProfessionalSummary();
+    _generateAllSections(); // Start with template/fallback
   }
 
-// In CVPreviewScreen class
-  Future<void> _generateProfessionalSummary() async {
+  Future<void> _generateAllSections() async {
     if (!mounted) return;
 
     setState(() {
-      _isGeneratingSummary = true;
+      _isGenerating = true;
     });
 
     try {
-      String summary;
       if (_useAIGeneration) {
-        summary = await HuggingFaceService.generateSummary(
-          name: widget.userProfile['name'] ?? "Professional",
-          skills: widget.skills.map((s) => s['name'] as String).toList(),
-          workshopCount: widget.taughtWorkshops.length,
-          rating: widget.averageRating.toStringAsFixed(1),
-        );
+        // Generate all AI content in parallel
+        final futures = await Future.wait([
+          HuggingFaceService.generateSummary(
+            name: widget.userProfile['name'] ?? "Professional",
+            skills: widget.skills.map((s) => s['name'] as String).toList(),
+            workshopCount: widget.taughtWorkshops.length,
+            rating: widget.averageRating.toStringAsFixed(1),
+          ),
+          HuggingFaceService.generateSkillsSection(skillsData: widget.skills),
+          HuggingFaceService.generateExperienceSection(
+            taughtWorkshops: widget.taughtWorkshops,
+            name: widget.userProfile['name'] ?? "Professional",
+          ),
+          HuggingFaceService.generateEducationSection(userProfile: widget.userProfile),
+          HuggingFaceService.generateAchievementsSection(achievements: widget.achievements),
+        ]);
+
+        if (!mounted) return;
+
+        setState(() {
+          _professionalSummary = futures[0];
+          _skillsText = futures[1];
+          _experienceText = futures[2];
+          _educationText = futures[3];
+          _achievementsText = futures[4];
+        });
       } else {
-        summary = _generateTemplateSummary();
+        // Use template/fallback versions
+        setState(() {
+          _professionalSummary = _generateTemplateSummary();
+          _skillsText = "";
+          _experienceText = "";
+          _educationText = "";
+          _achievementsText = "";
+        });
       }
-
-      if (!mounted) return;
-
-      setState(() {
-        _professionalSummary = summary;
-      });
     } catch (e) {
-      debugPrint('Error generating summary: $e');
-      final fallbackSummary = _generateTemplateSummary();
-
-      if (!mounted) return;
-
-      setState(() {
-        _professionalSummary = fallbackSummary;
-      });
-
+      debugPrint('AI generation error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("AI generation failed, using template summary"),
+            content: const Text("AI enhancement failed, using standard format"),
             backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: "Details",
-              textColor: Colors.white,
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text("AI Generation Failed"),
-                    content: Text("Error: $e"),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("OK"),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
           ),
         );
+        setState(() {
+          _professionalSummary = _generateTemplateSummary();
+          _skillsText = "";
+          _experienceText = "";
+          _educationText = "";
+          _achievementsText = "";
+        });
       }
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isGeneratingSummary = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
     }
   }
-  
+
   String _generateTemplateSummary() {
     final name = widget.userProfile['name'] as String? ?? "Professional";
     final bio = widget.userProfile['bio'] as String? ?? "";
     final skillNames = widget.skills.map((s) => s['name'] as String).toList();
-    final workshopCount = widget.taughtWorkshops.length;
-    final rating = widget.averageRating.toStringAsFixed(1);
 
-    if (bio.isNotEmpty) {
-      return bio;
-    } else {
-      String summary = "Passionate educator and workshop facilitator with expertise in ";
-      if (skillNames.isNotEmpty) {
-        if (skillNames.length > 3) {
-          summary += "${skillNames.take(3).join(', ')} and more";
-        } else {
-          summary += skillNames.join(', ');
-        }
-      } else {
-        summary += "various subjects";
-      }
+    if (bio.isNotEmpty) return bio;
 
-      summary += ". ";
-
-      if (widget.workshopsCompleted > 0) {
-        summary += "Has completed ${widget.workshopsCompleted} workshops and ";
-      }
-
-      if (workshopCount > 0) {
-        summary += "conducted $workshopCount workshops with an average rating of $rating. ";
-      }
-
-      summary += "Committed to continuous learning and sharing knowledge with others.";
-
-      return summary;
+    String summary = "$name is a skilled workshop facilitator";
+    if (skillNames.isNotEmpty) {
+      final skillsPart = skillNames.length > 3
+          ? "${skillNames.take(3).join(', ')} and others"
+          : skillNames.join(', ');
+      summary += " specializing in $skillsPart";
     }
+    summary += ". Delivered ${widget.taughtWorkshops.length} workshops with an average rating of ${widget.averageRating.toStringAsFixed(1)}/5.";
+    return summary;
   }
 
   @override
@@ -1449,7 +1434,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
             icon: const Icon(Icons.share),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Share functionality coming soon!")),
+                const SnackBar(content: Text("Share coming soon!")),
               );
             },
           ),
@@ -1463,113 +1448,200 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with name and contact info
-            _buildHeader(context),
-            const SizedBox(height: 24),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                _buildHeader(context),
+                const SizedBox(height: 24),
 
-            // Professional Summary
-            _buildSection(
-              context,
-              "PROFESSIONAL SUMMARY",
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Professional Summary",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                // AI Toggle
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Enhance with AI",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              "AI Mode",
+                              style: TextStyle(
+                                color: _useAIGeneration ? Colors.green : Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: _useAIGeneration,
+                              onChanged: (value) {
+                                setState(() {
+                                  _useAIGeneration = value;
+                                });
+                                _generateAllSections();
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Professional Summary
+                _buildSection(
+                  context,
+                  "PROFESSIONAL SUMMARY",
+                  _isGenerating
+                      ? const Center(child: CircularProgressIndicator())
+                      : Text(
+                    _useAIGeneration && _professionalSummary.isNotEmpty
+                        ? _professionalSummary
+                        : _generateTemplateSummary(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.black87,
+                      height: 1.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Skills
+                _buildSection(
+                  context,
+                  "SKILLS",
+                  _useAIGeneration && _skillsText.isNotEmpty
+                      ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _skillsText
+                        .split('\n')
+                        .where((line) => line.trim().isNotEmpty)
+                        .map((line) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        line.trim(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.black87,
                         ),
                       ),
-                      Row(
-                        children: [
-                          Text(
-                            "AI Generated",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _useAIGeneration ? Colors.green : Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Switch(
-                            value: _useAIGeneration,
-                            onChanged: (value) {
-                              setState(() {
-                                _useAIGeneration = value;
-                              });
-                              _generateProfessionalSummary();
-                            },
-                          ),
-                        ],
+                    ))
+                        .toList(),
+                  )
+                      : _buildSkillsSection(context),
+                ),
+                const SizedBox(height: 24),
+
+                // Experience
+                _buildSection(
+                  context,
+                  "EXPERIENCE",
+                  _useAIGeneration && _experienceText.isNotEmpty
+                      ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _experienceText
+                        .split('\n\n')
+                        .map((block) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        block.trim(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.black87,
+                          height: 1.5,
+                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _isGeneratingSummary
-                      ? const Center(child: CircularProgressIndicator())
-                      : Text(
-                    _professionalSummary,
+                    ))
+                        .toList(),
+                  )
+                      : _buildExperienceSection(context),
+                ),
+                const SizedBox(height: 24),
+
+                // Education
+                _buildSection(
+                  context,
+                  "EDUCATION",
+                  _useAIGeneration && _educationText.isNotEmpty
+                      ? Text(
+                    _educationText,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: Colors.black87,
                       height: 1.5,
                     ),
+                  )
+                      : _buildEducationSection(context),
+                ),
+                const SizedBox(height: 24),
+
+                // Achievements
+                if (widget.achievements.isNotEmpty)
+                  _buildSection(
+                    context,
+                    "ACHIEVEMENTS",
+                    _useAIGeneration && _achievementsText.isNotEmpty
+                        ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _achievementsText
+                          .split('\n')
+                          .where((line) => line.trim().isNotEmpty)
+                          .map((line) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          line.trim(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ))
+                          .toList(),
+                    )
+                        : _buildAchievementsSection(context),
                   ),
-                ],
+
+                if (widget.achievements.isNotEmpty) const SizedBox(height: 24),
+
+                // Testimonials
+                if (widget.testimonials.isNotEmpty)
+                  _buildSection(
+                    context,
+                    "TESTIMONIALS",
+                    _buildTestimonialsSection(context),
+                  ),
+
+                const SizedBox(height: 80),
+              ],
+            ),
+          ),
+
+          // Loading overlay
+          if (_isGenerating)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      "Enhancing your CV with AI...",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Skills section
-            _buildSection(
-              context,
-              "SKILLS",
-              _buildSkillsSection(context),
-            ),
-            const SizedBox(height: 24),
-
-            // Experience section
-            _buildSection(
-              context,
-              "EXPERIENCE",
-              _buildExperienceSection(context),
-            ),
-            const SizedBox(height: 24),
-
-            // Education section
-            _buildSection(
-              context,
-              "EDUCATION",
-              _buildEducationSection(context),
-            ),
-            const SizedBox(height: 24),
-
-            // Achievements section
-            if (widget.achievements.isNotEmpty)
-              _buildSection(
-                context,
-                "ACHIEVEMENTS",
-                _buildAchievementsSection(context),
-              ),
-            if (widget.achievements.isNotEmpty) const SizedBox(height: 24),
-
-            // Testimonials section
-            if (widget.testimonials.isNotEmpty)
-              _buildSection(
-                context,
-                "TESTIMONIALS",
-                _buildTestimonialsSection(context),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }

@@ -3,86 +3,207 @@ import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 
 class HuggingFaceService {
-  // Your Hugging Face API token (keep it secure!)
   static const String _apiKey = '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';
-
-  // Correct router endpoint for chat completions (OpenAI-compatible)
   static const String _baseUrl = 'https://router.huggingface.co/v1/chat/completions';
 
-  // Updated list of free models with active Inference Providers (as of Dec 2025)
   static const List<String> _models = [
-    'meta-llama/Llama-3.1-8B-Instruct',      // Best quality, highly recommended
-    'Qwen/Qwen2.5-7B-Instruct',              // Excellent multilingual & fast
-    'google/gemma-2-9b-it',                  // Solid Google model
-    'HuggingFaceTB/SmolLM2-1.7B-Instruct',   // Small & fast fallback
+    'meta-llama/Llama-3.1-8B-Instruct',
+    'Qwen/Qwen2.5-7B-Instruct',
+    'google/gemma-2-9b-it',
+    'HuggingFaceTB/SmolLM2-1.7B-Instruct',
   ];
 
-  // Retry settings
   static const int _maxRetries = 2;
   static const Duration _retryDelay = Duration(seconds: 2);
   static const Duration _requestTimeout = Duration(seconds: 20);
 
+  // Existing: Professional Summary
   static Future<String> generateSummary({
     required String name,
     required List<String> skills,
     required int workshopCount,
     required String rating,
   }) async {
-    debugPrint('Starting AI summary generation');
-
+    debugPrint('Starting AI professional summary generation');
     for (String model in _models) {
-      debugPrint('Trying model: $model');
-
       String? result = await _tryGenerateWithModel(
-        model,
-        name: name,
-        skills: skills,
-        workshopCount: workshopCount,
-        rating: rating,
+        model: model,
+        prompt: '''
+You are an expert CV and LinkedIn profile writer specializing in educators, trainers, and workshop facilitators.
+
+Write ONLY the professional summary itself (2-3 sentences, third person). Do NOT add any introduction, explanation, header, or extra text.
+
+Directly start with the person's name.
+
+Details:
+- Name: $name
+- Key skills: ${skills.join(', ')}
+- Workshops conducted: $workshopCount
+- Average rating: $rating/5
+
+Style: Professional, confident, achievement-focused. Highlight teaching expertise and impact.
+
+Example:
+$name is an accomplished workshop facilitator specializing in ${skills.take(3).join(', ')}. With a track record of delivering $workshopCount engaging workshops earning an average rating of $rating/5, $name excels at translating complex concepts into practical, hands-on learning experiences that drive participant growth.
+''',
       );
 
-      if (result != null && result.trim().isNotEmpty) {
-        debugPrint('Successfully generated summary using: $model');
-        return result.trim();
-      }
-
-      debugPrint('Model $model failed or returned empty result, trying next...');
+      if (result != null && result.trim().isNotEmpty) return result.trim();
     }
-
-    debugPrint('All models failed, using template fallback');
     return _generateTemplateSummary(name, skills, workshopCount, rating);
   }
 
-  static Future<String?> _tryGenerateWithModel(
-      String model, {
-        required String name,
-        required List<String> skills,
-        required int workshopCount,
-        required String rating,
-      }) async {
-    final String prompt = '''
-You are an expert CV and LinkedIn profile writer specializing in educators, trainers, and workshop facilitators.
+  // NEW: Skills Section (bullet points)
+  static Future<String> generateSkillsSection({
+    required List<Map<String, dynamic>> skillsData, // Your skills list from CVBuilderScreen
+  }) async {
+    debugPrint('Starting AI skills section generation');
 
-Write ONLY the professional summary itself (2-3 sentences, third person). Do NOT add any introduction, explanation, header, or extra text like "Here is your summary", "Professional Summary:", or "Here's a concise summary".
+    // Prepare skills input
+    final skillsText = skillsData.map((s) =>
+    '${s['name']} (${s['level']}, ${s['endorsements']} endorsements, ${s['workshops'].length} workshops)'
+    ).join('\n');
 
-Directly start with the person's name or expertise.
+    for (String model in _models) {
+      String? result = await _tryGenerateWithModel(
+        model: model,
+        prompt: '''
+You are a professional CV writer. Generate ONLY a bullet-point list for the Skills section of a CV.
 
-Details to include:
-- Name: $name
-- Key skills/expertise: ${skills.join(', ')}
-- Workshops conducted: $workshopCount
-- Average participant rating: $rating out of 5
+Do NOT add any introduction, header, explanation, or extra text. Start directly with bullets (- or •).
 
-Style:
-- Professional, confident, achievement-oriented
-- Highlight teaching expertise, engaging delivery, and participant impact
-- Avoid clichés like "passionate educator", "dedicated professional", or "committed to learning"
-- Natural and concise tone
+Input skills:
+$skillsText
 
-Example of exact desired output format:
-John Doe is an accomplished workshop facilitator specializing in Flutter development and public speaking. He has delivered 12 interactive workshops on mobile app development and communication skills, consistently achieving an average participant rating of 4.8/5. John excels at breaking down complex topics into practical, hands-on learning experiences that drive real skill growth.
-''';
+Output format:
+• Skill Name — Level: Description of proficiency and evidence (e.g., taught in X workshops, Y endorsements)
 
+Make descriptions concise, professional, and evidence-based. Use strong verbs.
+''',
+      );
+
+      if (result != null && result.trim().isNotEmpty) return result.trim();
+    }
+
+    // Fallback: simple bullets
+    return skillsData.map((s) => '• ${s['name']} (${s['level']})').join('\n');
+  }
+
+  // NEW: Experience Section (workshop entries)
+  static Future<String> generateExperienceSection({
+    required List<Map<String, dynamic>> taughtWorkshops,
+    required String name,
+  }) async {
+    debugPrint('Starting AI experience section generation');
+
+    final workshopsText = taughtWorkshops.map((w) =>
+    'Title: ${w['title']}\nDate: ${w['date']}\nCategory: ${w['category'] ?? 'General'}\nDuration: ${w['duration'] ?? 'N/A'}\nDescription: ${w['description'] ?? ''}\nSkills: ${(w['skills'] as List?)?.join(', ') ?? ''}\nRating: ${w['rating'] ?? 0}'
+    ).join('\n\n');
+
+    for (String model in _models) {
+      String? result = await _tryGenerateWithModel(
+        model: model,
+        prompt: '''
+You are a professional CV writer. Generate ONLY the Experience section content for a CV (bullet-point descriptions under each workshop).
+
+Do NOT add headers, introductions, or extra text. Output in this exact format:
+
+Workshop Title | Dates
+Workshop Instructor
+• Bullet point achievement/impact
+• Another bullet
+
+Input workshops:
+$workshopsText
+
+For each workshop, create 2-4 strong, quantifiable bullet points highlighting teaching impact, participant engagement, and outcomes. Use action verbs (Delivered, Facilitated, Designed).
+''',
+      );
+
+      if (result != null && result.trim().isNotEmpty) return result.trim();
+    }
+
+    // Fallback
+    return taughtWorkshops.map((w) =>
+    '${w['title']} | ${_formatDate(w['date'])}\nWorkshop Instructor\n• Delivered interactive workshop on ${(w['skills'] as List?)?.join(', ') ?? 'relevant skills'}'
+    ).join('\n\n');
+  }
+
+  // NEW: Education Section
+  static Future<String> generateEducationSection({
+    required Map<String, dynamic> userProfile,
+  }) async {
+    debugPrint('Starting AI education section generation');
+
+    final university = userProfile['university'] ?? '';
+    final major = userProfile['major'] ?? '';
+    final year = userProfile['year'] ?? '';
+
+    if (university.isEmpty && major.isEmpty && year.isEmpty) {
+      return 'Education details not provided.';
+    }
+
+    for (String model in _models) {
+      String? result = await _tryGenerateWithModel(
+        model: model,
+        prompt: '''
+You are a professional CV writer. Generate ONLY the Education section content.
+
+Do NOT add any introduction or header. Output directly:
+
+$university
+$major${year.isNotEmpty ? ', Graduated $year' : ''}
+
+If limited info, enhance professionally but stay factual.
+''',
+      );
+
+      if (result != null && result.trim().isNotEmpty) return result.trim();
+    }
+
+    return '$university\n$major${year.isNotEmpty ? ', Graduated $year' : ''}';
+  }
+
+  // NEW: Achievements Section
+  static Future<String> generateAchievementsSection({
+    required List<Map<String, dynamic>> achievements,
+  }) async {
+    debugPrint('Starting AI achievements section generation');
+
+    final achievementsText = achievements.map((a) =>
+    '${a['title']}: ${a['desc']} (Earned: ${a['earned']})'
+    ).join('\n');
+
+    for (String model in _models) {
+      String? result = await _tryGenerateWithModel(
+        model: model,
+        prompt: '''
+You are a professional CV writer. Generate ONLY bullet points for the Achievements/Awards section.
+
+Do NOT add introduction or header. Start directly with bullets.
+
+Input:
+$achievementsText
+
+Output:
+• Achievement Title — Brief impactful description (Earned Date)
+
+Enhance phrasing to be more professional and quantifiable where possible.
+''',
+      );
+
+      if (result != null && result.trim().isNotEmpty) return result.trim();
+    }
+
+    // Fallback
+    return achievements.map((a) => '• ${a['title']} — ${a['desc']} (Earned: ${a['earned']})').join('\n');
+  }
+
+  // Core generation method (shared)
+  static Future<String?> _tryGenerateWithModel({
+    required String model,
+    required String prompt,
+  }) async {
     for (int attempt = 0; attempt < _maxRetries; attempt++) {
       try {
         debugPrint('Attempt ${attempt + 1} with model: $model');
@@ -96,101 +217,68 @@ John Doe is an accomplished workshop facilitator specializing in Flutter develop
           },
           body: jsonEncode({
             'model': model,
-            'messages': [
-              {'role': 'user', 'content': prompt}
-            ],
-            'max_tokens': 200,
+            'messages': [{'role': 'user', 'content': prompt}],
+            'max_tokens': 400,
             'temperature': 0.7,
             'top_p': 0.9,
-            'stream': false,
           }),
         ).timeout(_requestTimeout);
 
-        debugPrint('Response status: ${response.statusCode}');
-
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
+          String text = data['choices']?[0]?['message']?['content'] ?? '';
 
-          // OpenAI-compatible response format
-          String generatedText = data['choices']?[0]?['message']?['content'] ?? '';
-
-          if (generatedText.isNotEmpty) {
-            generatedText = _cleanGeneratedText(generatedText);
-
-            if (generatedText.length > 20) {
-              debugPrint('Generated summary: $generatedText');
-              return generatedText;
-            }
+          if (text.isNotEmpty) {
+            text = _cleanGeneratedText(text);
+            if (text.length > 10) return text;
           }
-        } else if (response.statusCode == 429) {
-          debugPrint('Rate limited (429), retrying after delay...');
-          await Future.delayed(const Duration(seconds: 5));
+        } else if ([429, 503].contains(response.statusCode)) {
+          await Future.delayed(Duration(seconds: response.statusCode == 429 ? 5 : 8));
           continue;
-        } else if (response.statusCode == 503) {
-          debugPrint('Model loading (503), retrying...');
-          await Future.delayed(const Duration(seconds: 8));
-          continue;
-        } else {
-          debugPrint('API error: ${response.statusCode}');
-          debugPrint('Response body: ${response.body}');
         }
       } catch (e) {
-        debugPrint('Exception during request (attempt ${attempt + 1}): $e');
+        debugPrint('Error: $e');
       }
 
-      // Delay before next retry
       if (attempt < _maxRetries - 1) {
         await Future.delayed(_retryDelay * (attempt + 1));
       }
     }
-
     return null;
   }
 
   static String _cleanGeneratedText(String text) {
     text = text.trim();
-
-    // Remove any leftover prompt parts
-    if (text.contains('Person\'s name:')) {
-      text = text.split('Person\'s name:').last;
-    }
-
-    // Limit to first 3 sentences
-    final sentences = text.split(RegExp(r'[.!?]+'));
-    if (sentences.length > 3) {
-      text = sentences.take(3).join('. ').trim();
-      if (!text.endsWith('.') && !text.endsWith('!') && !text.endsWith('?')) {
-        text += '.';
+    // Remove common unwanted prefixes
+    final prefixes = [
+      'Here is', 'Here are', 'Skills Section:', 'Experience:', 'Education:', 'Achievements:',
+      'Professional Summary:', 'The skills section', 'Below is'
+    ];
+    for (var prefix in prefixes) {
+      if (text.toLowerCase().startsWith(prefix.toLowerCase())) {
+        text = text.substring(prefix.length).trim();
+        if (text.startsWith(':')) text = text.substring(1).trim();
       }
     }
-
-    // Remove quotes if wrapped
+    // Remove quotes
     if (text.startsWith('"') && text.endsWith('"')) {
       text = text.substring(1, text.length - 1);
     }
-
     return text.trim();
   }
 
-  static String _generateTemplateSummary(
-      String name, List<String> skills, int workshopCount, String rating) {
-    String summary = "$name is a passionate educator";
+  static String _generateTemplateSummary(String name, List<String> skills, int workshopCount, String rating) {
+    // Your existing fallback
+    return "$name is a skilled workshop facilitator with expertise in ${skills.join(', ')}. Conducted $workshopCount workshops with an average rating of $rating/5.";
+  }
 
-    if (skills.isNotEmpty) {
-      final skillText = skills.length > 3
-          ? "${skills.take(3).join(', ')} and more"
-          : skills.join(', ');
-      summary += " with expertise in $skillText";
+  static String _formatDate(dynamic date) {
+    if (date == null) return 'Date TBD';
+    try {
+      final d = DateTime.parse(date.toString());
+      return '${d.month}/${d.year}';
+    } catch (e) {
+      return 'Date TBD';
     }
-
-    summary += ". ";
-
-    if (workshopCount > 0) {
-      summary += "They have conducted $workshopCount workshops, earning an average rating of $rating out of 5. ";
-    }
-
-    summary += "Committed to sharing knowledge and fostering engaging learning experiences.";
-
-    return summary;
   }
 }
