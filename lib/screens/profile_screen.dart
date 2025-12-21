@@ -38,8 +38,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isLoading = true;
 
   // --- State variables for the Settings Tab ---
-  bool _lowBandwidth = false;
-  String _language = "en";
   bool _isLoggingOut = false; // <-- ✅ NEW: State for logout loading
 
   @override
@@ -581,40 +579,45 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 8),
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: DropdownButtonFormField<String>(
-                value: _language,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                items: const [
-                  DropdownMenuItem(value: "en", child: Text("English 🇺🇸")),
-                  DropdownMenuItem(value: "es", child: Text("Español 🇪🇸")),
-                  DropdownMenuItem(value: "zh", child: Text("中文 🇨🇳")),
-                  DropdownMenuItem(value: "fr", child: Text("Français 🇫🇷")),
-                  DropdownMenuItem(value: "de", child: Text("Deutsch 🇩🇪")),
-                  DropdownMenuItem(value: "pt", child: Text("Português 🇧🇷")),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.language_outlined),
+                      const SizedBox(width: 12),
+                      const Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: theme.colorScheme.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Currently only English is supported. More languages coming soon!",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.colorScheme.onSurface.withOpacity(0.8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-                onChanged: (val) {
-                  setState(() => _language = val ?? "en");
-                  _showSnack("Language changed to $_language");
-                },
               ),
             ),
           ),
-          const Divider(height: 32),
-
-          // 🔒 Privacy & Security
-          Text("Privacy & Security",
-              style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary)),
-          const SizedBox(height: 8),
-          _buildToggle("Show on Leaderboards", true, "Display your ranking publicly", theme, (val) {}),
-          _buildToggle("Profile Visibility", true, "Allow others to view your profile", theme, (val) {}),
-          _buildToggle("Workshop History", true, "Show workshops you've attended", theme, (val) {}),
           const Divider(height: 32),
 
           // 🔔 Notifications
@@ -626,24 +629,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           _buildToggle("Workshop Reminders", true, "Get notified before workshops start", theme, (val) {}),
           _buildToggle("New Workshop Alerts", true, "Be alerted about new workshops", theme, (val) {}),
           _buildToggle("Achievement Updates", true, "Get notified when earning badges", theme, (val) {}),
-          const Divider(height: 32),
-
-          // ⚙️ Performance
-          Text("Performance",
-              style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary)),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text("Low Bandwidth Mode (Beta)"),
-            subtitle: const Text("Reduce image quality for slow connections"),
-            value: _lowBandwidth,
-            onChanged: (v) {
-              setState(() => _lowBandwidth = v);
-              _showSnack(v ? "Low bandwidth mode enabled" : "Low bandwidth mode disabled");
-            },
-            secondary: const Icon(Icons.network_check_outlined),
-          ),
           const Divider(height: 32),
 
           // 🧾 Account Management
@@ -759,7 +744,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
 
           ListTile(
-            leading: _isLoggingOut // ✅ UPDATED: Conditional leading icon
+            leading: _isLoggingOut
                 ? const SizedBox(
               width: 24,
               height: 24,
@@ -769,23 +754,21 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             )
                 : const Icon(Icons.logout, color: Colors.red),
-            title: Text(_isLoggingOut ? "Logging Out..." : "Log Out"), // ✅ UPDATED: Conditional title
-            onTap: _isLoggingOut // ✅ UPDATED: Conditional onTap to prevent multiple taps
+            title: Text(_isLoggingOut ? "Logging Out..." : "Log Out"),
+            onTap: _isLoggingOut
                 ? null
                 : () async {
               setState(() {
-                _isLoggingOut = true; // ✅ ADD: Set loading state to true
+                _isLoggingOut = true;
               });
 
               try {
                 await Supabase.instance.client.auth.signOut();
 
-                // ✅ ADD: Clear user from app's state
                 if (mounted) {
                   context.read<AppState>().setUser(null);
                 }
 
-                // ✅ ADD: Navigate to welcome screen and remove all other routes
                 if (mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(
                     '/',
@@ -796,7 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 if (mounted) {
                   _showSnack("Error logging out: ${e.toString()}");
                   setState(() {
-                    _isLoggingOut = false; // ✅ ADD: Reset loading state on error
+                    _isLoggingOut = false;
                   });
                 }
               }
