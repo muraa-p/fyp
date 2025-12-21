@@ -2,6 +2,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
+// Add this import at the top of the file
+import '../services/notification_service.dart';
 
 // REMOVE THESE IMPORTS AS THEY ARE NO LONGER NEEDED
 // import 'package:provider/provider.dart';
@@ -27,6 +29,8 @@ class CreateWorkshopScreen extends StatefulWidget {
 class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   int currentStep = 0;
   bool _isPublishing = false; // Add a loading state
+  // Add this to your _CreateWorkshopScreenState class
+  final NotificationService _notificationService = NotificationService();
 
   final steps = [
     'Workshop Details',
@@ -588,7 +592,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     );
   }
 
-  // This is the main function that will interact with Supabase
+// Replace your _publishWorkshop function with this updated version
   Future<void> _publishWorkshop() async {
     // Get the current authenticated user's ID
     final user = Supabase.instance.client.auth.currentUser;
@@ -646,12 +650,33 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Workshop updated ✅')),
         );
+
+        // Schedule reminder for updated workshop
+        if (finalDateTime != null && finalDateTime.isAfter(DateTime.now())) {
+          await _notificationService.initialize();
+          await _notificationService.scheduleWorkshopReminder(
+            widget.existingWorkshop!['id'],
+            titleController.text,
+            finalDateTime,
+          );
+        }
       } else {
         // Insert new workshop into the database
-        await Supabase.instance.client.from('workshops').insert(workshopData);
+        final response = await Supabase.instance.client.from('workshops').insert(workshopData).select();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Workshop published 🎉')),
         );
+
+        // Schedule reminder for new workshop
+        if (response.isNotEmpty && finalDateTime != null && finalDateTime.isAfter(DateTime.now())) {
+          final workshopId = response[0]['id'];
+          await _notificationService.initialize();
+          await _notificationService.scheduleWorkshopReminder(
+            workshopId,
+            titleController.text,
+            finalDateTime,
+          );
+        }
       }
 
       // Navigate back after successful operation

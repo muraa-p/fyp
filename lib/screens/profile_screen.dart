@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/notification_service.dart'; // Add this import
 
 import '../main.dart'; // For AppState
 import '../models/user_model.dart';
@@ -26,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final SupabaseService _supabaseService = SupabaseService();
+  final NotificationService _notificationService = NotificationService(); // Add this
 
   // State variables to hold data from Supabase
   Map<String, dynamic>? _profileData;
@@ -38,13 +40,53 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isLoading = true;
 
   // --- State variables for the Settings Tab ---
-  bool _isLoggingOut = false; // <-- ✅ NEW: State for logout loading
+  bool _workshopRemindersEnabled = true; // Add this
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _loadProfileData();
+    _initializeNotifications(); // Add this
+  }
+
+// In your _initializeNotifications method
+  Future<void> _initializeNotifications() async {
+    await _notificationService.initialize();
+
+    if (_workshopRemindersEnabled) {
+      // Check if permissions are granted
+      final hasPermission = await _notificationService.hasPermission();
+      if (!hasPermission) {
+        // Show a dialog explaining why permissions are needed
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Notification Permissions'),
+            content: const Text(
+              'To receive workshop reminders, please enable notifications in your device settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Open app settings
+                  _notificationService.openAppSettings();
+                },
+                child: const Text('Settings'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        await _notificationService.checkAndScheduleReminders();
+      }
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -626,7 +668,28 @@ class _ProfileScreenState extends State<ProfileScreen>
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary)),
           const SizedBox(height: 8),
-          _buildToggle("Workshop Reminders", true, "Get notified before workshops start", theme, (val) {}),
+          // In the _buildSettingsTab method, update the SwitchListTile for workshop reminders:
+          SwitchListTile(
+            title: const Text("Workshop Reminders"),
+            subtitle: const Text("Get notified 15 minutes before workshops start"),
+            value: _workshopRemindersEnabled,
+            onChanged: (value) {
+              setState(() {
+                _workshopRemindersEnabled = value;
+                _notificationService.setWorkshopReminders(value);
+
+                if (value) {
+                  _notificationService.checkAndScheduleReminders();
+                  _showSnack("Workshop reminders enabled");
+                } else {
+                  // Cancel all scheduled reminders
+                  _notificationService.cancelAllWorkshopReminders(); // This method now exists
+                  _showSnack("Workshop reminders disabled");
+                }
+              });
+            },
+            secondary: const Icon(Icons.notifications_outlined),
+          ),
           _buildToggle("New Workshop Alerts", true, "Be alerted about new workshops", theme, (val) {}),
           _buildToggle("Achievement Updates", true, "Get notified when earning badges", theme, (val) {}),
           const Divider(height: 32),
