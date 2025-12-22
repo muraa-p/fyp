@@ -27,6 +27,35 @@ class AuthService {
     );
   }
 
+
+  // ------------------------------
+  // UPDATE PASSWORD
+  // ------------------------------
+
+  // Add this method to your AuthService class
+  Future<void> updatePassword(String currentPassword, String newPassword) async {
+    try {
+      // First, verify the current password by attempting to sign in
+      final currentUser = _client.auth.currentUser;
+      if (currentUser == null || currentUser.email == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      // Verify current password by attempting to sign in
+      await _client.auth.signInWithPassword(
+        email: currentUser.email!,
+        password: currentPassword,
+      );
+
+      // If sign in is successful, update the password
+      await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } catch (e) {
+      throw Exception('Failed to update password: ${e.toString()}');
+    }
+  }
+
   // ------------------------------
   // LOGOUT
   // ------------------------------
@@ -43,4 +72,6 @@ class AuthService {
   // AUTH STATE CHANGES
   // ------------------------------
   Stream<AuthState> authChanges() => _client.auth.onAuthStateChange;
+
+
 }

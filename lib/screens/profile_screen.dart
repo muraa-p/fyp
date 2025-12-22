@@ -7,6 +7,7 @@ import '../main.dart'; // For AppState
 import '../models/user_model.dart';
 import '../services/supabase_service.dart';
 import 'edit_profile_screen.dart';
+import '../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   // We pass the userId to fetch data, and a flag for the current user.
@@ -152,6 +153,142 @@ class _ProfileScreenState extends State<ProfileScreen>
   void _showSnack(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
+
+
+  // Add this method to your ProfileScreen class
+  void _showPasswordUpdateDialog(BuildContext context) {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isLoading = false;
+    bool obscureCurrentPassword = true;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Update Password"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: currentPasswordController,
+                obscureText: obscureCurrentPassword,
+                decoration: InputDecoration(
+                  labelText: "Current Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscureCurrentPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => setState(() {
+                      obscureCurrentPassword = !obscureCurrentPassword;
+                    }),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPasswordController,
+                obscureText: obscureNewPassword,
+                decoration: InputDecoration(
+                  labelText: "New Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscureNewPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => setState(() {
+                      obscureNewPassword = !obscureNewPassword;
+                    }),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: obscureConfirmPassword,
+                decoration: InputDecoration(
+                  labelText: "Confirm New Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => setState(() {
+                      obscureConfirmPassword = !obscureConfirmPassword;
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: isLoading ? null : () async {
+                if (currentPasswordController.text.isEmpty ||
+                    newPasswordController.text.isEmpty ||
+                    confirmPasswordController.text.isEmpty) {
+                  _showSnack("Please fill in all fields");
+                  return;
+                }
+
+                if (newPasswordController.text != confirmPasswordController.text) {
+                  _showSnack("New passwords don't match");
+                  return;
+                }
+
+                if (newPasswordController.text.length < 6) {
+                  _showSnack("Password must be at least 6 characters");
+                  return;
+                }
+
+                setState(() => isLoading = true);
+
+                try {
+                  final authService = AuthService();
+                  await authService.updatePassword(
+                    currentPasswordController.text,
+                    newPasswordController.text,
+                  );
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    _showSnack("Password updated successfully");
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    _showSnack(e.toString());
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => isLoading = false);
+                  }
+                }
+              },
+              child: isLoading
+                  ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2.0),
+              )
+                  : const Text("Update"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -725,39 +862,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             leading: const Icon(Icons.lock_outline),
             title: const Text("Update Password"),
             subtitle: const Text("Change your account password"),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text("Update Password"),
-                  content: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        obscureText: true,
-                        decoration: InputDecoration(labelText: "Current Password"),
-                      ),
-                      SizedBox(height: 12),
-                      TextField(
-                        obscureText: true,
-                        decoration: InputDecoration(labelText: "New Password"),
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Cancel")),
-                    TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _showSnack("Password updated (demo)");
-                        },
-                        child: const Text("Update")),
-                  ],
-                ),
-              );
-            },
+            onTap: () => _showPasswordUpdateDialog(context),
           ),
 
           ListTile(
