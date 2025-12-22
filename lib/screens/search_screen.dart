@@ -60,7 +60,6 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       }
     } catch (e) {
-      // Silent fail – user may not have profile skills yet
       if (mounted) {
         setState(() {
           _userSkillsToLearn = [];
@@ -112,7 +111,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   double _calculateMatchPercentage(Map<String, dynamic> workshop) {
-    // If user has no skills set, give neutral score
     if (_userSkillsToLearn.isEmpty && _userSkillsToTeach.isEmpty) {
       return 50.0;
     }
@@ -128,7 +126,6 @@ class _SearchScreenState extends State<SearchScreen> {
     final String skillOffered = (workshop['skill_offered'] ?? '').toString().toLowerCase();
     final String type = workshop['type'] ?? 'Free Workshop';
 
-    // Helper: case-insensitive partial match count
     int overlapCount(List<String> userList, List<String> workshopList) {
       if (userList.isEmpty || workshopList.isEmpty) return 0;
       final lowerUser = userList.map((s) => s.toLowerCase()).toSet();
@@ -143,19 +140,16 @@ class _SearchScreenState extends State<SearchScreen> {
           skillRequested.contains(s.toLowerCase()));
     }
 
-    // 1. Category match (20%)
     if (_selectedCategory == "All" || category == _selectedCategory) {
       score += 20;
     }
 
-    // 2. Difficulty suitability (15%)
     if (difficulty == 'Beginner' || difficulty == 'Intermediate') {
       score += 15;
     } else if (difficulty == 'Advanced') {
-      score += 7.5; // Advanced is harder to match perfectly
+      score += 7.5;
     }
 
-    // 3. User's desired skills match workshop content (25%)
     final learnMatchesTags = overlapCount(_userSkillsToLearn, tags);
     final learnMatchesOutcomes = overlapCount(_userSkillsToLearn, outcomes);
     final learnsOfferedSkill = _userSkillsToLearn.any((s) => skillOffered.contains(s.toLowerCase()));
@@ -164,16 +158,13 @@ class _SearchScreenState extends State<SearchScreen> {
       score += 25;
     }
 
-    // 4. Teach4Learn: Can user teach what creator wants? (20%)
     if (type == 'Teach4Learn') {
       if (userCanTeachRequested()) {
         score += 20;
       }
-      // Reduce general learning importance for swaps
-      score -= 10; // Adjust balance
+      score -= 10;
     }
 
-    // 5. Prerequisites roughly met via user's taught skills (10%)
     if (prerequisites.isEmpty) {
       score += 10;
     } else {
@@ -181,7 +172,6 @@ class _SearchScreenState extends State<SearchScreen> {
       score += (met / prerequisites.length).clamp(0.0, 1.0) * 10;
     }
 
-    // 6. Tag bonus (10%)
     if (learnMatchesTags > 0) {
       score += 10;
     }
@@ -198,7 +188,6 @@ class _SearchScreenState extends State<SearchScreen> {
         return matchesSearch && matchesCategory;
       }).toList();
 
-      // Sort by match percentage when no search query (recommended view)
       if (query.isEmpty) {
         _filteredWorkshops.sort((a, b) =>
             (b['match_percentage'] ?? 0).compareTo(a['match_percentage'] ?? 0));
@@ -303,7 +292,6 @@ class _WorkshopCard extends StatelessWidget {
 
   const _WorkshopCard({required this.workshop, this.currentUserId});
 
-  // Extract reasons for the match – we'll build this dynamically
   List<String> _getMatchReasons(BuildContext context, double matchPercentage) {
     final List<String> reasons = [];
 
@@ -315,13 +303,17 @@ class _WorkshopCard extends StatelessWidget {
     final String skillOffered = (workshop['skill_offered'] ?? '').toString();
     final String type = workshop['type'] ?? 'Free Workshop';
 
-    // You'll need access to user skills – we pass them via a parent lookup or context
-    // But since this is a stateless card, we'll recompute lightly here (safe since small data)
-    // Alternatively, you can pass user skills as parameters if preferred
+    String _selectedCategoryFromContext(BuildContext context) {
+      return context.findAncestorStateOfType<_SearchScreenState>()?._selectedCategory ?? "All";
+    }
 
-    // For simplicity, we'll describe generically – but to make it accurate, we need user skills.
-    // Best: move the full _calculateMatchPercentage logic here with user skills injected.
-    // But to avoid duplication, I'll show a clean way below.
+    List<String> _userSkillsToLearnFromContext(BuildContext context) {
+      return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToLearn ?? [];
+    }
+
+    List<String> _userSkillsToTeachFromContext(BuildContext context) {
+      return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToTeach ?? [];
+    }
 
     if (_selectedCategoryFromContext(context) == "All" || category == _selectedCategoryFromContext(context)) {
       reasons.add("✔ Matches your selected category ($category)");
@@ -367,19 +359,6 @@ class _WorkshopCard extends StatelessWidget {
     }
 
     return reasons;
-  }
-
-  // Temporary helpers – we'll fix this properly below
-  String _selectedCategoryFromContext(BuildContext context) {
-    return context.findAncestorStateOfType<_SearchScreenState>()?._selectedCategory ?? "All";
-  }
-
-  List<String> _userSkillsToLearnFromContext(BuildContext context) {
-    return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToLearn ?? [];
-  }
-
-  List<String> _userSkillsToTeachFromContext(BuildContext context) {
-    return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToTeach ?? [];
   }
 
   void _showMatchDetails(BuildContext context, double matchPercentage) {
@@ -452,6 +431,7 @@ class _WorkshopCard extends StatelessWidget {
                   ),
                 ),
 
+                // "Your Workshop" badge for creator
                 if (workshop["creator_id"] == currentUserId)
                   Positioned(
                     top: 12,
@@ -469,6 +449,7 @@ class _WorkshopCard extends StatelessWidget {
                     ),
                   ),
 
+                // Category chip
                 Positioned(
                   top: 12,
                   right: 12,
@@ -479,8 +460,10 @@ class _WorkshopCard extends StatelessWidget {
                   ),
                 ),
 
-                // Clickable Match Badge
-                if (matchPercentage != null && matchPercentage > 20)
+                // Match Badge — NOW HIDDEN FOR CREATOR'S OWN WORKSHOPS
+                if (matchPercentage != null &&
+                    matchPercentage > 20 &&
+                    workshop['creator_id'] != currentUserId)  // ← THIS IS THE FIX
                   Positioned(
                     bottom: 12,
                     left: 12,
@@ -522,6 +505,7 @@ class _WorkshopCard extends StatelessWidget {
               ],
             ),
 
+            // Rest of the card (title, rating, etc.)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

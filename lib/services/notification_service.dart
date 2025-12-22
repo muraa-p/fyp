@@ -106,7 +106,7 @@ class NotificationService {
     _workshopRemindersEnabled = enabled;
   }
 
-  // Schedule a workshop reminder
+// Schedule a workshop reminder
   Future<void> scheduleWorkshopReminder(
       String workshopId, String workshopTitle, DateTime workshopDateTime) async {
     if (!_workshopRemindersEnabled) return;
@@ -117,8 +117,13 @@ class NotificationService {
     // Don't schedule if the reminder time is in the past
     if (reminderTime.isBefore(DateTime.now())) return;
 
+    // NEW: Only schedule if workshop is within the next 24 hours
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+    if (workshopDateTime.isAfter(tomorrow)) return;
+
     await flutterLocalNotificationsPlugin.zonedSchedule(
-      workshopId.hashCode, // Use workshop ID hash as notification ID
+      workshopId.hashCode,
       'Workshop Starting Soon',
       'Your workshop "$workshopTitle" starts in 15 minutes!',
       tz.TZDateTime.from(reminderTime, tz.local),
@@ -133,8 +138,9 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      payload: workshopId, // Pass workshop ID as payload
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,  // <-- This one
+      // or just AndroidScheduleMode.inexact if you want even more battery-friendly
+      payload: workshopId,
     );
   }
 
