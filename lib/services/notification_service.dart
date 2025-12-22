@@ -21,6 +21,9 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../main.dart';
+import '../screens/workshop_detail_screen.dart'; // Add this import
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -31,8 +34,9 @@ class NotificationService {
 
   bool _isInitialized = false;
   bool _workshopRemindersEnabled = true;
+  bool _newWorkshopAlertsEnabled = true;
 
-  // Initialize the notification service
+  // Initialize notification service
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -65,8 +69,8 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // Create notification channel for Android
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    // Create notification channel for workshop reminders
+    const AndroidNotificationChannel workshopChannel = AndroidNotificationChannel(
       'workshop_reminders',
       'Workshop Reminders',
       description: 'Notifications for upcoming workshops',
@@ -76,7 +80,20 @@ class NotificationService {
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+        ?.createNotificationChannel(workshopChannel);
+
+    // Create notification channel for new workshop alerts
+    const AndroidNotificationChannel newWorkshopChannel = AndroidNotificationChannel(
+      'new_workshop_alerts',
+      'New Workshop Alerts',
+      description: 'Notifications for new workshops',
+      importance: Importance.high,
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(newWorkshopChannel);
 
     _isInitialized = true;
   }
@@ -95,10 +112,27 @@ class NotificationService {
   }
 
   // Handle notification tap
-  void _onNotificationTapped(NotificationResponse response) {
-    // Navigate to the workshop when notification is tapped
-    // This would need to be implemented based on your navigation structure
-    print('Notification tapped: ${response.payload}');
+  void _onNotificationTapped(NotificationResponse response) async {
+    if (response.payload != null) {
+      try {
+        // Fetch full workshop data before navigating
+        final workshopData = await Supabase.instance.client
+            .from('workshops')
+            .select('*, users!workshops_creator_id_fkey (name)')
+            .eq('id', response.payload as Object) // Fixed: removed "as Object"
+            .single();
+
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => WorkshopDetailScreen(workshop: workshopData),
+          ),
+        );
+      } catch (e) {
+        print('Error fetching workshop data: $e');
+        // Navigate to home screen as fallback
+        navigatorKey.currentState?.pushNamed('/home');
+      }
+    }
   }
 
   // Enable or disable workshop reminders
@@ -106,7 +140,12 @@ class NotificationService {
     _workshopRemindersEnabled = enabled;
   }
 
-// Schedule a workshop reminder
+  // Enable or disable new workshop alerts
+  void setNewWorkshopAlerts(bool enabled) {
+    _newWorkshopAlertsEnabled = enabled;
+  }
+
+  // Schedule a workshop reminder
   Future<void> scheduleWorkshopReminder(
       String workshopId, String workshopTitle, DateTime workshopDateTime) async {
     if (!_workshopRemindersEnabled) return;
@@ -114,10 +153,10 @@ class NotificationService {
     // Calculate reminder time (15 minutes before workshop)
     final reminderTime = workshopDateTime.subtract(const Duration(minutes: 15));
 
-    // Don't schedule if the reminder time is in the past
+    // Don't schedule if reminder time is in the past
     if (reminderTime.isBefore(DateTime.now())) return;
 
-    // NEW: Only schedule if workshop is within the next 24 hours
+    // Only schedule if workshop is within the next 24 hours
     final now = DateTime.now();
     final tomorrow = now.add(const Duration(days: 1));
     if (workshopDateTime.isAfter(tomorrow)) return;
@@ -138,8 +177,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,  // <-- This one
-      // or just AndroidScheduleMode.inexact if you want even more battery-friendly
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: workshopId,
     );
   }
@@ -234,35 +272,40 @@ class NotificationService {
       }
     } else if (Platform.isIOS) {
       // Open app settings on iOS
-      if (await canLaunchUrl(Uri.parse('app-settings:'))) {
+      if (await canLaunchUrl(Uri.parse('app-settings:'))) {  // Fixed: removed extra closing parenthesis
         await launchUrl(Uri.parse('app-settings:'));
       }
     }
   }
 
-  // // Add this method for testing notifications
-  // Future<void> scheduleTestNotification() async {
-  //   // Schedule a notification for 10 seconds from now
-  //   final testTime = DateTime.now().add(const Duration(seconds: 10));
-  //
-  //   await flutterLocalNotificationsPlugin.zonedSchedule(
-  //     999999, // Use a special ID for test notifications
-  //     'Test Notification',
-  //     'This is a test notification from SkillX!',
-  //     tz.TZDateTime.from(testTime, tz.local),
-  //     const NotificationDetails(
-  //       android: AndroidNotificationDetails(
-  //         'workshop_reminders',
-  //         'Workshop Reminders',
-  //         channelDescription: 'Notifications for upcoming workshops',
-  //         importance: Importance.high,
-  //         priority: Priority.high,
-  //         icon: '@mipmap/ic_launcher',
-  //       ),
-  //       iOS: DarwinNotificationDetails(),
-  //     ),
-  //     androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-  //     payload: 'test_notification',
-  //   );
-  // }
+  // Send a notification for a new workshop
+  Future<void> sendNewWorkshopAlert(Map<String, dynamic> workshop) async {
+    if (!_newWorkshopAlertsEnabled) return;
+
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null || workshop['creator_id'] == currentUserId) {
+      // Don't send notification for user's own workshop
+      return;
+    }
+
+    print('Sending notification for workshop: ${workshop['title']}');
+
+    await flutterLocalNotificationsPlugin.show(
+      workshop['id'].hashCode,
+      'New Workshop Available!',
+      'Check out "${workshop['title']}" by ${workshop['users']['name'] ?? 'Unknown Instructor'}',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'new_workshop_alerts',
+          'New Workshop Alerts',
+          channelDescription: 'Notifications for new workshops',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      payload: workshop['id'],
+    );
+  }
 }

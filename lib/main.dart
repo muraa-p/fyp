@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/user_model.dart';
 import 'themes/app_theme.dart';
@@ -8,19 +9,20 @@ import 'screens/welcome_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/workshop_listener_service.dart';
 
-// =================================================================
-// ADD THIS LINE: Create a global Supabase client
-// =================================================================
 final supabase = Supabase.instance.client;
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 Initialize Supabase
   await Supabase.initialize(
-    url: 'https://glvavlqdtxcpfurkpemq.supabase.co',          // <-- TODO: paste from Supabase project
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdmF2bHFkdHhjcGZ1cmtwZW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MTMwNzksImV4cCI6MjA4MTI4OTA3OX0.ndV5qGlTrJeBsl95TVzxCy8PZyYZbIP6RPZAeR_L-2k', // <-- TODO: paste anon key
+    url: 'https://glvavlqdtxcpfurkpemq.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdmF2bHFkdHhjcGZ1cmtwZW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MTMwNzksImV4cCI6MjA4MTI4OTA3OX0.ndV5qGlTrJeBsl95TVzxCy8PZyYZbIP6RPZAeR_L-2k',
+    realtimeClientOptions: const RealtimeClientOptions(
+      eventsPerSecond: 2,
+    ),
   );
 
   runApp(
@@ -36,29 +38,51 @@ Future<void> main() async {
 class AppState extends ChangeNotifier {
   UserModel? _user;
   bool _isDarkMode = false;
+  bool _newWorkshopAlertsEnabled = true;
 
   final List<Map<String, dynamic>> _enrolledWorkshops = [];
   final List<Map<String, dynamic>> _createdWorkshops = [];
 
   UserModel? get user => _user;
   bool get isDarkMode => _isDarkMode;
+  bool get newWorkshopAlertsEnabled => _newWorkshopAlertsEnabled;
 
   List<Map<String, dynamic>> get enrolledWorkshops => _enrolledWorkshops;
   List<Map<String, dynamic>> get createdWorkshops => _createdWorkshops;
 
-  // --- User Management ---
   void setUser(UserModel? user) {
     _user = user;
     notifyListeners();
   }
 
-  // --- Theme ---
   void toggleDarkMode() {
     _isDarkMode = !_isDarkMode;
     notifyListeners();
   }
 
-  // --- Enrolled Workshops ---
+  // Persistent toggle
+  Future<void> loadNewWorkshopAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    _newWorkshopAlertsEnabled = prefs.getBool('new_workshop_alerts') ?? true;
+    notifyListeners();
+  }
+
+  Future<void> setNewWorkshopAlerts(bool enabled) async {
+    _newWorkshopAlertsEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('new_workshop_alerts', enabled);
+    notifyListeners();
+
+    // Immediately start/stop global listener
+    final listener = WorkshopListenerService();
+    if (enabled) {
+      listener.startListening();
+    } else {
+      listener.stopListening();
+    }
+  }
+
+  // Workshop lists...
   void enrollWorkshop(Map<String, dynamic> ws) {
     if (!_enrolledWorkshops.any((w) => w["title"] == ws["title"])) {
       _enrolledWorkshops.add(ws);
@@ -71,7 +95,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Created Workshops ---
   void addCreatedWorkshop(Map<String, dynamic> ws) {
     if (!_createdWorkshops.any((w) => w["title"] == ws["title"])) {
       _createdWorkshops.add(ws);
@@ -101,14 +124,53 @@ class AppState extends ChangeNotifier {
   }
 }
 
-class SkillXApp extends StatelessWidget {
+class SkillXApp extends StatefulWidget {
   const SkillXApp({super.key});
+
+  @override
+  State<SkillXApp> createState() => _SkillXAppState();
+}
+
+class _SkillXAppState extends State<SkillXApp> {
+  late final WorkshopListenerService _workshopListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _workshopListener = WorkshopListenerService();
+
+    // Listen to auth changes
+    supabase.auth.onAuthStateChange.listen((data) async {
+      final event = data.event;
+      final session = data.session;
+
+      if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed) {
+        if (session?.user != null) {
+          final appState = Provider.of<AppState>(context, listen: false);
+          await appState.loadNewWorkshopAlerts();
+
+          if (appState.newWorkshopAlertsEnabled) {
+            _workshopListener.startListening();
+          }
+        }
+      } else if (event == AuthChangeEvent.signedOut) {
+        _workshopListener.stopListening();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _workshopListener.stopListening();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<AppState>().isDarkMode;
     return MaterialApp(
       title: 'SkillX',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
