@@ -967,3 +967,10 @@
 
 
 
+-- Add this to your database schema (at the end)
+ALTER PUBLICATION supabase_realtime ADD TABLE workshops;
+
+
+
+
+

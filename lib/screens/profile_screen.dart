@@ -761,45 +761,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
 
           ListTile(
-            leading: const Icon(Icons.email_outlined),
-            title: const Text("Change Email"),
-            subtitle: const Text("Update your login email address"),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text("Change Email"),
-                  content: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        decoration: InputDecoration(labelText: "New Email Address"),
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Cancel")),
-                    TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _showSnack("Email updated (demo)");
-                        },
-                        child: const Text("Update")),
-                  ],
-                ),
-              );
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text("Export Data"),
-            onTap: () => _showSnack("Profile data exported (demo)"),
-          ),
-
-          ListTile(
             leading: const Icon(Icons.delete_outline, color: Colors.red),
             title: const Text("Delete Account"),
             onTap: () {
