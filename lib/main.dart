@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:skillx/screens/delete_account_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_links/app_links.dart'; // Correct import
 
 import 'models/user_model.dart';
 import 'themes/app_theme.dart';
@@ -34,6 +38,7 @@ Future<void> main() async {
     ),
   );
 }
+
 
 class AppState extends ChangeNotifier {
   UserModel? _user;
@@ -133,10 +138,14 @@ class SkillXApp extends StatefulWidget {
 
 class _SkillXAppState extends State<SkillXApp> {
   late final WorkshopListenerService _workshopListener;
+  late final AppLinks _appLinks; // AppLinks instance
+  StreamSubscription<Uri>? _sub; // Correct subscription type
 
   @override
   void initState() {
     super.initState();
+    _appLinks = AppLinks(); // Initialize AppLinks
+    _handleDeepLinks();
     _workshopListener = WorkshopListenerService();
 
     // Listen to auth changes
@@ -159,9 +168,45 @@ class _SkillXAppState extends State<SkillXApp> {
     });
   }
 
+  void _handleDeepLinks() async {
+    // Check if app was opened from a deep link
+    final uri = await _appLinks.getInitialLink();
+    if (uri != null) {
+      _handleDeletionLink(uri);
+    }
+
+    // Listen for future deep links while the app is running
+    _sub = _appLinks.uriLinkStream.listen((Uri? uri) {
+      if (uri != null) {
+        _handleDeletionLink(uri);
+      }
+    }, onError: (err) {
+      // Handle exception by printing a message
+      print('Error receiving app link: $err');
+    });
+  }
+
+  void _handleDeletionLink(Uri uri) {
+    if (uri.path == '/delete-account') {
+      final token = uri.queryParameters['token'];
+      if (token != null) {
+        // Ensure navigator is ready before pushing
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (navigatorKey.currentContext != null) {
+            Navigator.of(navigatorKey.currentContext!).pushNamed(
+              '/delete-account',
+              arguments: {'token': token},
+            );
+          }
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _workshopListener.stopListening();
+    _sub?.cancel(); // Correctly cancel the subscription
     super.dispose();
   }
 
@@ -180,6 +225,7 @@ class _SkillXAppState extends State<SkillXApp> {
         '/auth': (context) => const AuthScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/home': (context) => const HomeScreen(),
+        '/delete-account': (context) => const DeleteAccountScreen(),
       },
       initialRoute: '/',
     );

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math';
 
 class AuthService {
   final SupabaseClient _client = Supabase.instance.client;
@@ -27,27 +28,21 @@ class AuthService {
     );
   }
 
-
   // ------------------------------
   // UPDATE PASSWORD
   // ------------------------------
-
-  // Add this method to your AuthService class
   Future<void> updatePassword(String currentPassword, String newPassword) async {
     try {
-      // First, verify the current password by attempting to sign in
       final currentUser = _client.auth.currentUser;
       if (currentUser == null || currentUser.email == null) {
         throw Exception('No authenticated user found');
       }
 
-      // Verify current password by attempting to sign in
       await _client.auth.signInWithPassword(
         email: currentUser.email!,
         password: currentPassword,
       );
 
-      // If sign in is successful, update the password
       await _client.auth.updateUser(
         UserAttributes(password: newPassword),
       );
@@ -73,5 +68,97 @@ class AuthService {
   // ------------------------------
   Stream<AuthState> authChanges() => _client.auth.onAuthStateChange;
 
+  // --- Deletion Flow Methods ---
 
+  String _generateToken() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rnd = Random.secure();
+    return String.fromCharCodes(Iterable.generate(
+        32, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
+  }
+
+  // Request account deletion
+  Future<void> requestAccountDeletion() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final token = _generateToken();
+      final expiresAt = DateTime.now().add(const Duration(days: 3));
+
+      // Store the token in the database
+      await _client.from('deletion_tokens').insert({
+        'user_id': user.id,
+        'token': token,
+        'expires_at': expiresAt.toIso8601String(),
+      });
+
+      // NOTE: The actual email is sent by a secure Edge Function.
+      // Your Flutter app should only show a success message.
+    } catch (e) {
+      throw Exception('Failed to request account deletion: ${e.toString()}');
+    }
+  }
+
+  // Verify deletion token
+  Future<Map<String, dynamic>?> verifyDeletionToken(String token) async {
+    try {
+      final response = await _client
+          .from('deletion_tokens')
+          .select('user_id, expires_at')
+          .eq('token', token)
+          .single();
+
+      if (response == null) {
+        return null;
+      }
+
+      final expiresAt = DateTime.parse(response['expires_at']);
+      if (DateTime.now().isAfter(expiresAt)) {
+        return null;
+      }
+
+      return response;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Confirm account deletion with password
+  Future<void> confirmAccountDeletion(String password, String token) async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      // Verify the token is valid
+      final tokenData = await verifyDeletionToken(token);
+      if (tokenData == null) {
+        throw Exception('Invalid or expired deletion link');
+      }
+
+      // Verify the user's password for security
+      await _client.auth.signInWithPassword(
+        email: user.email!,
+        password: password,
+      );
+
+      // Call the secure Edge Function to perform the final deletion
+      await _deleteUserAccount();
+    } catch (e) {
+      throw Exception('Failed to delete account: ${e.toString()}');
+    }
+  }
+
+  // Delete user account by calling a secure Edge Function
+  Future<void> _deleteUserAccount() async {
+    try {
+      await _client.functions.invoke('delete-account');
+    } catch (e) {
+      throw Exception('Account deletion failed: ${e.toString()}');
+    }
+  }
 }

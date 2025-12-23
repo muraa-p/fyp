@@ -290,6 +290,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
 
+
+
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -872,19 +875,25 @@ class _ProfileScreenState extends State<ProfileScreen>
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text("Confirm Deletion"),
+                  title: const Text("Request Account Deletion"),
                   content: const Text(
-                      "Are you sure you want to delete your account? This cannot be undone."),
+                      "We'll send you a deletion link via email. You'll have 3 days to click the link and confirm the deletion with your password."),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: const Text("Cancel")),
                     TextButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(context);
-                          _showSnack("Account deletion initiated");
+                          try {
+                            final authService = AuthService();
+                            await authService.requestAccountDeletion();
+                            _showSnack("Deletion link sent to your email");
+                          } catch (e) {
+                            _showSnack("Error: ${e.toString()}");
+                          }
                         },
-                        child: const Text("Delete",
+                        child: const Text("Send Link",
                             style: TextStyle(color: Colors.red))),
                   ],
                 ),
