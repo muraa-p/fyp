@@ -146,19 +146,60 @@ class AuthService {
         password: password,
       );
 
+      print('Password re-auth successful. Now calling delete function...');
+
       // Call the secure Edge Function to perform the final deletion
-      await _deleteUserAccount();
+      await _deleteUserAccount();  // Only call once, here
+
     } catch (e) {
+      print('Deletion flow error: $e');
       throw Exception('Failed to delete account: ${e.toString()}');
     }
   }
 
+
+
   // Delete user account by calling a secure Edge Function
   Future<void> _deleteUserAccount() async {
     try {
-      await _client.functions.invoke('delete-account');
-    } catch (e) {
-      throw Exception('Account deletion failed: ${e.toString()}');
+      final session = _client.auth.currentSession;
+
+      if (session == null) {
+        throw Exception('No session found - user not logged in');
+      }
+      if (session.accessToken.isEmpty) {
+        throw Exception('Access token is empty');
+      }
+
+      print('=== Attempting to delete account ===');
+      print('User ID: ${session.user?.id}');
+      print('User email: ${session.user?.email}');
+      print('Access token starts with: ${session.accessToken.substring(0, 30)}...');
+      print('Token length: ${session.accessToken.length}');
+
+      final response = await _client.functions.invoke(
+        'delete-account',
+        method: HttpMethod.post,
+        headers: {
+          'Authorization': 'Bearer ${session.accessToken}',
+          'Content-Type': 'application/json',  // Add this too
+        },
+        body: {},  // Empty body is fine
+      );
+
+      print('✅ Invoke SUCCESS');
+      print('Status: ${response.status}');
+      print('Data: ${response.data}');
+    } on FunctionException catch (e) {
+      print('❌ FunctionException caught');
+      print('Status: ${e.status}');
+      print('Details: ${e.details}');  // This already covers the error message
+      rethrow;
+    } catch (e, stackTrace) {
+      print('❌ Unexpected error during invoke: $e');
+      print('Type: ${e.runtimeType}');
+      print('Stack trace: $stackTrace');
+      rethrow;
     }
   }
 }

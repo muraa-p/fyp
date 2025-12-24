@@ -996,3 +996,89 @@ CREATE POLICY "Users can view their own deletion tokens" ON deletion_tokens
 
 CREATE POLICY "Users can insert their own deletion tokens" ON deletion_tokens
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+
+
+
+
+
+
+
+  CREATE OR REPLACE FUNCTION send_deletion_email()
+RETURNS TRIGGER AS $$ DECLARE
+  user_email TEXT;
+  deletion_link TEXT;
+BEGIN
+  -- Get the user's email
+  SELECT email INTO user_email
+  FROM users
+  WHERE id = NEW.user_id;
+
+  -- Build the deletion link
+  deletion_link := 'skillx://delete-account?token=' || NEW.token;
+
+  -- This is where you would call an email service
+  -- For now, we'll just log it for debugging
+  RAISE LOG 'Sending deletion email to % with link %', user_email, deletion_link;
+
+  -- In a real implementation, you would use:
+  -- extensions.http_post(
+  --   url := 'your-email-service-url',
+  --   headers := '{"Content-Type": "application/json"}',
+  --   body := json_build_object(
+  --     'to', user_email,
+  --     'subject', 'Delete Your SkillX Account',
+  --     'body', 'Click this link to delete your account: ' || deletion_link
+  --   );
+  RETURN NEW;
+END;
+ $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_deletion_token_insert
+AFTER INSERT ON deletion_tokens
+FOR EACH ROW
+EXECUTE FUNCTION send_deletion_email();
+
+
+
+
+
+
+
+
+
+create extension if not exists pg_net with schema extensions;
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION send_deletion_email()
+RETURNS TRIGGER AS $$
+DECLARE
+  user_email TEXT;
+  deletion_link TEXT;
+  function_url TEXT := 'https://glvavlqdtxcpfurkpemq.supabase.co/functions/v1/send-deletion-email';
+BEGIN
+  -- Get the user's email
+  SELECT email INTO user_email
+  FROM users
+  WHERE id = NEW.user_id;
+
+  -- Build the deep link
+  deletion_link := 'skillx://delete-account?token=' || NEW.token;
+
+  -- Call the Edge Function to send the email (no auth header needed)
+  PERFORM net.http_post(
+    url := function_url,
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := jsonb_build_object(
+      'to', user_email,
+      'link', deletion_link
+    )::text
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

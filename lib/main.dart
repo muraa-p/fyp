@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:skillx/screens/delete_account_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:app_links/app_links.dart'; // Correct import
+import 'package:app_links/app_links.dart';
 
 import 'models/user_model.dart';
 import 'themes/app_theme.dart';
@@ -27,6 +27,7 @@ Future<void> main() async {
     realtimeClientOptions: const RealtimeClientOptions(
       eventsPerSecond: 2,
     ),
+    debug: true, // Optional: helps with debugging Supabase logs
   );
 
   runApp(
@@ -38,7 +39,6 @@ Future<void> main() async {
     ),
   );
 }
-
 
 class AppState extends ChangeNotifier {
   UserModel? _user;
@@ -65,7 +65,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Persistent toggle
   Future<void> loadNewWorkshopAlerts() async {
     final prefs = await SharedPreferences.getInstance();
     _newWorkshopAlertsEnabled = prefs.getBool('new_workshop_alerts') ?? true;
@@ -78,7 +77,6 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('new_workshop_alerts', enabled);
     notifyListeners();
 
-    // Immediately start/stop global listener
     final listener = WorkshopListenerService();
     if (enabled) {
       listener.startListening();
@@ -87,7 +85,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // Workshop lists...
   void enrollWorkshop(Map<String, dynamic> ws) {
     if (!_enrolledWorkshops.any((w) => w["title"] == ws["title"])) {
       _enrolledWorkshops.add(ws);
@@ -138,22 +135,30 @@ class SkillXApp extends StatefulWidget {
 
 class _SkillXAppState extends State<SkillXApp> {
   late final WorkshopListenerService _workshopListener;
-  late final AppLinks _appLinks; // AppLinks instance
-  StreamSubscription<Uri>? _sub; // Correct subscription type
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _appLinks = AppLinks(); // Initialize AppLinks
+    _appLinks = AppLinks();
     _handleDeepLinks();
     _workshopListener = WorkshopListenerService();
 
-    // Listen to auth changes
+    // Add this to ensure deep link is handled after auth restore
+    supabase.auth.onAuthStateChange.listen((data) {
+      // Re-check for pending deep link after auth is loaded
+      _appLinks.getInitialLink().then((uri) {
+        if (uri != null) _handleDeletionLink(uri);
+      });
+    });
+
     supabase.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
       final session = data.session;
 
-      if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed) {
+      if (event == AuthChangeEvent.signedIn ||
+          event == AuthChangeEvent.tokenRefreshed) {
         if (session?.user != null) {
           final appState = Provider.of<AppState>(context, listen: false);
           await appState.loadNewWorkshopAlerts();
@@ -169,19 +174,16 @@ class _SkillXAppState extends State<SkillXApp> {
   }
 
   void _handleDeepLinks() async {
-    // Check if app was opened from a deep link
     final uri = await _appLinks.getInitialLink();
     if (uri != null) {
       _handleDeletionLink(uri);
     }
 
-    // Listen for future deep links while the app is running
     _sub = _appLinks.uriLinkStream.listen((Uri? uri) {
       if (uri != null) {
         _handleDeletionLink(uri);
       }
     }, onError: (err) {
-      // Handle exception by printing a message
       print('Error receiving app link: $err');
     });
   }
@@ -190,12 +192,15 @@ class _SkillXAppState extends State<SkillXApp> {
     if (uri.path == '/delete-account') {
       final token = uri.queryParameters['token'];
       if (token != null) {
-        // Ensure navigator is ready before pushing
+        // Wait for the first frame to ensure context is ready
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (navigatorKey.currentContext != null) {
-            Navigator.of(navigatorKey.currentContext!).pushNamed(
-              '/delete-account',
-              arguments: {'token': token},
+          final context = navigatorKey.currentContext;
+          if (context != null && Navigator.canPop(context) || ModalRoute.of(context!)?.isFirst == true) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const DeleteAccountScreen(),
+                settings: RouteSettings(arguments: {'token': token}),
+              ),
             );
           }
         });
@@ -206,7 +211,7 @@ class _SkillXAppState extends State<SkillXApp> {
   @override
   void dispose() {
     _workshopListener.stopListening();
-    _sub?.cancel(); // Correctly cancel the subscription
+    _sub?.cancel();
     super.dispose();
   }
 

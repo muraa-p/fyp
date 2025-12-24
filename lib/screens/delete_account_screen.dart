@@ -70,6 +70,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('=== DeleteAccountScreen is building ===');
+    print('Token from arguments: $_token');
+    print('Current user: ${Supabase.instance.client.auth.currentUser?.email}');
+    print('Error message: $_errorMessage');
     return Scaffold(
       appBar: AppBar(
         title: const Text("Delete Account"),
