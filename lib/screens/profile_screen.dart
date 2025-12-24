@@ -613,87 +613,104 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSkillsTab(ThemeData theme, List skills) {
-    // Create a map to store workshop counts for each skill
-    Map<String, int> skillWorkshopCounts = {};
-
-    // Initialize all skills with 0 workshops
-    for (var skill in skills) {
-      skillWorkshopCounts[skill["name"]] = 0;
+    if (skills.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_awesome_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              "No skills listed yet",
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Add skills you teach in your profile",
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
     }
 
-    // Count workshops for each skill
-    if (_createdWorkshops != null) {
-      for (var workshop in _createdWorkshops!) {
-        // Check if workshop title contains any skill name
-        for (var skill in skills) {
-          String skillName = skill["name"].toLowerCase();
-
-          // Check in title
-          if (workshop["title"] != null &&
-              workshop["title"].toString().toLowerCase().contains(skillName)) {
-            skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
-            continue;
-          }
-
-          // Check in tags
-          if (workshop["tags"] != null && workshop["tags"] is List) {
-            for (var tag in workshop["tags"]) {
-              if (tag.toString().toLowerCase() == skillName) {
-                skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
-                continue;
-              }
-            }
-          }
-
-          // Check in skills field
-          if (workshop["skills"] != null && workshop["skills"] is List) {
-            for (var skillField in workshop["skills"]) {
-              if (skillField.toString().toLowerCase() == skillName) {
-                skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
-                continue;
-              }
-            }
-          }
-
-          // Check in description
-          if (workshop["description"] != null &&
-              workshop["description"].toString().toLowerCase().contains(skillName)) {
-            skillWorkshopCounts[skill["name"]] = (skillWorkshopCounts[skill["name"]] ?? 0) + 1;
-          }
-        }
-      }
-    }
-
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      children: skills.isEmpty
-          ? [const Text("No skills to display.")]
-          : skills.map((s) {
-        double progress = 0.25;
-        if (s["level"] == "Expert") progress = 0.95;
-        if (s["level"] == "Advanced") progress = 0.75;
-        if (s["level"] == "Intermediate") progress = 0.5;
-
-        // Use the calculated workshop count instead of the one from the database
-        int workshopCount = skillWorkshopCounts[s["name"]] ?? 0;
+      itemCount: skills.length,
+      itemBuilder: (_, i) {
+        final s = skills[i];
+        final int endorsements = s['endorsements'] ?? 0;
+        final double progress = (endorsements / 50).clamp(0.0, 1.0); // Full mastery at 50 endorsements
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 3,
+          shadowColor: Colors.black.withOpacity(0.08),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(s["name"], style: theme.textTheme.titleMedium),
-                const SizedBox(height: 6),
-                LinearProgressIndicator(value: progress, minHeight: 6),
-                const SizedBox(height: 6),
-                Text("${s["endorsements"]} endorsements • $workshopCount workshops"),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      s['name'] ?? 'Unknown Skill',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      s['level'] ?? 'Intermediate',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 10,
+                    backgroundColor: Colors.grey[300],
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.thumb_up_outlined, size: 16, color: Colors.grey[700]),
+                        const SizedBox(width: 6),
+                        Text(
+                          "$endorsements endorsements",
+                          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      "${(progress * 100).toInt()}% mastery",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: progress >= 1.0 ? Colors.green : theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         );
-      }).toList(),
+      },
     );
   }
 
