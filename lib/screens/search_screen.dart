@@ -75,28 +75,40 @@ class _SearchScreenState extends State<SearchScreen> {
       final data = await Supabase.instance.client
           .from('workshops')
           .select('''
-            *,
-            users!workshops_creator_id_fkey (
-              name
-            )
-          ''')
+          *,
+          users!workshops_creator_id_fkey (
+            name
+          )
+        ''')
           .order('created_at', ascending: false);
 
-      final processedData = data.map((workshop) {
+      final List<Map<String, dynamic>> processedWorkshops = [];
+
+      for (final workshop in data) {
+        // Efficient count query (no data returned)
+        final countRes = await Supabase.instance.client
+            .from('workshop_enrollments')
+            .select()
+            .eq('workshop_id', workshop['id'])
+            .count(CountOption.exact);
+
+        final int enrolledCount = countRes.count ?? 0;
+
         final matchPercentage = _calculateMatchPercentage(workshop);
 
-        return {
+        processedWorkshops.add({
           ...workshop,
           'instructor': workshop['users']?['name'] ?? 'Unknown Instructor',
-          'participants': '0/${workshop['max_participants'] ?? 0}',
+          'participants': '$enrolledCount/${workshop['max_participants'] ?? 0}',
+          'enrolled_count': enrolledCount,
           'match_percentage': matchPercentage,
-        };
-      }).toList();
+        });
+      }
 
       if (mounted) {
         setState(() {
-          _allWorkshops = processedData;
-          _filteredWorkshops = processedData;
+          _allWorkshops = processedWorkshops;
+          _filteredWorkshops = processedWorkshops;
           _isLoading = false;
         });
       }

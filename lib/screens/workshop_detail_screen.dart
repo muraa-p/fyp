@@ -52,6 +52,26 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
     _checkEnrollmentAndConversation();
     _checkExistingReviews();
+    _fetchEnrolledCount();
+  }
+
+  Future<void> _fetchEnrolledCount() async {
+    try {
+      final countRes = await supabase
+          .from('workshop_enrollments')
+          .select()
+          .eq('workshop_id', widget.workshop['id'])
+          .count(CountOption.exact);
+
+      if (mounted) {
+        setState(() {
+          widget.workshop['participants'] =
+          '${countRes.count ?? 0}/${widget.workshop['max_participants'] ?? 0}';
+        });
+      }
+    } catch (e) {
+      print('Error fetching enrolled count: $e');
+    }
   }
 
   Future<void> _checkEnrollmentAndConversation() async {
