@@ -1,17 +1,11 @@
-// ADD THIS IMPORT AT THE TOP OF THE FILE
+// ADD THESE IMPORTS AT THE TOP
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
-// Add this import at the top of the file
 import '../services/notification_service.dart';
-
-// REMOVE THESE IMPORTS AS THEY ARE NO LONGER NEEDED
-// import 'package:provider/provider.dart';
-// import '../main.dart'; // so AppState is visible
 
 class CreateWorkshopScreen extends StatefulWidget {
   final Function(String)? onNavigate;
-
   final Map<String, dynamic>? existingWorkshop;
   final bool isEditing;
 
@@ -28,8 +22,7 @@ class CreateWorkshopScreen extends StatefulWidget {
 
 class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   int currentStep = 0;
-  bool _isPublishing = false; // Add a loading state
-  // Add this to your _CreateWorkshopScreenState class
+  bool _isPublishing = false;
   final NotificationService _notificationService = NotificationService();
 
   final steps = [
@@ -39,7 +32,10 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     'Review & Publish'
   ];
 
-  // Shared state
+  // Form key for validation
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // Controllers
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descController = TextEditingController();
   final TextEditingController maxParticipantsController = TextEditingController();
@@ -68,7 +64,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       selectedCategory = w['category'];
       selectedDifficulty = w['difficulty'];
       selectedDuration = w['duration'];
-      // Parse the timestamp for date and time pickers
       if (w['date'] != null) {
         final dateTime = DateTime.parse(w['date']);
         selectedDate = dateTime;
@@ -87,7 +82,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   String? selectedDifficulty;
   String? selectedDuration;
   String? locationType = 'virtual';
-  String selectedWorkshopType = 'Free Workshop'; // 👈 NEW
+  String selectedWorkshopType = 'Free Workshop';
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
 
@@ -95,7 +90,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   List<String> prerequisites = [];
   List<String> outcomes = [];
 
-  // Dropdown options
   final categories = [
     'Programming', 'Design', 'Languages', 'Business',
     'Soft Skills', 'Music', 'Fitness', 'Photography',
@@ -107,16 +101,75 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     '2.5 hours', '3 hours', '4 hours', 'Full day'
   ];
 
-  // Step control
+  // Validate current step before proceeding
+  bool _validateCurrentStep() {
+    if (!_formKey.currentState!.validate()) {
+      return false;
+    }
+
+    // Additional custom validation
+    if (currentStep == 0) {
+      if (titleController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a title')),
+        );
+        return false;
+      }
+      if (selectedCategory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a category')),
+        );
+        return false;
+      }
+      if (selectedWorkshopType == 'Teach4Learn') {
+        if (skillRequestedController.text.trim().isEmpty ||
+            skillOfferedController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please fill in both skills for Teach4Learn')),
+          );
+          return false;
+        }
+      }
+    }
+
+    if (currentStep == 1) {
+      if (selectedDate == null || selectedTime == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select date and time')),
+        );
+        return false;
+      }
+      if (locationController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter location/platform')),
+        );
+        return false;
+      }
+    }
+
+// NEW: Step 3 - Syllabus required
+    if (currentStep == 2) {
+      if (syllabus.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please add at least one lesson to the syllabus')),
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   void nextStep() {
-    if (currentStep < steps.length - 1) setState(() => currentStep++);
+    if (_validateCurrentStep() && currentStep < steps.length - 1) {
+      setState(() => currentStep++);
+    }
   }
 
   void prevStep() {
     if (currentStep > 0) setState(() => currentStep--);
   }
 
-  // Utility
   void addItem(List<String> list, TextEditingController controller) {
     final text = controller.text.trim();
     if (text.isNotEmpty && !list.contains(text)) {
@@ -131,17 +184,12 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     setState(() => list.removeAt(index));
   }
 
-  // Step 1: Workshop Details
+  // Steps with Form and validation
   Widget buildStep1() {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🔹 Workshop Type
-        const Text(
-          'Workshop Type',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        const Text('Workshop Type', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         ToggleButtons(
           borderRadius: BorderRadius.circular(12),
@@ -151,177 +199,156 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
           ],
           onPressed: (index) {
             setState(() {
-              selectedWorkshopType =
-              index == 0 ? 'Free Workshop' : 'Teach4Learn';
+              selectedWorkshopType = index == 0 ? 'Free Workshop' : 'Teach4Learn';
             });
           },
           selectedColor: Colors.white,
-          fillColor: theme.colorScheme.primary,
+          fillColor: Theme.of(context).colorScheme.primary,
           children: const [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Text('Free Workshop'),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Text('Teach4Learn'),
-            ),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Text('Free Workshop')),
+            Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Text('Teach4Learn')),
           ],
         ),
         const SizedBox(height: 16),
 
-        // 🔹 Title or Exchange Title
-        TextField(
+        TextFormField(
           controller: titleController,
           decoration: InputDecoration(
-            labelText: selectedWorkshopType == 'Teach4Learn'
-                ? 'Exchange Title'
-                : 'Workshop Title',
-            hintText: selectedWorkshopType == 'Teach4Learn'
-                ? 'e.g., Skill Swap: Learn Illustration for Web Dev'
-                : 'e.g., Advanced Flutter Widgets',
+            labelText: selectedWorkshopType == 'Teach4Learn' ? 'Exchange Title' : 'Workshop Title',
             border: const OutlineInputBorder(),
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Title is required';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
 
-        // 🔹 Teach4Learn-specific fields
         if (selectedWorkshopType == 'Teach4Learn') ...[
-          // Skill Wanted
-          TextField(
+          TextFormField(
             controller: skillRequestedController,
             decoration: const InputDecoration(
               labelText: 'Skill Wanted',
-              hintText: 'e.g., Digital Illustration',
               border: OutlineInputBorder(),
             ),
+            validator: (value) {
+              if (selectedWorkshopType == 'Teach4Learn' && (value == null || value.trim().isEmpty)) {
+                return 'Required for Teach4Learn';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 16),
-
-          // Skill You Can Teach
-          TextField(
+          TextFormField(
             controller: skillOfferedController,
             decoration: const InputDecoration(
-              labelText: 'Skill You Can Teach in Return',
-              hintText: 'e.g., Web Development, React, or HTML/CSS',
+              labelText: 'Skill You Can Teach',
               border: OutlineInputBorder(),
             ),
+            validator: (value) {
+              if (selectedWorkshopType == 'Teach4Learn' && (value == null || value.trim().isEmpty)) {
+                return 'Required for Teach4Learn';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 16),
         ],
 
-        // 🔹 About / Description
-        TextField(
+        TextFormField(
           controller: descController,
           maxLines: 4,
           decoration: const InputDecoration(
-            labelText: 'About / Description',
-            hintText:
-            'Describe what participants will learn or how you’ll collaborate.',
+            labelText: 'Description',
             border: OutlineInputBorder(),
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Description is required';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
 
-        // 🔹 Category & Difficulty
         Row(
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
                 value: selectedCategory,
-                decoration: const InputDecoration(
-                    labelText: 'Category', border: OutlineInputBorder()),
-                items: categories
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
+                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedCategory = v),
+                validator: (value) => value == null ? 'Category required' : null,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<String>(
                 value: selectedDifficulty,
-                decoration: const InputDecoration(
-                    labelText: 'Difficulty', border: OutlineInputBorder()),
-                items: difficulties
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
+                decoration: const InputDecoration(labelText: 'Difficulty', border: OutlineInputBorder()),
+                items: difficulties.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedDifficulty = v),
+                validator: (value) => value == null ? 'Difficulty required' : null,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
 
-        // 🔹 Duration & Max Participants
         Row(
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
                 value: selectedDuration,
-                decoration: const InputDecoration(
-                    labelText: 'Duration', border: OutlineInputBorder()),
-                items: durations
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
+                decoration: const InputDecoration(labelText: 'Duration', border: OutlineInputBorder()),
+                items: durations.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedDuration = v),
+                validator: (value) => value == null ? 'Duration required' : null,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextField(
+              child: TextFormField(
                 controller: maxParticipantsController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'Max Participants',
-                    hintText: 'e.g., 15',
-                    border: OutlineInputBorder()),
+                  labelText: 'Max Participants',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return 'Required';
+                  final n = int.tryParse(value);
+                  if (n == null || n < 1) return 'Must be a positive number';
+                  return null;
+                },
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
 
-        // 🔹 Tags
-        Wrap(
-          spacing: 6,
-          children: tags
-              .map((t) => Chip(
-            label: Text(t),
-            onDeleted: () => setState(() => tags.remove(t)),
-          ))
-              .toList(),
-        ),
+        // Tags (optional, no validation)
+        Wrap(spacing: 6, children: tags.map((t) => Chip(label: Text(t), onDeleted: () => setState(() => tags.remove(t)))).toList()),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-              child: TextField(
-                controller: newTagController,
-                decoration: const InputDecoration(
-                  hintText: 'Add a tag...',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => addItem(tags, newTagController),
-              ),
-            ),
+            Expanded(child: TextField(controller: newTagController, decoration: const InputDecoration(hintText: 'Add tag', border: OutlineInputBorder()))),
             const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () => addItem(tags, newTagController),
-              child: const Icon(Icons.add),
-            ),
+            ElevatedButton(onPressed: () => addItem(tags, newTagController), child: const Icon(Icons.add)),
           ],
         ),
       ],
     );
   }
 
-  // Step 2–4 (unchanged)
   Widget buildStep2(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Workshop Date', style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text('Date', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
@@ -335,102 +362,78 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
-                borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(border: Border.all(color: selectedDate == null ? Colors.red.shade300 : Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(selectedDate == null
-                    ? 'Select Date'
-                    : '${selectedDate!.toLocal()}'.split(' ')[0]),
-                const Icon(Icons.calendar_today_outlined, size: 18)
+                Text(selectedDate == null ? 'Select Date *' : '${selectedDate!.toLocal()}'.split(' ')[0]),
+                const Icon(Icons.calendar_today_outlined),
               ],
             ),
           ),
         ),
+        if (selectedDate == null) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Date is required', style: TextStyle(color: Colors.red, fontSize: 12))),
         const SizedBox(height: 16),
-        const Text('Start Time', style: TextStyle(fontWeight: FontWeight.w600)),
+
+        const Text('Time', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
-            final picked = await showTimePicker(
-              context: context,
-              initialTime: selectedTime ?? TimeOfDay.now(),
-            );
+            final picked = await showTimePicker(context: context, initialTime: selectedTime ?? TimeOfDay.now());
             if (picked != null) setState(() => selectedTime = picked);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
-                borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(border: Border.all(color: selectedTime == null ? Colors.red.shade300 : Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(selectedTime == null
-                    ? 'Select Time'
-                    : selectedTime!.format(context)),
-                const Icon(Icons.access_time_outlined, size: 18)
+                Text(selectedTime == null ? 'Select Time *' : selectedTime!.format(context)),
+                const Icon(Icons.access_time_outlined),
               ],
             ),
           ),
         ),
+        if (selectedTime == null) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Time is required', style: TextStyle(color: Colors.red, fontSize: 12))),
         const SizedBox(height: 16),
+
         const Text('Location Type', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: locationType == 'virtual'
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey.shade200),
+                style: ElevatedButton.styleFrom(backgroundColor: locationType == 'virtual' ? Theme.of(context).colorScheme.primary : Colors.grey.shade200),
                 onPressed: () => setState(() => locationType = 'virtual'),
                 icon: const Icon(Icons.videocam),
-                label: Text(
-                  'Virtual',
-                  style: TextStyle(
-                    color: locationType == 'virtual'
-                        ? Colors.white
-                        : Colors.black87,
-                  ),
-                ),
+                label: Text('Virtual', style: TextStyle(color: locationType == 'virtual' ? Colors.white : Colors.black87)),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: locationType == 'physical'
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey.shade200),
+                style: ElevatedButton.styleFrom(backgroundColor: locationType == 'physical' ? Theme.of(context).colorScheme.primary : Colors.grey.shade200),
                 onPressed: () => setState(() => locationType = 'physical'),
                 icon: const Icon(Icons.location_on_outlined),
-                label: Text(
-                  'In-Person',
-                  style: TextStyle(
-                    color: locationType == 'physical'
-                        ? Colors.white
-                        : Colors.black87,
-                  ),
-                ),
+                label: Text('In-Person', style: TextStyle(color: locationType == 'physical' ? Colors.white : Colors.black87)),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        TextField(
+
+        TextFormField(
           controller: locationController,
           decoration: InputDecoration(
-            labelText:
-            locationType == 'virtual' ? 'Platform/Tool' : 'Venue/Room',
-            hintText: locationType == 'virtual'
-                ? 'e.g., Zoom, Google Meet'
-                : 'e.g., Library Room 201',
+            labelText: locationType == 'virtual' ? 'Platform (e.g., Zoom) *' : 'Venue *',
             border: const OutlineInputBorder(),
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Location/platform is required';
+            }
+            return null;
+          },
         ),
       ],
     );
@@ -440,7 +443,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- Prerequisites ---
+        // --- Prerequisites (optional) ---
         const Text('Prerequisites', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         ...List.generate(prerequisites.length, (i) {
@@ -470,7 +473,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- Learning Outcomes ---
+        // --- Learning Outcomes (optional) ---
         const Text('Learning Outcomes',
             style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
@@ -502,10 +505,19 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- 🆕 Syllabus Builder ---
-        const Text('Syllabus (Lesson Plan)',
+        // --- Syllabus (now REQUIRED) ---
+        const Text('Syllabus (Lesson Plan) *',
             style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
+
+        if (syllabus.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'At least one lesson is required',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
 
         ...List.generate(syllabus.length, (i) {
           final item = syllabus[i];
@@ -530,9 +542,13 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
               flex: 2,
               child: TextField(
                 controller: newLessonTitleController,
-                decoration: const InputDecoration(
-                  hintText: 'Lesson title',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: 'Lesson title *',
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: newLessonTitleController.text.isEmpty ? Colors.red.shade300 : Colors.grey,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -541,9 +557,13 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
               flex: 1,
               child: TextField(
                 controller: newLessonDurationController,
-                decoration: const InputDecoration(
-                  hintText: 'Duration',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: 'Duration *',
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: newLessonDurationController.text.isEmpty ? Colors.red.shade300 : Colors.grey,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -552,17 +572,27 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
               onPressed: () {
                 final title = newLessonTitleController.text.trim();
                 final duration = newLessonDurationController.text.trim();
-                if (title.isNotEmpty && duration.isNotEmpty) {
-                  setState(() {
-                    syllabus.add({
-                      "title": title,
-                      "duration": duration,
-                      "completed": false,
-                    });
-                    newLessonTitleController.clear();
-                    newLessonDurationController.clear();
-                  });
+                if (title.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Lesson title is required')),
+                  );
+                  return;
                 }
+                if (duration.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Lesson duration is required')),
+                  );
+                  return;
+                }
+                setState(() {
+                  syllabus.add({
+                    "title": title,
+                    "duration": duration,
+                    "completed": false,
+                  });
+                  newLessonTitleController.clear();
+                  newLessonDurationController.clear();
+                });
               },
               child: const Icon(Icons.add),
             ),
@@ -716,9 +746,12 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
               : setState(() => currentStep--),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: stepWidgets[currentStep],
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: stepWidgets[currentStep],
+        ),
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
