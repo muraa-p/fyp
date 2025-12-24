@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart'; // Import image picker
 import 'package:url_launcher/url_launcher.dart';
+import 'user_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, this.initialConversation});
@@ -28,6 +29,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   List<Map<String, dynamic>> conversations = [];
   List<Map<String, dynamic>> workshopRequests = [];
   List<Map<String, dynamic>> messages = [];
+  List<Map<String, dynamic>> groupMembers = [];
+  bool isLoadingMembers = false;
   bool isLoading = true;
 
   RealtimeChannel? _conversationsChannel;
@@ -647,6 +650,208 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     }
   }
 
+
+  // New: Fetch group members when needed
+  Future<void> _fetchGroupMembers(String conversationId) async {
+    if (!mounted) return;
+    setState(() {
+      isLoadingMembers = true;
+    });
+
+    try {
+      final response = await supabase
+          .from('conversation_participants')
+          .select('is_admin, user:users(id, name, avatar_url, university, bio, xp)')
+          .eq('conversation_id', conversationId)
+          .not('user', 'is', null);
+
+      if (mounted) {
+        setState(() {
+          groupMembers = List<Map<String, dynamic>>.from(response);
+          isLoadingMembers = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching group members: $e');
+      if (mounted) {
+        setState(() => isLoadingMembers = false);
+      }
+    }
+  }
+
+  // New: Show user profile or group members
+// Add this field near your other state variables
+  String memberSearchQuery = '';
+
+// Updated: Show user profile or enhanced group members dialog
+  Future<void> _showProfileOrMembers() async {
+    final isGroup = activeChat!['is_group'] == true;
+
+    if (!isGroup) {
+      // 1-on-1 chat → show other user's profile
+      final otherUser = activeChat!['other_user'] as Map<String, dynamic>;
+
+      try {
+        final fullUserData = await supabase
+            .from('users')
+            .select()
+            .eq('id', otherUser['id'])
+            .single();
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserProfileScreen(user: fullUserData),
+            ),
+          );
+        }
+      } catch (e) {
+        print("Error loading full profile: $e");
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UserProfileScreen(user: otherUser),
+            ),
+          );
+        }
+      }
+    } else {
+      // Group chat → show enhanced members dialog
+      await _fetchGroupMembers(activeChat!['id']);
+
+      // Reset search when opening
+      memberSearchQuery = '';
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              // Filter members based on search
+              final filteredMembers = groupMembers.where((participant) {
+                final member = participant['user'] as Map<String, dynamic>?;
+                if (member == null) return false;
+
+                final name = (member['name'] ?? '').toString().toLowerCase();
+                final university = (member['university'] ?? '').toString().toLowerCase();
+                final query = memberSearchQuery.toLowerCase();
+
+                return name.contains(query) || university.contains(query);
+              }).toList();
+
+              return AlertDialog(
+                title: Text(
+                  '${activeChat!['name'] ?? 'Group Members'} (${groupMembers.length} members)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: 500,
+                  child: Column(
+                    children: [
+                      // Search bar
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TextField(
+                          onChanged: (value) {
+                            setDialogState(() {
+                              memberSearchQuery = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search members...',
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: isLoadingMembers
+                            ? const Center(child: CircularProgressIndicator())
+                            : filteredMembers.isEmpty
+                            ? const Center(child: Text("No members found"))
+                            : ListView.separated(
+                          itemCount: filteredMembers.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final participant = filteredMembers[index];
+                            final member = participant['user'] as Map<String, dynamic>?;
+
+                            if (member == null) {
+                              return const ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.grey,
+                                  child: Icon(Icons.person_off, color: Colors.white70),
+                                ),
+                                title: Text('Deleted User'),
+                                subtitle: Text('This account no longer exists'),
+                                enabled: false,
+                              );
+                            }
+
+                            final bool isAdmin = participant['is_admin'] == true;
+
+                            return ListTile(
+                              onTap: () {
+                                Navigator.pop(context); // Close dialog
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UserProfileScreen(user: member),
+                                  ),
+                                );
+                              },
+                              leading: CircleAvatar(
+                                backgroundImage: member['avatar_url']?.isNotEmpty == true
+                                    ? NetworkImage(member['avatar_url'] as String)
+                                    : null,
+                                child: member['avatar_url']?.isNotEmpty != true
+                                    ? Text(
+                                  (member['name'] as String?)?.isNotEmpty == true
+                                      ? (member['name'] as String).substring(0, 1).toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                )
+                                    : null,
+                              ),
+                              title: Text(member['name'] ?? 'Unknown User'),
+                              subtitle: Text(member['university'] ?? 'Member'),
+                              trailing: isAdmin
+                                  ? Chip(
+                                label: const Text(
+                                  'Admin',
+                                  style: TextStyle(fontSize: 10, color: Colors.white),
+                                ),
+                                backgroundColor: Colors.blue,
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                              )
+                                  : null,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
+  }
+
   // --- UPDATED: Message Item Builder ---
   Widget _buildMessageItem(Map<String, dynamic> msg) {
     final isMe = msg['sender_id'] == currentUser?.id;
@@ -759,9 +964,18 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           ),
           title: Row(
             children: [
-              CircleAvatar(
-                backgroundImage: avatarUrl?.isNotEmpty == true ? NetworkImage(avatarUrl!) : null,
-                child: avatarUrl?.isNotEmpty != true ? const Icon(Icons.person) : null,
+              // Make avatar clickable
+              // In build() → AppBar title → replace GestureDetector with:
+              InkWell(
+                onTap: _showProfileOrMembers,
+                borderRadius: BorderRadius.circular(40), // for nice ripple
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: CircleAvatar(
+                    backgroundImage: avatarUrl?.isNotEmpty == true ? NetworkImage(avatarUrl!) : null,
+                    child: avatarUrl?.isNotEmpty != true ? const Icon(Icons.person) : null,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
