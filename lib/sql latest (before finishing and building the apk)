@@ -1082,3 +1082,35 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+
+
+
+SELECT net.restart_worker();
+SELECT * FROM pg_extension WHERE extname = 'pg_net';
+SELECT proname FROM pg_proc WHERE proname LIKE 'http_%';
+
+
+
+
+DROP TRIGGER IF EXISTS on_deletion_token_insert ON deletion_tokens;
+DROP FUNCTION IF EXISTS send_deletion_email();
+
+
+
+
+
+
+
+
+CREATE POLICY "Public can view chat files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'chat-files');
+
+
+
+
+CREATE POLICY "Authenticated users can upload chat files"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'chat-files' AND auth.role() = 'authenticated');
