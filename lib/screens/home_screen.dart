@@ -84,92 +84,68 @@ class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   // Function to fetch user workshops from database - moved outside build method
-  Future<List<Map<String, dynamic>>> _fetchUserWorkshops(String? userId) async {
-    if (userId == null || userId.isEmpty) return [];
+  Future<Map<String, List<Map<String, dynamic>>>> _fetchUserWorkshops(String? userId) async {
+    if (userId == null || userId.isEmpty) {
+      return {'teaching': [], 'attending': []};
+    }
 
     try {
-      print('Fetching workshops for user: $userId');
-
-      // First, fetch workshops where the user is the creator
-      final createdWorkshopsResponse = await Supabase.instance.client
+      // 1. Fetch workshops created by the user (Teaching)
+      final teachingResponse = await Supabase.instance.client
           .from('workshops')
           .select('''
           id, title, creator_id, date, time, status, 
-          max_participants, rating, duration, image_url, tags
+          max_participants, rating, duration, image_url, tags,
+          users!creator_id(name, avatar_url)
         ''')
           .eq('creator_id', userId)
           .order('date', ascending: true);
 
-      // Second, fetch workshop IDs where the user is enrolled
+      final List<Map<String, dynamic>> teachingWorkshops =
+      List<Map<String, dynamic>>.from(teachingResponse);
+
+      // 2. Fetch workshops the user is enrolled in (Attending)
       final enrollmentsResponse = await Supabase.instance.client
           .from('workshop_enrollments')
           .select('workshop_id')
           .eq('user_id', userId);
 
-      // Extract workshop IDs from enrollments
-      final enrolledWorkshopIds = enrollmentsResponse
+      final List<String> enrolledWorkshopIds = enrollmentsResponse
           .map((e) => e['workshop_id'] as String)
           .toList();
 
-      // Fetch the actual workshops for those IDs
-      List<Map<String, dynamic>> enrolledWorkshops = [];
+      List<Map<String, dynamic>> attendingWorkshops = [];
       if (enrolledWorkshopIds.isNotEmpty) {
-        // Build the filter manually
-        var query = Supabase.instance.client.from('workshops').select('''
+        var query = Supabase.instance.client
+            .from('workshops')
+            .select('''
             id, title, creator_id, date, time, status, 
-            max_participants, rating, duration, image_url, tags
+            max_participants, rating, duration, image_url, tags,
+            users!creator_id(name, avatar_url)
           ''');
 
-        for (int i = 0; i < enrolledWorkshopIds.length; i++) {
-          if (i == 0) {
-            query = query.eq('id', enrolledWorkshopIds[i]);
-          } else {
-            query = query.or('id.eq.${enrolledWorkshopIds[i]}');
-          }
-        }
+        // Build OR filter for multiple IDs
+        String orFilter = enrolledWorkshopIds
+            .map((id) => 'id.eq.$id')
+            .join(',');
 
-        final enrolledWorkshopsResponse = await query.order('date', ascending: true);
-        enrolledWorkshops = List<Map<String, dynamic>>.from(enrolledWorkshopsResponse);
+        final attendingResponse = await query
+            .or(orFilter)
+            .order('date', ascending: true);
+
+        attendingWorkshops = List<Map<String, dynamic>>.from(attendingResponse);
+
+        // Remove any workshop where creator is the current user (avoid duplicates)
+        attendingWorkshops.removeWhere((w) => w['creator_id'] == userId);
       }
 
-      // Combine both lists
-      List<Map<String, dynamic>> allWorkshops = [
-        ...List<Map<String, dynamic>>.from(createdWorkshopsResponse),
-        ...enrolledWorkshops
-      ];
-
-      // Remove duplicates (in case a user is both creator and enrolled)
-      final uniqueWorkshopIds = <String>{};
-      final uniqueWorkshops = allWorkshops.where((workshop) {
-        final id = workshop['id'] as String;
-        if (uniqueWorkshopIds.contains(id)) {
-          return false;
-        } else {
-          uniqueWorkshopIds.add(id);
-          return true;
-        }
-      }).toList();
-
-      // Sort by date
-      uniqueWorkshops.sort((a, b) {
-        final aDate = a['date'] as String?;
-        final bDate = b['date'] as String?;
-        if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;
-        if (bDate == null) return -1;
-        return aDate.compareTo(bDate);
-      });
-
-      // Debug: Print the workshops to see what we're getting
-      print('Fetched ${uniqueWorkshops.length} workshops');
-      for (var workshop in uniqueWorkshops) {
-        print('Workshop: ${workshop['title']}, Date: ${workshop['date']}, Status: ${workshop['status']}');
-      }
-
-      return uniqueWorkshops;
+      return {
+        'teaching': teachingWorkshops,
+        'attending': attendingWorkshops,
+      };
     } catch (e) {
       print('Error fetching workshops: $e');
-      return [];
+      return {'teaching': [], 'attending': []};
     }
   }
 
@@ -228,46 +204,16 @@ class DashboardPage extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final workshops = snapshot.data?[0] as List<Map<String, dynamic>>? ?? [];
+          final workshopData = snapshot.data?[0] as Map<String, List<Map<String, dynamic>>>? ??
+              {'teaching': [], 'attending': []};
           final gamificationData = snapshot.data?[1] as Map<String, dynamic>?;
 
           // Debug: Print the number of workshops
-          print('Total workshops: ${workshops.length}');
+          print('Total workshops: ${workshopData.length}');
 
           // Separate workshops into upcoming and teaching
-          final upcomingWorkshops = workshops.where((w) {
-            try {
-              // Check status first
-              if (w['status'] == 'upcoming') return true;
-
-              // Then check date if status is not upcoming
-              if (w['date'] != null && w['date'].toString().isNotEmpty) {
-                final workshopDate = DateTime.parse(w['date'].toString());
-                return workshopDate.isAfter(DateTime.now());
-              }
-              return false;
-            } catch (e) {
-              print('Error parsing date for workshop ${w['id']}: $e');
-              return false;
-            }
-          }).toList();
-
-          final teachingWorkshops = workshops.where((w) {
-            try {
-              // Check status first
-              if (w['status'] == 'teaching') return true;
-
-              // Then check date if status is not teaching
-              if (w['date'] != null && w['date'].toString().isNotEmpty) {
-                final workshopDate = DateTime.parse(w['date'].toString());
-                return workshopDate.isBefore(DateTime.now());
-              }
-              return false;
-            } catch (e) {
-              print('Error parsing date for workshop ${w['id']}: $e');
-              return false;
-            }
-          }).toList();
+          final List<Map<String, dynamic>> teachingWorkshops = workshopData['teaching'] ?? [];
+          final List<Map<String, dynamic>> upcomingWorkshops = workshopData['attending'] ?? [];
 
           // Combine both lists for the unified schedule
           final allScheduledWorkshops = [...upcomingWorkshops, ...teachingWorkshops];
@@ -441,10 +387,12 @@ class DashboardPage extends StatelessWidget {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => ScheduleScreen(
-                            upcomingWorkshops: upcomingWorkshops,
-                            teachingWorkshops: teachingWorkshops,
-                          )),
+                          MaterialPageRoute(
+                            builder: (_) => ScheduleScreen(
+                              upcomingWorkshops: upcomingWorkshops,    // Only enrolled in others
+                              teachingWorkshops: teachingWorkshops,    // Only created by you
+                            ),
+                          ),
                         );
                       },
                       child: Text(
