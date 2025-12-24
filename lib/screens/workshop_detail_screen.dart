@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/create_workshop_screen.dart';
@@ -16,6 +18,66 @@ class WorkshopDetailScreen extends StatefulWidget {
   State<WorkshopDetailScreen> createState() => _WorkshopDetailScreenState();
 }
 
+class _InstructorReviewItem extends StatelessWidget {
+  final Map<String, dynamic> review;
+
+  const _InstructorReviewItem({required this.review});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = review['users'] as Map<String, dynamic>?;
+    final name = user?['name'] ?? 'Anonymous';
+    final avatarUrl = user?['avatar_url'] as String?;
+    final rating = review['rating'] as int? ?? 5;
+    final comment = (review['review'] as String?)?.trim() ?? 'Great workshop!';
+    final workshopTitle = review['workshops']?['title'] ?? 'Previous workshop';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                child: avatarUrl == null ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 12)) : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text("from \"$workshopTitle\"", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(5, (i) => Icon(
+              i < rating ? Icons.star : Icons.star_border,
+              color: Colors.amber,
+              size: 18,
+            )),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            comment,
+            style: const TextStyle(fontSize: 14),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   bool isEnrolled = false;
   bool isLiked = false;
@@ -30,6 +92,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   // NEW: AI Workshop Summary
   bool _isSummarizing = false;
   String _workshopSummary = "";
+  int _currentReviewIndex = 0;
+  Timer? _reviewTimer;
 
   final supabase = Supabase.instance.client;
 
@@ -53,6 +117,23 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     _checkEnrollmentAndConversation();
     _checkExistingReviews();
     _fetchEnrolledCount();
+    _startReviewRotation();
+  }
+
+  @override
+  void dispose() {
+    _reviewTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startReviewRotation() {
+    _reviewTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        setState(() {
+          _currentReviewIndex++;
+        });
+      }
+    });
   }
 
   Future<void> _fetchEnrolledCount() async {
@@ -978,18 +1059,118 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   }
 
   Widget _reviewCard() {
+    final creatorId = widget.workshop['creator_id'] as String?;
+
+    if (creatorId == null) {
+      return const SizedBox.shrink();
+    }
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: const Padding(
-        padding: EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Reviews",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            SizedBox(height: 8),
-            Text("⭐ Jennifer Wu: Excellent session!"),
-            Text("⭐ Tom Martinez: Great collaboration opportunity."),
+            const Text(
+              "Instructor Feedback",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Recent reviews from past workshops",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: supabase
+                  .from('workshop_ratings')
+                  .select('''
+        rating,
+        review,
+        created_at,
+        users!workshop_ratings_user_id_fkey (
+          name,
+          avatar_url
+        ),
+        workshops (
+          title,
+          creator_id
+        )
+      ''')
+                  .neq('review', '')  // Only this one — removes null reviews
+                  .order('created_at', ascending: false)
+                  .limit(6),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: SizedBox(
+                      height: 80,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        "No feedback yet",
+                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  );
+                }
+
+                final allReviews = snapshot.data!;
+                final instructorReviews = allReviews.where((r) {
+                  final workshopData = r['workshops'] as Map<String, dynamic>?;
+                  if (workshopData == null) return false;
+                  final workshopCreatorId = workshopData['creator_id'];
+                  if (workshopCreatorId is! String) return false;
+                  return workshopCreatorId == creatorId;
+                }).toList();
+
+                if (instructorReviews.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        "No feedback yet",
+                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  );
+                }
+
+                return SizedBox(
+                  height: 140,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 800),
+                    transitionBuilder: (child, animation) {
+                      final offsetAnimation = Tween(begin: const Offset(0, 0.3), end: Offset.zero)
+                          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+                      return SlideTransition(
+                        position: offsetAnimation,
+                        child: FadeTransition(opacity: animation, child: child),
+                      );
+                    },
+                    layoutBuilder: (currentChild, previousChildren) => Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    ),
+                    child: _InstructorReviewItem(
+                      review: instructorReviews[_currentReviewIndex % instructorReviews.length],
+                    ),
+                    key: ValueKey<int>(_currentReviewIndex),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
