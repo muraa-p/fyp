@@ -5,6 +5,14 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
+    <!-- ADDED: Internet permission (Required for Supabase) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- ADDED: Storage permissions for Image/Video Picker -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
     <application
         android:label="skillx"
         android:name="${applicationName}"

@@ -1,7 +1,8 @@
-// Update the ChatScreen.dart file
-
+import 'dart:io'; // Required for File type
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart'; // Import image picker
+import 'package:url_launcher/url_launcher.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, this.initialConversation});
@@ -31,6 +32,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   RealtimeChannel? _conversationsChannel;
   RealtimeChannel? _requestsChannel;
+
+  // Image Picker instance
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -196,6 +200,62 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     }
   }
 
+  // --- NEW: File Upload Logic ---
+  Future<String?> _uploadFile(File file) async {
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      final path = '${currentUser!.id}/$fileName';
+
+      await supabase.storage.from('chat-files').upload(path, file);
+
+      final urlResponse = supabase.storage.from('chat-files').getPublicUrl(path);
+      return urlResponse;
+    } catch (e) {
+      print('Error uploading file: $e');
+      return null;
+    }
+  }
+
+  // --- NEW: Handle Attachment Press ---
+  Future<void> _handleAttachmentPress() async {
+    final XFile? file = await _picker.pickMedia(); // Allows images + videos + some files
+
+    if (file == null) return;
+
+    // Temporary loading message
+    setState(() {
+      messages.add({
+        'id': 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        'content': 'Uploading ${file.name}...',
+        'sender_id': currentUser!.id,
+        'sender': {'id': currentUser!.id, 'name': myName},
+        'message_type': 'text',
+      });
+      _scrollToBottom();
+    });
+
+    final uploadedUrl = await _uploadFile(File(file.path));
+
+    setState(() {
+      messages.removeWhere((m) => m['id'].toString().startsWith('temp_'));
+    });
+
+    if (uploadedUrl != null) {
+      final type = getMessageType(file.path);
+      await sendMessage(content: uploadedUrl, type: type);
+
+      // Optional friendly message
+      String friendly = '';
+      if (type == 'pdf') friendly = '📄 Shared a PDF';
+      else if (type == 'document') friendly = '📎 Shared a document';
+      else if (type == 'image') friendly = '🖼️ Shared a photo';
+
+      if (friendly.isNotEmpty) {
+        await sendMessage(content: friendly, type: 'text');
+      }
+    }
+  }
+
   Future<void> _fetchConversations() async {
     if (currentUser == null) return;
     try {
@@ -245,7 +305,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       final response = await supabase
           .from('messages')
           .select('''
-            id, content, created_at, sender_id,
+            id, content, created_at, sender_id, message_type,
             sender:users(id, name, avatar_url)
           ''')
           .eq('conversation_id', conversationId)
@@ -269,17 +329,18 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> sendMessage() async {
-    if (_msgController.text.trim().isEmpty || activeChat == null) return;
+  // --- UPDATED: sendMessage now handles types ---
+  Future<void> sendMessage({required String content, String type = 'text'}) async {
+    if (activeChat == null) return;
 
-    final content = _msgController.text.trim();
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}'; // Add a prefix to identify temp messages
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
     final tempMsg = {
       'id': tempId,
       'content': content,
       'created_at': DateTime.now().toIso8601String(),
       'sender_id': currentUser!.id,
+      'message_type': type, // Include type in temp msg
       'sender': {
         'id': currentUser!.id,
         'name': myName,
@@ -291,7 +352,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       messages.add(tempMsg);
       Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
     });
-    _msgController.clear();
+    if (type == 'text') _msgController.clear();
 
     try {
       final data = await supabase
@@ -300,6 +361,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         'conversation_id': activeChat!['id'],
         'sender_id': currentUser!.id,
         'content': content,
+        'message_type': type, // Insert type into DB
       })
           .select()
           .single();
@@ -312,8 +374,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       })
           .eq('id', activeChat!['id']);
 
-      // The real-time subscription will handle replacing the temp message
-      // But we'll also update it here as a fallback
       setState(() {
         final i = messages.indexWhere((m) => m['id'] == tempId);
         if (i != -1) messages[i] = {...data, 'sender': tempMsg['sender']};
@@ -326,8 +386,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       setState(() => messages.removeWhere((m) => m['id'] == tempId));
     }
   }
-
-// Update the acceptRequest function in ChatScreen.dart
 
   Future<void> acceptRequest(Map<String, dynamic> request) async {
     try {
@@ -431,7 +489,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           // Add the user to the newly created conversation
           await supabase.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': workshopData['id'],
-            'participant_id': request['requester_id'],  // Changed from user_id to participant_id
+            'participant_id': request['requester_id'],
           });
 
           // Send a notification message to the group chat
@@ -481,10 +539,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         );
         return;
       }
-
-      // Debug: Print current user ID
-      print('Current user ID: ${currentUser!.id}');
-      print('Current user type: ${currentUser!.id.runtimeType}');
 
       final response = await supabase
           .from('follows')
@@ -551,19 +605,14 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       }
 
       // Create new conversation with explicit created_by
-      print('Creating new conversation...');
-      print('Creator ID: ${currentUser!.id}');
-
       final newConv = await supabase
           .from('conversations')
           .insert({
         'is_group': false,
-        'created_by': currentUser!.id, // This should be a UUID string
+        'created_by': currentUser!.id,
       })
           .select()
           .single();
-
-      print('Conversation created: ${newConv['id']}');
 
       // Add both participants
       await supabase.from('conversation_participants').insert([
@@ -576,8 +625,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           'user_id': selectedUser['id'],
         },
       ]);
-
-      print('Participants added successfully');
 
       // Open the chat
       _openChat({
@@ -592,23 +639,101 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       _fetchConversations();
 
-    } on PostgrestException catch (e) {
-      print('PostgrestException: ${e.message}');
-      print('Code: ${e.code}');
-      print('Details: ${e.details}');
-      print('Hint: ${e.hint}');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Database error: ${e.message}')),
-      );
     } catch (e) {
       print('Error starting new conversation: $e');
-      print('Error type: ${e.runtimeType}');
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to start conversation: $e')),
       );
     }
+  }
+
+  // --- UPDATED: Message Item Builder ---
+  Widget _buildMessageItem(Map<String, dynamic> msg) {
+    final isMe = msg['sender_id'] == currentUser?.id;
+    final messageType = msg['message_type'] ?? 'text';
+    final url = msg['content'] as String?;
+
+    if (messageType == 'image' && url != null) {
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) =>
+              progress == null ? child : const CircularProgressIndicator(),
+              errorBuilder: (context, error, stack) => const Text('Failed to load image'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Handle PDF / Document / Generic File
+    if ((messageType == 'pdf' || messageType == 'document' || messageType == 'file') && url != null) {
+      final fileName = url.split('/').last.split('?').first; // Extract filename from URL
+      final icon = messageType == 'pdf'
+          ? Icons.picture_as_pdf
+          : messageType == 'document'
+          ? Icons.description
+          : Icons.insert_drive_file;
+
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: GestureDetector(
+          onTap: () {
+            // Open file in browser or download
+            launchUrl(Uri.parse(url));
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: isMe ? Colors.white : null),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    fileName,
+                    style: TextStyle(color: isMe ? Colors.white : null),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.download, color: isMe ? Colors.white : null, size: 18),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Fallback to text
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Text(
+          msg['content'] ?? '',
+          style: TextStyle(color: isMe ? Colors.white : null),
+        ),
+      ),
+    );
   }
 
   @override
@@ -672,17 +797,36 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                         ListTile(
                           leading: const Icon(Icons.slideshow),
                           title: const Text('Share Slides'),
-                          onTap: () {
+                          onTap: () async {
                             Navigator.of(context).pop();
-                            _sendWorkshopMessage('📊 New slides have been uploaded!');
+                            final XFile? file = await _picker.pickMedia();
+                            if (file != null) {
+                              final url = await _uploadFile(File(file.path));
+                              if (url != null) {
+                                final type = getMessageType(file.path);
+                                await sendMessage(content: url, type: type);
+                                // Always say "slides" when using this button
+                                await sendMessage(content: 'New slides have been uploaded!', type: 'text');
+                              }
+                            }
                           },
                         ),
+
                         ListTile(
                           leading: const Icon(Icons.assignment),
                           title: const Text('Share Assignment'),
-                          onTap: () {
+                          onTap: () async {
                             Navigator.of(context).pop();
-                            _sendWorkshopMessage('📝 A new assignment has been posted!');
+                            final XFile? file = await _picker.pickMedia();
+                            if (file != null) {
+                              final url = await _uploadFile(File(file.path));
+                              if (url != null) {
+                                final type = getMessageType(file.path);
+                                await sendMessage(content: url, type: type);
+                                // Always say "assignment" when using this button
+                                await sendMessage(content: 'A new assignment has been posted!', type: 'text');
+                              }
+                            }
                           },
                         ),
                         ListTile(
@@ -708,25 +852,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                 controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 itemCount: messages.length,
-                itemBuilder: (_, i) {
-                  final msg = messages[i];
-                  final isMe = msg['sender_id'] == currentUser?.id;
-                  return Align(
-                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(
-                        msg['content'] ?? '',
-                        style: TextStyle(color: isMe ? Colors.white : null),
-                      ),
-                    ),
-                  );
-                },
+                itemBuilder: (_, i) => _buildMessageItem(messages[i]),
               ),
             ),
             Container(
@@ -734,15 +860,22 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
               child: Row(
                 children: [
-                  IconButton(icon: const Icon(Icons.attach_file), onPressed: () {}),
+                  // --- UPDATED: Attach Button ---
+                  IconButton(
+                      icon: const Icon(Icons.attach_file),
+                      onPressed: _handleAttachmentPress
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _msgController,
                       decoration: const InputDecoration(hintText: "Type a message...", border: InputBorder.none),
-                      onSubmitted: (_) => sendMessage(),
+                      onSubmitted: (_) => sendMessage(content: _msgController.text.trim()),
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.send), onPressed: sendMessage),
+                  IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: () => sendMessage(content: _msgController.text.trim())
+                  ),
                 ],
               ),
             ),
@@ -895,9 +1028,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   void _sendWorkshopMessage(String content) {
     if (activeChat == null) return;
-
-    _msgController.text = content;
-    sendMessage();
+    sendMessage(content: content);
   }
 
   void _showAnnouncementDialog() {
@@ -943,6 +1074,21 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     if (diff.inDays < 7) return '${diff.inDays}d';
     return '${dt.day}/${dt.month}';
   }
+}
+
+
+
+// Add this helper to get mime type or extension-based type
+String getMessageType(String filePath) {
+  final extension = filePath.split('.').last.toLowerCase();
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'];
+  const pdfExtensions = ['pdf'];
+  const documentExtensions = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+
+  if (imageExtensions.contains(extension)) return 'image';
+  if (pdfExtensions.contains(extension)) return 'pdf';
+  if (documentExtensions.contains(extension)) return 'document';
+  return 'file'; // generic
 }
 
 // Extensions for Supabase filters
