@@ -399,21 +399,19 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
         userSearchController.clear();
         workshopSearchController.clear();
         skillSearchController.clear();
-        searchResults = [];
+        // searchResults = []; // Removed clearing this to keep UI in sync
         workshopSearchResults = [];
         skillSearchResults = [];
         isSendingEndorsement = false;
+
+        // DO NOT clear allUsers here anymore.
+        // Keeping the cache allows the dialog to open instantly next time.
       });
 
       Navigator.pop(context);
 
-      // Refresh all data instead of just endorsements
+      // Refresh all data
       await _loadData();
-
-      // Also refresh the allUsers list to ensure it's up to date
-      setState(() {
-        allUsers = []; // Reset to force reload next time
-      });
 
     } catch (error) {
       setState(() {
@@ -487,11 +485,18 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => widget.onNavigate("profile"),
         ),
+// In the build method, inside AppBar actions:
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: "Give Endorsement",
-            onPressed: () => _showGiveEndorsementDialog(),
+            onPressed: () async {
+              // Ensure data is loaded before opening the dialog
+              await _loadAllUsers();
+              if (mounted) {
+                _showGiveEndorsementDialog();
+              }
+            },
           ),
         ],
       ),
@@ -722,13 +727,13 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
   }
 
   void _showGiveEndorsementDialog() {
-    // Load all users when dialog opens
-    _loadAllUsers();
+    // We don't need to call _loadAllUsers here anymore because
+    // we are awaiting it in the button onPressed before calling this.
 
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (context, setDialogState) => AlertDialog(
           title: const Text("Give Endorsement"),
           content: SizedBox(
             width: double.maxFinite,
@@ -746,38 +751,52 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       labelText: "Search users...",
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.person_search),
-                      suffixIcon: isSearchingUsers
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                          : IconButton(
+                      suffixIcon: userSearchController.text.isNotEmpty
+                          ? IconButton(
                         icon: const Icon(Icons.clear),
                         onPressed: () {
-                          setState(() {
-                            userSearchController.clear();
-                            searchResults = allUsers; // Reset to show all users
+                          userSearchController.clear();
+                          setDialogState(() {
+                            searchResults = List.from(allUsers); // Reset to all users
                           });
                         },
-                      ),
+                      )
+                          : null,
                     ),
                     onChanged: (value) {
-                      _onUserSearchChanged(value);
+                      // Real-time filtering logic inside the dialog
+                      _searchTimer?.cancel();
+                      _searchTimer = Timer(const Duration(milliseconds: 200), () {
+                        if (value.isEmpty) {
+                          setDialogState(() {
+                            searchResults = List.from(allUsers);
+                          });
+                          return;
+                        }
+
+                        final filteredUsers = allUsers.where((user) {
+                          final name = user['name']?.toString().toLowerCase() ?? '';
+                          final searchLower = value.toLowerCase();
+                          return name.contains(searchLower);
+                        }).toList();
+
+                        setDialogState(() {
+                          searchResults = filteredUsers;
+                        });
+                      });
                     },
                     onTap: () {
-                      // Show all users when field is tapped
+                      // Show all users when tapped if empty
                       if (userSearchController.text.isEmpty) {
-                        setState(() {
-                          searchResults = allUsers;
+                        setDialogState(() {
+                          searchResults = List.from(allUsers);
                         });
                       }
                     },
                   ),
                   const SizedBox(height: 8),
+
+                  // User List
                   if (isLoadingAllUsers)
                     const Center(
                       child: Padding(
@@ -787,7 +806,7 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                     )
                   else if (searchResults.isNotEmpty)
                     Container(
-                      height: 200, // Increased height to show more users
+                      height: 200,
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(4),
@@ -807,30 +826,39 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                             subtitle: user['skills_to_teach'] != null && user['skills_to_teach'].isNotEmpty
                                 ? Text("Teaches: ${user['skills_to_teach'].join(', ')}")
                                 : null,
-                            onTap: () {
-                              setState(() {
+                            onTap: () async {
+                              setDialogState(() {
                                 selectedUser = user;
                                 userSearchController.text = user['name'];
-                                searchResults = [];
+                                searchResults = []; // Hide list after selection
+                                isLoadingUserDetails = true;
                               });
-                              // Load user details when selected
-                              _loadUserDetails(user['id']);
+
+                              // Load details
+                              await _loadUserDetails(user['id']);
+
+                              // Force rebuild to show loaded details
+                              if(mounted) {
+                                setDialogState(() {
+                                  isLoadingUserDetails = false;
+                                });
+                              }
                             },
                           );
                         },
                       ),
                     )
-                  else if (!isLoadingAllUsers)
-                      Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Center(
-                          child: Text("No users found"),
-                        ),
+                  else
+                    Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
                       ),
+                      child: const Center(child: Text("No users found")),
+                    ),
+
+                  // Selected User Details
                   if (selectedUser != null)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,115 +883,70 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                               IconButton(
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
-                                  setState(() {
+                                  setDialogState(() {
                                     selectedUser = null;
                                     userWorkshops = [];
                                     userSkills = [];
                                     userSearchController.clear();
-                                    searchResults = allUsers; // Reset to show all users
+                                    searchResults = List.from(allUsers);
                                   });
                                 },
                               ),
                             ],
                           ),
                         ),
-
-                        // User details section
                         if (isLoadingUserDetails)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: CircularProgressIndicator(),
+                          const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
+                        else ...[
+                          if (userWorkshops.isNotEmpty) ...[
+                            const Text("Workshops Conducted", style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 80,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: userWorkshops.length,
+                                itemBuilder: (context, index) {
+                                  final workshop = userWorkshops[index];
+                                  return Container(
+                                    width: 150,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(workshop['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                        if (workshop['skills'] != null)
+                                          Wrap(
+                                            spacing: 4,
+                                            children: (workshop['skills'] as List).take(2).map((skill) => Chip(label: Text(skill, style: const TextStyle(fontSize: 10)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact)).toList(),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          )
-                        else
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // User's workshops
-                              if (userWorkshops.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                const Text(
-                                  "Workshops Conducted",
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                SizedBox(
-                                  height: 80,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: userWorkshops.length,
-                                    itemBuilder: (context, index) {
-                                      final workshop = userWorkshops[index];
-                                      return Container(
-                                        width: 150,
-                                        margin: const EdgeInsets.only(right: 8),
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              workshop['title'],
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            if (workshop['skills'] != null && workshop['skills'].isNotEmpty)
-                                              Wrap(
-                                                spacing: 4,
-                                                runSpacing: 2,
-                                                children: (workshop['skills'] as List)
-                                                    .take(2)
-                                                    .map<Widget>((skill) => Chip(
-                                                  label: Text(
-                                                    skill,
-                                                    style: const TextStyle(fontSize: 10),
-                                                  ),
-                                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                  visualDensity: VisualDensity.compact,
-                                                ))
-                                                    .toList(),
-                                              ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-
-                              // User's skills
-                              if (userSkills.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                const Text(
-                                  "Skills They Teach",
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 4,
-                                  children: userSkills.map((skill) => Chip(
-                                    label: Text(skill),
-                                    backgroundColor: Colors.green.withOpacity(0.1),
-                                  )).toList(),
-                                ),
-                              ],
-                            ],
-                          ),
+                          ],
+                          if (userSkills.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Text("Skills They Teach", style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              children: userSkills.map((skill) => Chip(label: Text(skill), backgroundColor: Colors.green.withOpacity(0.1))).toList(),
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   const SizedBox(height: 16),
 
-                  // Workshop search
+                  // Workshop Search (Similar pattern for search results)
                   const Text("Search Workshop (Optional)", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
@@ -973,46 +956,21 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       hintText: "Search for a workshop...",
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: isSearchingWorkshops
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                          : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() {
-                            workshopSearchController.clear();
-                            workshopSearchResults = [];
-                            selectedWorkshop = null;
-                          });
-                        },
-                      ),
+                      suffixIcon: workshopSearchController.text.isNotEmpty
+                          ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                        workshopSearchController.clear();
+                        setDialogState(() { workshopSearchResults = []; });
+                      })
+                          : null,
                     ),
                     onChanged: (value) {
                       _onWorkshopSearchChanged(value);
+                      // Manually trigger dialog update for results since _onWorkshopSearchChanged uses class setState
+                      setDialogState(() {});
                     },
                   ),
                   const SizedBox(height: 8),
-                  if (isSearchingWorkshops)
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                    )
-                  else if (workshopSearchResults.isNotEmpty)
+                  if (workshopSearchResults.isNotEmpty)
                     Container(
                       height: 120,
                       decoration: BoxDecoration(
@@ -1027,7 +985,7 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                             title: Text(workshop['title']),
                             subtitle: Text("By: ${workshop['creator']['name']}"),
                             onTap: () {
-                              setState(() {
+                              setDialogState(() {
                                 selectedWorkshop = workshop;
                                 workshopSearchController.text = workshop['title'];
                                 workshopSearchResults = [];
@@ -1036,18 +994,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           );
                         },
                       ),
-                    )
-                  else
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Center(
-                        child: Text("Type to search for workshops"),
-                      ),
                     ),
+
                   if (selectedWorkshop != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1055,27 +1003,19 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                         children: [
                           const Icon(Icons.workspaces, color: Colors.blue),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Selected: ${selectedWorkshop!['title']}",
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                selectedWorkshop = null;
-                                workshopSearchController.clear();
-                              });
-                            },
-                          ),
+                          Expanded(child: Text("Selected: ${selectedWorkshop!['title']}", style: const TextStyle(fontWeight: FontWeight.bold))),
+                          IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                            setDialogState(() {
+                              selectedWorkshop = null;
+                              workshopSearchController.clear();
+                            });
+                          }),
                         ],
                       ),
                     ),
                   const SizedBox(height: 16),
 
-                  // Skill search
+                  // Skill Search
                   const Text("Search Skill", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
@@ -1085,46 +1025,20 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       hintText: "Search for a skill...",
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.psychology),
-                      suffixIcon: isSearchingSkills
-                          ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                          : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() {
-                            skillSearchController.clear();
-                            skillSearchResults = [];
-                            selectedSkillForEndorsement = null;
-                          });
-                        },
-                      ),
+                      suffixIcon: skillSearchController.text.isNotEmpty
+                          ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                        skillSearchController.clear();
+                        setDialogState(() { skillSearchResults = []; });
+                      })
+                          : null,
                     ),
                     onChanged: (value) {
                       _onSkillSearchChanged(value);
+                      setDialogState(() {}); // Update UI for search results
                     },
                   ),
                   const SizedBox(height: 8),
-                  if (isSearchingSkills)
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                    )
-                  else if (skillSearchResults.isNotEmpty)
+                  if (skillSearchResults.isNotEmpty)
                     Container(
                       height: 120,
                       decoration: BoxDecoration(
@@ -1138,7 +1052,7 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           return ListTile(
                             title: Text(skill['name']),
                             onTap: () {
-                              setState(() {
+                              setDialogState(() {
                                 selectedSkillForEndorsement = skill['name'];
                                 skillSearchController.text = skill['name'];
                                 skillSearchResults = [];
@@ -1146,17 +1060,6 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                             },
                           );
                         },
-                      ),
-                    )
-                  else
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Center(
-                        child: Text("Type to search for skills"),
                       ),
                     ),
                   if (selectedSkillForEndorsement != null)
@@ -1166,21 +1069,13 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                         children: [
                           const Icon(Icons.psychology, color: Colors.green),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Selected: $selectedSkillForEndorsement",
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                selectedSkillForEndorsement = null;
-                                skillSearchController.clear();
-                              });
-                            },
-                          ),
+                          Expanded(child: Text("Selected: $selectedSkillForEndorsement", style: const TextStyle(fontWeight: FontWeight.bold))),
+                          IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                            setDialogState(() {
+                              selectedSkillForEndorsement = null;
+                              skillSearchController.clear();
+                            });
+                          }),
                         ],
                       ),
                     ),
@@ -1208,15 +1103,9 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
               child: const Text("Cancel"),
             ),
             ElevatedButton(
-              onPressed: isSendingEndorsement ? null : () {
-                sendEndorsement();
-              },
+              onPressed: isSendingEndorsement ? null : sendEndorsement,
               child: isSendingEndorsement
-                  ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text("Send"),
             ),
           ],
