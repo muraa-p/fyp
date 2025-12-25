@@ -166,6 +166,41 @@ class _SkillXAppState extends State<SkillXApp> {
           if (appState.newWorkshopAlertsEnabled) {
             _workshopListener.startListening();
           }
+
+          // === ADD THIS: Listen for new notifications ===
+          final userId = session!.user.id;
+
+          supabase
+              .from('notifications')
+              .stream(primaryKey: ['id'])
+              .eq('user_id', userId)
+              .order('created_at', ascending: false)
+              .listen((List<Map<String, dynamic>> data) {
+            for (final notif in data) {
+              if (notif['read'] == false) {
+                // Show a simple in-app toast (you can upgrade to local push later)
+                ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+                  SnackBar(
+                    content: Text(notif['title']),
+                    duration: const Duration(seconds: 4),
+                    action: SnackBarAction(
+                      label: 'View',
+                      onPressed: () {
+                        // Optional: navigate to notifications screen later
+                      },
+                    ),
+                  ),
+                );
+
+                // Mark as read
+                supabase
+                    .from('notifications')
+                    .update({'read': true})
+                    .eq('id', notif['id']);
+              }
+            }
+          });
+          // ==============================================
         }
       } else if (event == AuthChangeEvent.signedOut) {
         _workshopListener.stopListening();

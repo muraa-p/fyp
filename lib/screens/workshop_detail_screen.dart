@@ -196,7 +196,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         if (conversationData['conversation_id'] != null) {
           await Supabase.instance.client.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': widget.workshop['id'],
-            'user_id': currentUser.id,
+            'participant_id': currentUser.id,
           });
 
           final conversation = await Supabase.instance.client
@@ -205,9 +205,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               .eq('id', conversationData['conversation_id'])
               .single();
 
-          setState(() {
-            workshopConversation = conversation;
-          });
         }
       }
     } catch (e) {
@@ -687,34 +684,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           _instructorCard(context, ws, theme, isTeach4Learn),
           const SizedBox(height: 20),
 
-          if (isEnrolled && workshopConversation != null)
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                leading: const Icon(Icons.chat, color: Colors.blue),
-                title: const Text('Workshop Group Chat'),
-                subtitle: const Text('Join the discussion with other participants'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChatScreen(
-                        initialConversation: {
-                          'id': workshopConversation!['id'],
-                          'is_group': true,
-                          'name': workshopConversation!['name'],
-                          'avatar_url': workshopConversation!['avatar_url'],
-                          'workshop_id': ws['id'],
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-          if (isEnrolled && workshopConversation != null) const SizedBox(height: 20),
 
           _aboutCard(ws, theme, isTeach4Learn),
           const SizedBox(height: 20),
@@ -1391,38 +1360,31 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       );
     }
 
-    // Show workshop group chat button if enrolled
-    if (isEnrolled && workshopConversation != null) {
+    if (isEnrolled) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
           border: Border(top: BorderSide(color: theme.dividerColor)),
         ),
-        child: ElevatedButton.icon(
-          icon: const Icon(Icons.chat),
-          label: const Text("Open Workshop Chat"),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green),
           ),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatScreen(
-                  initialConversation: {
-                    'id': workshopConversation!['id'],
-                    'is_group': true,
-                    'name': workshopConversation!['name'],
-                    'avatar_url': workshopConversation!['avatar_url'],
-                    'workshop_id': ws['id'],
-                  },
-                ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text(
+                "You're enrolled! Check Messages tab for group chat",
+                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
               ),
-            );
-          },
+            ],
+          ),
         ),
       );
     }
@@ -1506,13 +1468,17 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             strokeWidth: 2,
           ),
         )
-            : Text(
-          enrollmentStatus == 'enrolled'
-              ? "Enrolled ✓"  // Changed to show proper message when enrolled
-              : enrollmentStatus == 'pending'
-              ? "Withdraw Request"
-              : (isTeach4Learn ? "Send Exchange Request" : "Request Enrollment"),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            : Flexible(
+          child: Text(
+            enrollmentStatus == 'enrolled'
+                ? "Enrolled ✓"
+                : enrollmentStatus == 'pending'
+                ? "Withdraw Request"
+                : (isTeach4Learn ? "Send Exchange Request" : "Request Enrollment"),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
         ),
       ),
     );

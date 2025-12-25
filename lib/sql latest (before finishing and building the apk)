@@ -721,3 +721,424 @@ ON CONFLICT (title) DO NOTHING;
 -- =================================================================
 -- SUCCESS! Your database is now fully clean and working.
 -- =================================================================
+
+
+
+
+
+
+-- =================================================================
+-- UPDATED FUNCTIONS ONLY (replace these in your schema)
+-- =================================================================
+
+-- 1. UPDATED: mark_lesson_complete
+-- Adds creator reward when a participant fully completes the workshop
+CREATE OR REPLACE FUNCTION mark_lesson_complete(p_user_id UUID, p_workshop_id UUID, p_lesson_index INT)
+RETURNS TABLE(success BOOLEAN, message TEXT) LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  is_enrolled BOOLEAN;
+  total_lessons INT;
+  completed_lessons INT;
+  row_count INT;
+  creator_id UUID;
+BEGIN
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+  IF NOT is_enrolled THEN RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.'; RETURN; END IF;
+
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  GET DIAGNOSTICS row_count = ROW_COUNT;
+
+  IF row_count > 0 THEN
+    -- Award XP to learner for completing a lesson
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    -- Award XP to creator for a lesson being taught (per participant)
+    SELECT creator_id INTO creator_id FROM workshops WHERE id = p_workshop_id;
+    PERFORM award_xp_and_check_badges(creator_id, 5, 'lesson_taught', p_workshop_id);
+
+    -- Check if workshop is now fully completed
+    SELECT jsonb_array_length(syllabus) INTO total_lessons FROM workshops WHERE id = p_workshop_id;
+    SELECT COUNT(*) INTO completed_lessons FROM user_syllabus_progress WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+    IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+      UPDATE workshop_enrollments SET status = 'completed', completed_at = NOW()
+      WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+      -- Award completion bonus to learner
+      PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+      -- === NEW: Reward creator for successfully teaching a full workshop ===
+      PERFORM award_xp_and_check_badges(
+        creator_id,
+        30,  -- Bonus XP for having a participant complete the full workshop
+        'workshop_taught_successfully',
+        p_workshop_id
+      );
+      -- ===================================================================
+
+      RETURN QUERY SELECT TRUE, 'Lesson marked as complete and workshop completed! XP awarded.';
+    ELSE
+      RETURN QUERY SELECT TRUE, 'Lesson marked as complete and XP awarded.';
+    END IF;
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson was already marked as complete.';
+  END IF;
+END;
+$$;
+
+-- 2. UPDATED: award_xp_and_check_badges
+-- Adds support for 'workshop_taught_successfully' action type
+-- Removes broken old Rising Star logic
+CREATE OR REPLACE FUNCTION award_xp_and_check_badges(
+  p_user_id UUID,
+  p_xp_to_award INT,
+  p_action_type TEXT,
+  p_workshop_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  new_total_xp INT;
+  new_level INT;
+  workshops_attended_count BIGINT;
+  workshops_completed_count INT;
+  workshops_taught_count BIGINT;  -- NEW
+  lesson_count BIGINT;
+BEGIN
+  -- Award XP and update level
+  UPDATE users SET xp = xp + p_xp_to_award
+  WHERE id = p_user_id RETURNING xp INTO new_total_xp;
+
+  new_level := new_total_xp / 500 + 1;
+  IF new_level > (SELECT level FROM users WHERE id = p_user_id) THEN
+    UPDATE users SET level = new_level WHERE id = p_user_id;
+  END IF;
+
+  -- Learner badges
+  IF p_action_type = 'lesson_completed' THEN
+    SELECT COUNT(*) INTO lesson_count FROM user_syllabus_progress WHERE user_id = p_user_id;
+    PERFORM update_badge_and_notify(p_user_id, 'First Steps', lesson_count, 1);
+
+    SELECT COUNT(DISTINCT workshop_id) INTO workshops_attended_count
+    FROM user_syllabus_progress WHERE user_id = p_user_id;
+    PERFORM update_badge_and_notify(p_user_id, 'Knowledge Seeker', workshops_attended_count, 10);
+  END IF;
+
+  IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed', 'workshop_reviewed') THEN
+    SELECT COUNT(*) INTO workshops_completed_count
+    FROM workshop_enrollments WHERE user_id = p_user_id AND status = 'completed';
+
+    PERFORM update_badge_and_notify(p_user_id, 'Workshop Graduate', workshops_completed_count, 1);
+    PERFORM update_badge_and_notify(p_user_id, 'Dedicated Learner', workshops_completed_count, 5);
+
+    IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed') THEN
+      PERFORM update_monthly_achievement_progress(p_user_id, 'monthly_workshop_attendance');
+    END IF;
+  END IF;
+
+  -- === NEW: Creator badges when someone completes their workshop ===
+  IF p_action_type = 'workshop_taught_successfully' THEN
+    SELECT COUNT(DISTINCT we.workshop_id) INTO workshops_taught_count
+    FROM workshop_enrollments we
+    WHERE we.status = 'completed'
+      AND we.workshop_id IN (SELECT id FROM workshops WHERE creator_id = p_user_id);
+
+    PERFORM update_badge_and_notify(p_user_id, 'Rising Star', workshops_taught_count, 1);
+    PERFORM update_badge_and_notify(p_user_id, 'Community Leader', workshops_taught_count, 10);
+    PERFORM update_badge_and_notify(p_user_id, 'Legendary Mentor', workshops_taught_count, 50);
+  END IF;
+  -- ==================================================================
+
+  -- REMOVED: Old broken Rising Star check that only triggered if creator completed their own lesson
+END;
+$$;
+
+-- =================================================================
+-- OPTIONAL: Ensure badge definitions are correct (run once or on update)
+-- =================================================================
+-- These ensure the badges use meaningful descriptions (no behavior change needed if already exist)
+INSERT INTO badge_definitions (name, description, icon, rarity, requirement_type, requirement_value) VALUES
+  ('Rising Star', 'Have at least one participant fully complete your workshop', '⭐', 'Uncommon', 'workshops_taught_successfully', 1),
+  ('Community Leader', 'Have participants fully complete 10 of your workshops', '👑', 'Rare', 'workshops_taught_successfully', 10),
+  ('Legendary Mentor', 'Have participants fully complete 50 of your workshops', '🌟', 'Legendary', 'workshops_taught_successfully', 50)
+ON CONFLICT (name) DO UPDATE SET
+  description = EXCLUDED.description;
+
+
+
+
+
+
+ CREATE OR REPLACE FUNCTION mark_lesson_complete(p_user_id UUID, p_workshop_id UUID, p_lesson_index INT)
+RETURNS TABLE(success BOOLEAN, message TEXT) LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  is_enrolled BOOLEAN;
+  total_lessons INT;
+  completed_lessons INT;
+  row_count INT;
+  v_creator_id UUID;  -- ← Renamed to avoid ambiguity
+BEGIN
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+  IF NOT is_enrolled THEN
+    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
+    RETURN;
+  END IF;
+
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  GET DIAGNOSTICS row_count = ROW_COUNT;
+
+  IF row_count > 0 THEN
+    -- Learner gets +10 XP
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    -- Creator gets +5 XP per lesson taught
+    SELECT creator_id INTO v_creator_id FROM workshops WHERE id = p_workshop_id;
+    IF v_creator_id IS NOT NULL THEN
+      PERFORM award_xp_and_check_badges(v_creator_id, 5, 'lesson_taught', p_workshop_id);
+    END IF;
+
+    -- Check for full workshop completion
+    SELECT jsonb_array_length(syllabus) INTO total_lessons FROM workshops WHERE id = p_workshop_id;
+    SELECT COUNT(*) INTO completed_lessons
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+    IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+      UPDATE workshop_enrollments
+        SET status = 'completed', completed_at = NOW()
+        WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+      -- Learner gets +50 XP for completing the workshop
+      PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+      -- Creator gets +30 XP bonus for successful full teaching
+      IF v_creator_id IS NOT NULL THEN
+        PERFORM award_xp_and_check_badges(v_creator_id, 30, 'workshop_taught_successfully', p_workshop_id);
+      END IF;
+
+      RETURN QUERY SELECT TRUE, 'Workshop completed! Bonus XP awarded.';
+    ELSE
+      RETURN QUERY SELECT TRUE, 'Lesson completed. XP awarded.';
+    END IF;
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson already completed.';
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+-- 2. Replace award_xp_and_check_badges
+CREATE OR REPLACE FUNCTION award_xp_and_check_badges(
+  p_user_id UUID,
+  p_xp_to_award INT,
+  p_action_type TEXT,
+  p_workshop_id UUID DEFAULT NULL
+)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  new_total_xp INT;
+  new_level INT;
+  lesson_count BIGINT;
+  workshops_attended_count BIGINT;
+  workshops_completed_count BIGINT;
+  workshops_taught_count BIGINT;
+BEGIN
+  UPDATE users SET xp = xp + p_xp_to_award
+  WHERE id = p_user_id RETURNING xp INTO new_total_xp;
+
+  new_level := new_total_xp / 500 + 1;
+  IF new_level > (SELECT level FROM users WHERE id = p_user_id) THEN
+    UPDATE users SET level = new_level WHERE id = p_user_id;
+  END IF;
+
+  IF p_action_type = 'lesson_completed' THEN
+    SELECT COUNT(*) INTO lesson_count
+    FROM user_syllabus_progress WHERE user_id = p_user_id;
+    PERFORM update_badge_and_notify(p_user_id, 'First Steps', lesson_count, 1);
+
+    SELECT COUNT(DISTINCT workshop_id) INTO workshops_attended_count
+    FROM user_syllabus_progress WHERE user_id = p_user_id;
+    PERFORM update_badge_and_notify(p_user_id, 'Knowledge Seeker', workshops_attended_count, 10);
+  END IF;
+
+  IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed', 'workshop_reviewed') THEN
+    SELECT COUNT(*) INTO workshops_completed_count
+    FROM workshop_enrollments WHERE user_id = p_user_id AND status = 'completed';
+
+    PERFORM update_badge_and_notify(p_user_id, 'Workshop Graduate', workshops_completed_count, 1);
+    PERFORM update_badge_and_notify(p_user_id, 'Dedicated Learner', workshops_completed_count, 5);
+
+    IF p_action_type IN ('workshop_completed', 'workshop_deadline_completed') THEN
+      PERFORM update_monthly_achievement_progress(p_user_id, 'monthly_workshop_attendance');
+    END IF;
+  END IF;
+
+  IF p_action_type = 'workshop_taught_successfully' THEN
+    SELECT COUNT(DISTINCT we.workshop_id) INTO workshops_taught_count
+    FROM workshop_enrollments we
+    JOIN workshops w ON we.workshop_id = w.id
+    WHERE we.status = 'completed' AND w.creator_id = p_user_id;
+
+    PERFORM update_badge_and_notify(p_user_id, 'Rising Star', workshops_taught_count, 1);
+    PERFORM update_badge_and_notify(p_user_id, 'Community Leader', workshops_taught_count, 10);
+    PERFORM update_badge_and_notify(p_user_id, 'Legendary Mentor', workshops_taught_count, 50);
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION update_monthly_achievement_progress(p_user_id UUID, p_requirement_type TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  current_month_start TIMESTAMPTZ := date_trunc('month', NOW());
+  count_this_month INT;
+  ach_def_id UUID;
+  required_value INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO count_this_month
+  FROM workshop_enrollments
+  WHERE user_id = p_user_id
+    AND status = 'completed'
+    AND completed_at >= current_month_start
+    AND completed_at < current_month_start + INTERVAL '1 month';
+
+  SELECT id, requirement_value INTO ach_def_id, required_value
+  FROM achievement_definitions
+  WHERE requirement_type = p_requirement_type;
+
+  IF ach_def_id IS NOT NULL THEN
+    INSERT INTO user_achievements (user_id, achievement_id, progress, is_completed)
+    VALUES (
+      p_user_id,
+      ach_def_id,
+      count_this_month,
+      count_this_month >= required_value
+    )
+    ON CONFLICT (user_id, achievement_id) DO UPDATE SET
+      progress = EXCLUDED.progress,
+      is_completed = EXCLUDED.is_completed;
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION mark_lesson_complete(p_user_id UUID, p_workshop_id UUID, p_lesson_index INT)
+RETURNS TABLE(success BOOLEAN, message TEXT) LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  is_enrolled BOOLEAN;
+  total_lessons INT;
+  completed_lessons INT;
+  row_count INT;
+  v_creator_id UUID;
+  workshop_title TEXT;
+BEGIN
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+  IF NOT is_enrolled THEN
+    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
+    RETURN;
+  END IF;
+
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  GET DIAGNOSTICS row_count = ROW_COUNT;
+
+  IF row_count > 0 THEN
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    SELECT creator_id, title INTO v_creator_id, workshop_title FROM workshops WHERE id = p_workshop_id;
+    IF v_creator_id IS NOT NULL THEN
+      PERFORM award_xp_and_check_badges(v_creator_id, 5, 'lesson_taught', p_workshop_id);
+    END IF;
+
+    SELECT jsonb_array_length(syllabus) INTO total_lessons FROM workshops WHERE id = p_workshop_id;
+    SELECT COUNT(*) INTO completed_lessons
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+    IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+      UPDATE workshop_enrollments
+        SET status = 'completed', completed_at = NOW()
+        WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+      PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+      IF v_creator_id IS NOT NULL THEN
+        PERFORM award_xp_and_check_badges(v_creator_id, 30, 'workshop_taught_successfully', p_workshop_id);
+
+        -- Notify creator
+        INSERT INTO notifications (user_id, title, body, type, data)
+        VALUES (
+          v_creator_id,
+          'Student Completed Your Workshop! 🎉',
+          'A participant just finished your workshop "' || workshop_title || '" — you earned +30 XP!',
+          'xp',
+          jsonb_build_object('workshop_id', p_workshop_id, 'xp_gained', 30)
+        );
+      END IF;
+
+      RETURN QUERY SELECT TRUE, 'Workshop completed! Bonus XP awarded.';
+    ELSE
+      RETURN QUERY SELECT TRUE, 'Lesson completed. XP awarded.';
+    END IF;
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson already completed.';
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+
+-- This adds the creator to all their workshop group chats (if missing)
+INSERT INTO conversation_participants (conversation_id, user_id, is_admin)
+SELECT w.conversation_id, w.creator_id, TRUE
+FROM workshops w
+WHERE w.conversation_id IS NOT NULL
+  AND w.creator_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM conversation_participants cp
+    WHERE cp.conversation_id = w.conversation_id
+      AND cp.user_id = w.creator_id
+  )
+ON CONFLICT DO NOTHING;
+
+
+
+
+
+
+
+-- Allow anyone to view earned badges (public gamification info)
+CREATE POLICY "Public can view earned badges"
+ON user_badges
+FOR SELECT
+USING (earned = true);

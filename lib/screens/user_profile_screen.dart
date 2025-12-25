@@ -165,9 +165,22 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       // 5. Badges
       final badgesResponse = await supabase
           .from('user_badges')
-          .select(''', badge_definitions(name, icon, description, rarity)''')
+          .select('badge_definitions(name, icon, description, rarity)')
           .eq('user_id', userId)
           .eq('earned', true);
+
+      final List<Map<String, dynamic>> processedBadges = badgesResponse.map((row) {
+        final def = row['badge_definitions'] as Map<String, dynamic>;
+        return {
+          'badge_definitions': {
+            'name': def['name'] ?? 'Unknown Badge',
+            'icon': def['icon'] ?? '🏅',
+            'description': def['description'] ?? '',
+            'rarity': def['rarity'] ?? 'Common',
+          }
+        };
+      }).toList();
+
 
       if (mounted) {
         setState(() {
@@ -175,7 +188,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           workshops = processedWorkshops;
           skills = processedSkills;
           reviews = userReviews;
-          badges = badgesResponse;
+          badges = processedBadges;  // ← use processedBadges here
           _isLoading = false;
         });
       }
@@ -193,9 +206,58 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
 
 
-  // Follow/Unfollow methods unchanged (keep your existing ones)
-  Future<void> _followUser() async { /* your code */ }
-  Future<void> _unfollowUser() async { /* your code */ }
+  Future<void> _followUser() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    setState(() => _isLoadingFollow = true);
+
+    try {
+      await supabase.from('follows').insert({
+        'follower_id': currentUserId,
+        'following_id': widget.user['id'],
+      });
+
+      setState(() => isFollowing = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Now following ${widget.user['name']}")),
+      );
+    } catch (e) {
+      print("Error following user: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to follow")),
+      );
+    } finally {
+      setState(() => _isLoadingFollow = false);
+    }
+  }
+
+  Future<void> _unfollowUser() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    setState(() => _isLoadingFollow = true);
+
+    try {
+      await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', widget.user['id']);
+
+      setState(() => isFollowing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Unfollowed ${widget.user['name']}")),
+      );
+    } catch (e) {
+      print("Error unfollowing user: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to unfollow")),
+      );
+    } finally {
+      setState(() => _isLoadingFollow = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +444,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           children: badges.map((b) {
             final def = b['badge_definitions'];
             return Chip(
-              avatar: Text(def['icon'] ?? '🏅'),
+              avatar: Text(def['icon'] ?? '🏅', style: const TextStyle(fontSize: 20)),
               label: Text(def['name']),
               backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
             );
