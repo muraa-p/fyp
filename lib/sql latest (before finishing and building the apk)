@@ -1142,3 +1142,89 @@ CREATE POLICY "Public can view earned badges"
 ON user_badges
 FOR SELECT
 USING (earned = true);
+
+
+
+
+
+CREATE OR REPLACE FUNCTION mark_lesson_complete(p_user_id UUID, p_workshop_id UUID, p_lesson_index INT)
+RETURNS TABLE(success BOOLEAN, message TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$ DECLARE
+  is_enrolled BOOLEAN;
+  total_lessons INT;
+  completed_lessons INT;
+  row_count INT;
+  v_creator_id UUID;
+  workshop_title TEXT;
+BEGIN
+  -- 1. Check if user is enrolled
+  SELECT EXISTS(SELECT 1 FROM workshop_enrollments WHERE user_id = p_user_id AND workshop_id = p_workshop_id) INTO is_enrolled;
+  IF NOT is_enrolled THEN
+    RETURN QUERY SELECT FALSE, 'User is not enrolled in this workshop.';
+    RETURN;
+  END IF;
+
+  -- 2. Mark lesson as complete for the user
+  INSERT INTO user_syllabus_progress (user_id, workshop_id, lesson_index, completed_at)
+  VALUES (p_user_id, p_workshop_id, p_lesson_index, NOW())
+  ON CONFLICT (user_id, workshop_id, lesson_index) DO NOTHING;
+
+  GET DIAGNOSTICS row_count = ROW_COUNT;
+
+  IF row_count > 0 THEN
+    -- A. Award XP to Learner for completing a lesson
+    PERFORM award_xp_and_check_badges(p_user_id, 10, 'lesson_completed', p_workshop_id);
+
+    -- B. Get Creator details for later use (XP & Notification)
+    SELECT creator_id, title INTO v_creator_id, workshop_title FROM workshops WHERE id = p_workshop_id;
+
+    -- C. Award XP to Creator for teaching a lesson
+    IF v_creator_id IS NOT NULL THEN
+      PERFORM award_xp_and_check_badges(v_creator_id, 5, 'lesson_taught', p_workshop_id);
+    END IF;
+
+    -- 3. Check if Workshop is now FULLY completed
+    SELECT jsonb_array_length(syllabus) INTO total_lessons FROM workshops WHERE id = p_workshop_id;
+    SELECT COUNT(*) INTO completed_lessons
+    FROM user_syllabus_progress
+    WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+    IF total_lessons IS NOT NULL AND completed_lessons >= total_lessons THEN
+      -- D. Mark Learner as Completed in enrollments table
+      UPDATE workshop_enrollments
+        SET status = 'completed', completed_at = NOW()
+        WHERE user_id = p_user_id AND workshop_id = p_workshop_id;
+
+      -- E. Award Completion Bonus to Learner
+      PERFORM award_xp_and_check_badges(p_user_id, 50, 'workshop_completed', p_workshop_id);
+
+      -- F. Award Completion Bonus to Creator
+      IF v_creator_id IS NOT NULL THEN
+        -- This handles badge checks
+        PERFORM award_xp_and_check_badges(v_creator_id, 30, 'workshop_taught_successfully', p_workshop_id);
+
+        -- === THE FIX: Explicitly insert notification for Creator ===
+        -- We do this manually because award_xp... only notifies on NEW badges.
+        -- The creator should be notified every time a student finishes, regardless of badges.
+        INSERT INTO notifications (user_id, title, body, type, data)
+        VALUES (
+          v_creator_id,
+          'Student Completed Your Workshop! 🎉',
+          'A participant just finished your workshop "' || workshop_title || '" — you earned +30 XP!',
+          'xp',
+          jsonb_build_object('workshop_id', p_workshop_id, 'xp_gained', 30)
+        );
+        -- ============================================================
+      END IF;
+
+      RETURN QUERY SELECT TRUE, 'Workshop completed! Bonus XP awarded.';
+    ELSE
+      RETURN QUERY SELECT TRUE, 'Lesson completed. XP awarded.';
+    END IF;
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Lesson was already marked as complete.';
+  END IF;
+END;
+ $$;
