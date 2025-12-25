@@ -1333,10 +1333,272 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
   String _educationText = "";
   String _achievementsText = "";
 
+  // Editable user overrides (start empty, filled when user edits)
+  late Map<String, String> _editedContent;
+
   @override
   void initState() {
     super.initState();
-    _generateAllSections(); // Start with template/fallback
+    // Initialize editable map with empty strings
+    _editedContent = {
+      'summary': '',
+      'skills': '',
+      'experience': '',
+      'education': '',
+      'achievements': '',
+    };
+    _generateAllSections();
+  }
+
+  // Helper to get final text: edited > AI > fallback
+  String _getDisplayText(String key, String aiText, String fallback) {
+    final edited = _editedContent[key];
+    if (edited != null && edited.isNotEmpty) return edited;
+    if (_useAIGeneration && aiText.isNotEmpty) return aiText;
+    return fallback;
+  }
+
+  // Edit dialog for any section
+  void _editSection(String key, String title, String currentText) {
+    final controller = TextEditingController(text: currentText);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit $title"),
+        content: TextField(
+          controller: controller,
+          maxLines: 10,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: "Write your own content here...",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _editedContent[key] = controller.text.trim();
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("$title updated!")),
+              );
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("CV Preview"),
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit CV Content',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Tap the pencil icon next to any section to edit")),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            tooltip: 'Download CV as PDF',
+            onPressed: _generateAndSavePDF,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: 24),
+
+                // AI Toggle
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Enhance with AI", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        Row(
+                          children: [
+                            Text("AI Mode", style: TextStyle(color: _useAIGeneration ? Colors.green : Colors.grey)),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: _useAIGeneration,
+                              onChanged: (value) {
+                                setState(() => _useAIGeneration = value);
+                                _generateAllSections();
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Professional Summary
+                _buildEditableSection(
+                  context,
+                  "PROFESSIONAL SUMMARY",
+                  _getDisplayText('summary', _professionalSummary, _generateTemplateSummary()),
+                      () => _editSection('summary', "Professional Summary", _getDisplayText('summary', _professionalSummary, _generateTemplateSummary())),
+                ),
+                const SizedBox(height: 24),
+
+                // Skills
+                _buildEditableSection(
+                  context,
+                  "SKILLS",
+                  _useAIGeneration && _skillsText.isNotEmpty
+                      ? _skillsText
+                      : _buildSkillsSectionFallback(), // fallback is widget, so handle separately
+                      () => _editSection('skills', "Skills", _getDisplayText('skills', _skillsText, "")),
+                  isRichText: _useAIGeneration && _skillsText.isEmpty, // only allow edit if AI text exists or user wants custom
+                ),
+
+                // For Skills, we use fallback widget if no AI text and no edit
+                if (!_useAIGeneration || _skillsText.isEmpty)
+                  _buildSection(context, "SKILLS", _buildSkillsSection(context)),
+
+                const SizedBox(height: 24),
+
+                // Experience
+                _buildEditableSection(
+                  context,
+                  "EXPERIENCE",
+                  _getDisplayText('experience', _experienceText, ""),
+                      () => _editSection('experience', "Experience", _getDisplayText('experience', _experienceText, "")),
+                ),
+                if (!_useAIGeneration || _experienceText.isEmpty)
+                  _buildSection(context, "EXPERIENCE", _buildExperienceSection(context)),
+
+                const SizedBox(height: 24),
+
+                // Education
+                _buildEditableSection(
+                  context,
+                  "EDUCATION",
+                  _getDisplayText('education', _educationText, ""),
+                      () => _editSection('education', "Education", _getDisplayText('education', _educationText, "")),
+                ),
+                if (!_useAIGeneration || _educationText.isEmpty)
+                  _buildSection(context, "EDUCATION", _buildEducationSection(context)),
+
+                const SizedBox(height: 24),
+
+                // Achievements
+                if (widget.achievements.isNotEmpty) ...[
+                  _buildEditableSection(
+                    context,
+                    "ACHIEVEMENTS",
+                    _getDisplayText('achievements', _achievementsText, ""),
+                        () => _editSection('achievements', "Achievements", _getDisplayText('achievements', _achievementsText, "")),
+                  ),
+                  if (!_useAIGeneration || _achievementsText.isEmpty)
+                    _buildSection(context, "ACHIEVEMENTS", _buildAchievementsSection(context)),
+                  const SizedBox(height: 24),
+                ],
+
+                // Testimonials
+                if (widget.testimonials.isNotEmpty)
+                  _buildSection(context, "TESTIMONIALS", _buildTestimonialsSection(context)),
+
+                const SizedBox(height: 80),
+              ],
+            ),
+          ),
+
+          if (_isGenerating)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text("Enhancing your CV with AI...", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // New helper: editable section with pencil icon
+  Widget _buildEditableSection(BuildContext context, String title, String content, VoidCallback onEdit, {bool isRichText = true}) {
+    final theme = Theme.of(context);
+    final hasContent = content.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              tooltip: "Edit this section",
+              onPressed: onEdit,
+              color: theme.colorScheme.primary,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (hasContent)
+          if (isRichText)
+            ...content.split('\n').where((line) => line.trim().isNotEmpty).map((line) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(line.trim(), style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+            ))
+          else
+            Text(content, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5))
+        else
+          Text("No content yet — tap edit to add your own", style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.onSurface.withAlpha(150))),
+      ],
+    );
+  }
+
+  // Fallback for Skills when no AI text
+  String _buildSkillsSectionFallback() {
+    return widget.skills.map((s) => "• ${s['name']} (${s['level']})").join('\n');
   }
 
   Future<void> _generateAllSections() async {
@@ -1429,20 +1691,19 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     content.add(pw.Divider());
     content.add(pw.SizedBox(height: 20));
 
-    // Professional Summary - NOW uses AI if available
+    // Professional Summary — uses edited > AI > template
     content.add(pw.Text("PROFESSIONAL SUMMARY", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
-    final summaryText = _useAIGeneration && _professionalSummary.isNotEmpty
-        ? _professionalSummary
-        : _generateTemplateSummary();
+    final summaryText = _getDisplayText('summary', _professionalSummary, _generateTemplateSummary());
     content.add(pw.Paragraph(text: summaryText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
     content.add(pw.SizedBox(height: 20));
 
-    // Skills - Use AI text if available, fallback to chips
+    // Skills — uses edited > AI > fallback chips
     content.add(pw.Text("SKILLS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
-    if (_useAIGeneration && _skillsText.isNotEmpty) {
-      content.add(pw.Paragraph(text: _skillsText, style: const pw.TextStyle(fontSize: 11)));
+    final skillsText = _getDisplayText('skills', _skillsText, _buildSkillsSectionFallback());
+    if (skillsText.isNotEmpty) {
+      content.add(pw.Paragraph(text: skillsText, style: const pw.TextStyle(fontSize: 11)));
     } else {
       content.add(
         pw.Wrap(
@@ -1463,11 +1724,12 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     }
     content.add(pw.SizedBox(height: 20));
 
-    // Experience - Use AI if available
+    // Experience — uses edited > AI > fallback
     content.add(pw.Text("EXPERIENCE", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 12));
-    if (_useAIGeneration && _experienceText.isNotEmpty) {
-      content.add(pw.Paragraph(text: _experienceText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
+    final experienceText = _getDisplayText('experience', _experienceText, "");
+    if (experienceText.isNotEmpty) {
+      content.add(pw.Paragraph(text: experienceText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
     } else {
       for (final w in widget.taughtWorkshops) {
         final title = w['title'] as String? ?? "Untitled";
@@ -1486,13 +1748,13 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     }
     content.add(pw.SizedBox(height: 20));
 
-    // Education - Use AI if available
+    // Education — uses edited > AI > fallback
     content.add(pw.Text("EDUCATION", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
-    if (_useAIGeneration && _educationText.isNotEmpty) {
-      content.add(pw.Paragraph(text: _educationText, style: const pw.TextStyle(fontSize: 11)));
+    final educationText = _getDisplayText('education', _educationText, "");
+    if (educationText.isNotEmpty) {
+      content.add(pw.Paragraph(text: educationText, style: const pw.TextStyle(fontSize: 11)));
     } else {
-      // Existing fallback education rendering
       final university = widget.userProfile['university'] as String?;
       final major = widget.userProfile['major'] as String?;
       final year = widget.userProfile['year'] as String?;
@@ -1502,12 +1764,13 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     }
     content.add(pw.SizedBox(height: 20));
 
-    // Achievements - Use AI if available
+    // Achievements — uses edited > AI > fallback
     if (widget.achievements.isNotEmpty) {
       content.add(pw.Text("ACHIEVEMENTS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
       content.add(pw.SizedBox(height: 8));
-      if (_useAIGeneration && _achievementsText.isNotEmpty) {
-        content.add(pw.Paragraph(text: _achievementsText, style: const pw.TextStyle(fontSize: 11)));
+      final achievementsText = _getDisplayText('achievements', _achievementsText, "");
+      if (achievementsText.isNotEmpty) {
+        content.add(pw.Paragraph(text: achievementsText, style: const pw.TextStyle(fontSize: 11)));
       } else {
         for (final a in widget.achievements) {
           content.add(pw.Text("• ${a['title']} ${a['icon'] ?? ''}", style: const pw.TextStyle(fontSize: 11)));
@@ -1551,215 +1814,6 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     return summary;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("CV Preview"),
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          // Removed the Share button completely
-          IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Download CV as PDF',
-            onPressed: _generateAndSavePDF,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                _buildHeader(context),
-                const SizedBox(height: 24),
-
-                // AI Toggle
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Enhance with AI",
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Text(
-                              "AI Mode",
-                              style: TextStyle(
-                                color: _useAIGeneration ? Colors.green : Colors.grey,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Switch(
-                              value: _useAIGeneration,
-                              onChanged: (value) {
-                                setState(() {
-                                  _useAIGeneration = value;
-                                });
-                                _generateAllSections();
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Professional Summary
-                _buildSection(
-                  context,
-                  "PROFESSIONAL SUMMARY",
-                  _isGenerating
-                      ? const Center(child: CircularProgressIndicator())
-                      : Text(
-                    _useAIGeneration && _professionalSummary.isNotEmpty
-                        ? _professionalSummary
-                        : _generateTemplateSummary(),
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Skills
-                _buildSection(
-                  context,
-                  "SKILLS",
-                  _useAIGeneration && _skillsText.isNotEmpty
-                      ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _skillsText
-                        .split('\n')
-                        .where((line) => line.trim().isNotEmpty)
-                        .map((line) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        line.trim(),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ))
-                        .toList(),
-                  )
-                      : _buildSkillsSection(context),
-                ),
-                const SizedBox(height: 24),
-
-                // Experience
-                _buildSection(
-                  context,
-                  "EXPERIENCE",
-                  _useAIGeneration && _experienceText.isNotEmpty
-                      ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _experienceText
-                        .split('\n\n')
-                        .map((block) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        block.trim(),
-                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                      ),
-                    ))
-                        .toList(),
-                  )
-                      : _buildExperienceSection(context),
-                ),
-                const SizedBox(height: 24),
-
-                // Education
-                _buildSection(
-                  context,
-                  "EDUCATION",
-                  _useAIGeneration && _educationText.isNotEmpty
-                      ? Text(
-                    _educationText,
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                  )
-                      : _buildEducationSection(context),
-                ),
-                const SizedBox(height: 24),
-
-                // Achievements
-                if (widget.achievements.isNotEmpty)
-                  _buildSection(
-                    context,
-                    "ACHIEVEMENTS",
-                    _useAIGeneration && _achievementsText.isNotEmpty
-                        ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _achievementsText
-                          .split('\n')
-                          .where((line) => line.trim().isNotEmpty)
-                          .map((line) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Text(
-                          line.trim(),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ))
-                          .toList(),
-                    )
-                        : _buildAchievementsSection(context),
-                  ),
-
-                if (widget.achievements.isNotEmpty) const SizedBox(height: 24),
-
-                // Testimonials
-                if (widget.testimonials.isNotEmpty)
-                  _buildSection(
-                    context,
-                    "TESTIMONIALS",
-                    _buildTestimonialsSection(context),
-                  ),
-
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
-
-          // Loading overlay
-          if (_isGenerating)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      "Enhancing your CV with AI...",
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
