@@ -260,21 +260,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         final List<dynamic> enrolledUsers = enrolledUsersResponse;
 
         for (final enrollment in enrolledUsers) {
-          final result = await supabase.rpc('mark_lesson_complete', params: {
-            'p_user_id': enrollment['user_id'],
-            'p_workshop_id': widget.workshop['id'],
-            'p_lesson_index': index,
-          });
-
-          if (result[0]['success'] && result[0]['message'].contains('workshop completed')) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Lesson marked complete and workshop completed! XP awarded.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
+          try {
+            await supabase.rpc('mark_lesson_complete', params: {
+              'p_user_id': enrollment['user_id'],
+              'p_workshop_id': widget.workshop['id'],
+              'p_lesson_index': index,
+            });
+          } catch (e) {
+            // Silent or log - don't revert UI if one user fails
+            print('Failed for user ${enrollment['user_id']}: $e');
           }
         }
 
