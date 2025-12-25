@@ -757,43 +757,51 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text("CV Preview", style: theme.textTheme.titleMedium),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CVPreviewScreen(
-                      userProfile: userProfile!,
-                      skills: skills,
-                      taughtWorkshops: taughtWorkshops,
-                      achievements: achievements,
-                      testimonials: testimonials,
-                      averageRating: averageRating,
-                      workshopsCompleted: workshopsCompleted,
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("CV Preview", style: theme.textTheme.titleMedium),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CVPreviewScreen(
+                          userProfile: userProfile!,
+                          skills: skills,
+                          taughtWorkshops: taughtWorkshops,
+                          achievements: achievements,
+                          testimonials: testimonials,
+                          averageRating: averageRating,
+                          workshopsCompleted: workshopsCompleted,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    "View Full",
+                    style: TextStyle(color: theme.colorScheme.primary),
                   ),
-                );
-              },
-              child: Text("View Full",
-                  style: TextStyle(color: theme.colorScheme.primary)),
+                ),
+              ],
             ),
-          ]),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "Your CV is dynamically generated from your real activity on SkillX.",
+                style: theme.textTheme.bodyMedium,
+              ),
             ),
-            child: Text(
-              "Your CV is dynamically generated from your real activity on SkillX.",
-              style: theme.textTheme.bodyMedium,
-            ),
-          )
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -1627,10 +1635,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                     _useAIGeneration && _professionalSummary.isNotEmpty
                         ? _professionalSummary
                         : _generateTemplateSummary(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.black87,
-                      height: 1.6,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -1673,10 +1678,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Text(
                         block.trim(),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.black87,
-                          height: 1.5,
-                        ),
+                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                       ),
                     ))
                         .toList(),
@@ -1692,10 +1694,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   _useAIGeneration && _educationText.isNotEmpty
                       ? Text(
                     _educationText,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.black87,
-                      height: 1.5,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                   )
                       : _buildEducationSection(context),
                 ),
@@ -1716,9 +1715,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Text(
                           line.trim(),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.black87,
-                          ),
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ))
                           .toList(),
@@ -1768,7 +1765,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     final theme = Theme.of(context);
     final name = widget.userProfile['name'] as String? ?? "Your Name";
     final phone = widget.userProfile['phone'] as String?;
-    final email = widget.userProfile['email'] as String? ?? "your.email@example.com"; // FIXED: Now using actual email from database
+    final email = widget.userProfile['email'] as String? ?? "your.email@example.com";
     final location = widget.userProfile['location'] as String?;
     final website = widget.userProfile['website'] as String?;
 
@@ -1779,7 +1776,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           name,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            // Removed: color: Colors.black87
           ),
         ),
         const SizedBox(height: 8),
@@ -1802,13 +1799,13 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurface.withAlpha(128)), // CHANGED: Was Colors.black54
+        Icon(icon, size: 16, color: theme.colorScheme.onSurface.withAlpha(128)),
         const SizedBox(width: 4),
         Text(
           text,
-          style: TextStyle(
+          style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 14,
-            color: theme.colorScheme.onSurface.withAlpha(179), // CHANGED: Was Colors.black54
+            color: theme.colorScheme.onSurface.withAlpha(179),
           ),
         ),
       ],
@@ -1962,10 +1959,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
             if (description.isNotEmpty)
               Text(
                 description,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.black87,
-                  height: 1.5,
-                ),
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
             const SizedBox(height: 8),
             Row(
@@ -1974,7 +1968,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   Text(
                     "Category: $category",
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: theme.colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1983,7 +1977,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   Text(
                     "Duration: $duration",
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: theme.colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -2046,27 +2040,21 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
             university,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              // removed Colors.black87
             ),
           ),
-        if (major != null) ...[
-          const SizedBox(height: 4),
+        if (major != null)
           Text(
             major,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.black87,
-            ),
+            style: theme.textTheme.bodyMedium,
           ),
-        ],
-        if (year != null) ...[
-          const SizedBox(height: 4),
+        if (year != null)
           Text(
             "Graduated: $year",
             style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.black54,
+              color: theme.colorScheme.onSurface.withAlpha(179),
             ),
           ),
-        ],
       ],
     );
   }
@@ -2107,10 +2095,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
               const SizedBox(height: 4),
               Text(
                 desc,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.black87,
-                  height: 1.5,
-                ),
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
             ],
             const SizedBox(height: 12),
@@ -2139,7 +2124,6 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 Text(
                   "\"$text\"",
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.black87,
                     height: 1.5,
                     fontStyle: FontStyle.italic,
                   ),
@@ -2152,8 +2136,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 Text(
                   "- $author",
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
                     fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface.withAlpha(230),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -2161,7 +2145,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   Text(
                     "($skill)",
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: theme.colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                 const SizedBox(width: 8),
