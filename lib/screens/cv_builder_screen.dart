@@ -6,6 +6,11 @@ import '../components/custom_button.dart';
 import '../main.dart';
 // Import your existing HuggingFaceService
 import '../services/hugging_face_service.dart'; // Adjust the path as needed
+import 'dart:io'; // Added
+import 'package:pdf/pdf.dart'; // Added
+import 'package:pdf/widgets.dart' as pw; // Added
+import 'package:printing/printing.dart'; // Added
+
 
 class CVBuilderScreen extends StatefulWidget {
   final Function(String, {Map<String, dynamic>? data})? onNavigate;
@@ -1397,6 +1402,129 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     }
   }
 
+  Future<void> _generateAndSavePDF() async {
+    final pdf = pw.Document();
+    final name = widget.userProfile['name'] as String? ?? "Your Name";
+    final email = widget.userProfile['email'] as String? ?? "";
+    final phone = widget.userProfile['phone'] as String? ?? "";
+    final location = widget.userProfile['location'] as String? ?? "";
+
+    final List<pw.Widget> content = [];
+
+    // Header
+    content.add(pw.Text(name, style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.SizedBox(height: 8));
+    content.add(pw.Text(email, style: const pw.TextStyle(fontSize: 12)));
+    if (phone.isNotEmpty) content.add(pw.Text(phone, style: const pw.TextStyle(fontSize: 12)));
+    if (location.isNotEmpty) content.add(pw.Text(location, style: const pw.TextStyle(fontSize: 12)));
+    content.add(pw.SizedBox(height: 20));
+    content.add(pw.Divider());
+    content.add(pw.SizedBox(height: 20));
+
+    // Professional Summary - NOW uses AI if available
+    content.add(pw.Text("PROFESSIONAL SUMMARY", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.SizedBox(height: 8));
+    final summaryText = _useAIGeneration && _professionalSummary.isNotEmpty
+        ? _professionalSummary
+        : _generateTemplateSummary();
+    content.add(pw.Paragraph(text: summaryText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
+    content.add(pw.SizedBox(height: 20));
+
+    // Skills - Use AI text if available, fallback to chips
+    content.add(pw.Text("SKILLS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.SizedBox(height: 8));
+    if (_useAIGeneration && _skillsText.isNotEmpty) {
+      content.add(pw.Paragraph(text: _skillsText, style: const pw.TextStyle(fontSize: 11)));
+    } else {
+      content.add(
+        pw.Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: widget.skills.map((s) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey300,
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.Text("${s['name']} (${s['level']})", style: const pw.TextStyle(fontSize: 11)),
+            );
+          }).toList(),
+        ),
+      );
+    }
+    content.add(pw.SizedBox(height: 20));
+
+    // Experience - Use AI if available
+    content.add(pw.Text("EXPERIENCE", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.SizedBox(height: 12));
+    if (_useAIGeneration && _experienceText.isNotEmpty) {
+      content.add(pw.Paragraph(text: _experienceText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
+    } else {
+      for (final w in widget.taughtWorkshops) {
+        final title = w['title'] as String? ?? "Untitled";
+        final description = w['description'] as String? ?? "";
+        content.add(pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(title, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Workshop Instructor", style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+            pw.SizedBox(height: 6),
+            pw.Paragraph(text: description, style: const pw.TextStyle(fontSize: 11)),
+            pw.SizedBox(height: 12),
+          ],
+        ));
+      }
+    }
+    content.add(pw.SizedBox(height: 20));
+
+    // Education - Use AI if available
+    content.add(pw.Text("EDUCATION", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.SizedBox(height: 8));
+    if (_useAIGeneration && _educationText.isNotEmpty) {
+      content.add(pw.Paragraph(text: _educationText, style: const pw.TextStyle(fontSize: 11)));
+    } else {
+      // Existing fallback education rendering
+      final university = widget.userProfile['university'] as String?;
+      final major = widget.userProfile['major'] as String?;
+      final year = widget.userProfile['year'] as String?;
+      if (university != null) content.add(pw.Text(university, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)));
+      if (major != null) content.add(pw.Text(major, style: const pw.TextStyle(fontSize: 11)));
+      if (year != null) content.add(pw.Text("Graduated: $year", style: const pw.TextStyle(fontSize: 11)));
+    }
+    content.add(pw.SizedBox(height: 20));
+
+    // Achievements - Use AI if available
+    if (widget.achievements.isNotEmpty) {
+      content.add(pw.Text("ACHIEVEMENTS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+      content.add(pw.SizedBox(height: 8));
+      if (_useAIGeneration && _achievementsText.isNotEmpty) {
+        content.add(pw.Paragraph(text: _achievementsText, style: const pw.TextStyle(fontSize: 11)));
+      } else {
+        for (final a in widget.achievements) {
+          content.add(pw.Text("• ${a['title']} ${a['icon'] ?? ''}", style: const pw.TextStyle(fontSize: 11)));
+          if (a['desc'] != null) content.add(pw.Text(a['desc'], style: const pw.TextStyle(fontSize: 11)));
+          content.add(pw.SizedBox(height: 6));
+        }
+      }
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (context) => [pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: content)],
+      ),
+    );
+
+    await Printing.sharePdf(
+      filename: 'SkillX_CV_${name.replaceAll(' ', '_')}.pdf',
+      bytes: await pdf.save(),
+    );
+  }
+
+
+
   String _generateTemplateSummary() {
     final name = widget.userProfile['name'] as String? ?? "Professional";
     final bio = widget.userProfile['bio'] as String? ?? "";
@@ -1430,21 +1558,11 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Share coming soon!")),
-              );
-            },
-          ),
+          // Removed the Share button completely
           IconButton(
             icon: const Icon(Icons.download),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("PDF download coming soon!")),
-              );
-            },
+            tooltip: 'Download CV as PDF',
+            onPressed: _generateAndSavePDF,
           ),
         ],
       ),
@@ -1680,16 +1798,17 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
   }
 
   Widget _buildContactItem(IconData icon, String text) {
+    final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Colors.black54),
+        Icon(icon, size: 16, color: theme.colorScheme.onSurface.withAlpha(128)), // CHANGED: Was Colors.black54
         const SizedBox(width: 4),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
-            color: Colors.black54,
+            color: theme.colorScheme.onSurface.withAlpha(179), // CHANGED: Was Colors.black54
           ),
         ),
       ],
@@ -1706,7 +1825,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           title,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: theme.colorScheme.onSurface, // CHANGED: Was Colors.black87
             decoration: TextDecoration.underline,
             decorationThickness: 1,
           ),
@@ -1755,9 +1874,9 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
       children: [
         Text(
           level,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: theme.colorScheme.onSurface, // CHANGED: Was Colors.black87
           ),
         ),
         const SizedBox(height: 6),
@@ -1770,7 +1889,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 skill['name'] as String,
                 style: const TextStyle(fontSize: 12),
               ),
-              backgroundColor: Colors.grey[200],
+              // CHANGED: Use theme chip color with fallback
+              backgroundColor: theme.chipTheme.backgroundColor ?? Colors.grey[200],
             );
           }).toList(),
         ),
@@ -1815,14 +1935,14 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                         title,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "Workshop Instructor",
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.black54,
+                          color: theme.colorScheme.onSurface.withAlpha(128),
                           fontStyle: FontStyle.italic,
                         ),
                       ),
@@ -1833,7 +1953,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   Text(
                     _formatDate(date),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: theme.colorScheme.onSurface.withAlpha(128),
                     ),
                   ),
               ],
@@ -1970,7 +2090,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   title,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1978,7 +2098,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   Text(
                     earned,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
+                      color: theme.colorScheme.onSurface.withAlpha(128),
                     ),
                   ),
               ],
