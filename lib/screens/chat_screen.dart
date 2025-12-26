@@ -1124,7 +1124,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       child: Scaffold(
         appBar: AppBar(
           title: const Text("Messages & Requests"),
-          automaticallyImplyLeading: false, // No back arrow on main screen
+          centerTitle: true, // ← ADD THIS LINE
+          automaticallyImplyLeading: false,
           bottom: TabBar(
             controller: _tabController,
             tabs: const [

@@ -775,7 +775,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text('Step ${currentStep + 1}: ${steps[currentStep]}'),
-          automaticallyImplyLeading: false, // ← Removes back arrow completely
+          centerTitle: true, // ← ADD THIS LINE
+          automaticallyImplyLeading: false,
         ),
         body: Form(
           key: _formKey,
