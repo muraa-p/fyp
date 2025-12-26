@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:skillx/screens/user_search_screen.dart';
 import 'package:skillx/screens/workshop_detail_screen.dart';
@@ -13,6 +14,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = "All";
+  DateTime? _lastBackPressTime; // Track last back press
 
   List<Map<String, dynamic>> _allWorkshops = [];
   List<Map<String, dynamic>> _filteredWorkshops = [];
@@ -211,23 +213,48 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Explore Workshops"),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const UserSearchScreen()),
-              );
-            },
+    return PopScope(
+        canPop: false, // We control pop manually
+        onPopInvoked: (didPop) {
+          if (didPop) return; // If already popped, do nothing
+
+          // Handle back press
+          final now = DateTime.now();
+          final backPressInterval = Duration(seconds: 2);
+
+          if (_lastBackPressTime == null ||
+              now.difference(_lastBackPressTime!) > backPressInterval) {
+            // First press: show toast
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Press back again to exit"),
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _lastBackPressTime = now;
+          } else {
+            // Second press: actually exit app
+            SystemNavigator.pop(); // Exits the app
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text("Explore Workshops"),
+            centerTitle: true,
+            automaticallyImplyLeading: false, // No back arrow
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Column(
+          body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
@@ -294,6 +321,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ],
       ),
+    )
     );
   }
 }

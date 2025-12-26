@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/notification_service.dart';
@@ -29,6 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   late TabController _tabController;
   final SupabaseService _supabaseService = SupabaseService();
   final NotificationService _notificationService = NotificationService();
+  DateTime? _lastBackPressTime;
 
 
   // State variables to hold data from Supabase
@@ -325,30 +327,62 @@ class _ProfileScreenState extends State<ProfileScreen>
       {"label": "Badges Earned", "value": badgesEarned, "icon": Icons.emoji_events_outlined, "color": Colors.purple},
     ];
 
-    return Scaffold(
-      body: Column(
-        children: [
-          _buildHeader(theme, userLevel, userXP),
-          _buildStats(theme, stats),
-          TabBar(
-            controller: _tabController,
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
-            tabs: const [Tab(text: "About"), Tab(text: "Workshops"), Tab(text: "Skills"), Tab(text: "Reviews"), Tab(text: "Settings")],
-          ),
-          Expanded(
-            child: TabBarView(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        final now = DateTime.now();
+        const interval = Duration(seconds: 2);
+
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > interval) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Press back again to exit"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          _lastBackPressTime = now;
+        } else {
+          SystemNavigator.pop(); // Exit app
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Profile"),
+          automaticallyImplyLeading: false, // ← Removes back arrow completely
+        ),
+        body: Column(
+          children: [
+            _buildHeader(theme, userLevel, userXP),
+            _buildStats(theme, stats),
+            TabBar(
               controller: _tabController,
-              children: [
-                _buildAboutTab(theme, userBadges, userAchievements),
-                _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
-                _buildSkillsTab(theme, _skills ?? []),
-                _buildReviewsTab(theme, _reviews ?? []),
-                _buildSettingsTab(theme),
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+              tabs: const [
+                Tab(text: "About"),
+                Tab(text: "Workshops"),
+                Tab(text: "Skills"),
+                Tab(text: "Reviews"),
+                Tab(text: "Settings")
               ],
             ),
-          ),
-        ],
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAboutTab(theme, userBadges, userAchievements),
+                  _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
+                  _buildSkillsTab(theme, _skills ?? []),
+                  _buildReviewsTab(theme, _reviews ?? []),
+                  _buildSettingsTab(theme),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

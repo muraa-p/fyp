@@ -1,4 +1,5 @@
 // ADD THESE IMPORTS AT THE TOP
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
@@ -24,6 +25,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   int currentStep = 0;
   bool _isPublishing = false;
   final NotificationService _notificationService = NotificationService();
+  DateTime? _lastBackPressTime;
+
 
   final steps = [
     'Workshop Details',
@@ -736,45 +739,76 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   @override
   Widget build(BuildContext context) {
     final stepWidgets = [buildStep1(), buildStep2(context), buildStep3(), buildStep4()];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Step ${currentStep + 1}: ${steps[currentStep]}'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => currentStep == 0
-              ? widget.onNavigate!('home')
-              : setState(() => currentStep--),
+
+
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        if (currentStep == 0) {
+          // First step: double back to exit
+          final now = DateTime.now();
+          const interval = Duration(seconds: 2);
+
+          if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > interval) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Press back again to exit"),
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _lastBackPressTime = now;
+          } else {
+            // Second press: go home or exit
+            if (widget.onNavigate != null) {
+              widget.onNavigate!('home');
+            } else {
+              Navigator.pop(context);
+            }
+          }
+        } else {
+          // Other steps: go back one step
+          setState(() => currentStep--);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Step ${currentStep + 1}: ${steps[currentStep]}'),
+          automaticallyImplyLeading: false, // ← Removes back arrow completely
         ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
+        body: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: stepWidgets[currentStep],
+          ),
+        ),
+        bottomNavigationBar: Padding(
           padding: const EdgeInsets.all(16),
-          child: stepWidgets[currentStep],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            if (currentStep > 0)
+          child: Row(
+            children: [
+              if (currentStep > 0)
+                Expanded(
+                  child: CustomButton(
+                    label: 'Previous',
+                    onPressed: prevStep,
+                    isPrimary: false,
+                  ),
+                ),
+              if (currentStep > 0) const SizedBox(width: 12),
               Expanded(
                 child: CustomButton(
-                  label: 'Previous',
-                  onPressed: prevStep,
-                  isPrimary: false,
+                  label: currentStep == steps.length - 1
+                      ? 'Publish Workshop'
+                      : 'Continue',
+                  onPressed: (currentStep == steps.length - 1 && !_isPublishing)
+                      ? _publishWorkshop
+                      : nextStep,
                 ),
               ),
-            if (currentStep > 0) const SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                label: currentStep == steps.length - 1
-                    ? 'Publish Workshop'
-                    : 'Continue',
-                onPressed: (currentStep == steps.length - 1 && !_isPublishing) ? _publishWorkshop : nextStep,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

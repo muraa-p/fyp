@@ -2,6 +2,7 @@
 // --- DASHBOARD PAGE ---
 //
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/chat_screen.dart' show ChatScreen;
 import 'package:skillx/screens/endorsements_screen.dart' show EndorsementsScreen;
@@ -26,6 +27,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentScreen = "home";
+  DateTime? _lastBackPressTime;
+
 
   void onNavigate(String screen) {
     setState(() {
@@ -67,11 +70,35 @@ class _HomeScreenState extends State<HomeScreen> {
         page = const DashboardPage();
     }
 
-    return Scaffold(
-      body: page,
-      bottomNavigationBar: CustomBottomNav(
-        currentScreen: _currentScreen,
-        onNavigate: onNavigate,
+
+
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        final now = DateTime.now();
+        const backPressInterval = Duration(seconds: 2);
+
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > backPressInterval) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Press back again to exit"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          _lastBackPressTime = now;
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        body: page,
+        bottomNavigationBar: CustomBottomNav(
+          currentScreen: _currentScreen,
+          onNavigate: onNavigate,
+        ),
       ),
     );
   }
@@ -80,8 +107,15 @@ class _HomeScreenState extends State<HomeScreen> {
 //
 // --- DASHBOARD PAGE ---
 //
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {  // ← Changed to StatefulWidget
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  DateTime? _lastBackPressTime;
 
   // Function to fetch user workshops from database - moved outside build method
   Future<Map<String, List<Map<String, dynamic>>>> _fetchUserWorkshops(String? userId) async {
@@ -189,24 +223,47 @@ class DashboardPage extends StatelessWidget {
     final theme = Theme.of(context);
     final user = context.watch<AppState>().user;
 
-    // Fetch workshops and gamification data from database
-    return FutureBuilder(
-        future: Future.wait([
-          _fetchUserWorkshops(user?.id),
-          _fetchGamificationData(user?.id)
-        ]),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (didPop) return;
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+          final now = DateTime.now();
+          const backPressInterval = Duration(seconds: 2);
 
-          final workshopData = snapshot.data?[0] as Map<String, List<Map<String, dynamic>>>? ??
-              {'teaching': [], 'attending': []};
-          final gamificationData = snapshot.data?[1] as Map<String, dynamic>?;
+          if (_lastBackPressTime == null ||
+              now.difference(_lastBackPressTime!) > backPressInterval) {
+            // First press
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Press back again to exit"),
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _lastBackPressTime = now;
+          } else {
+            // Second press → exit app
+            SystemNavigator.pop();
+          }
+        },
+        child: FutureBuilder(
+            future: Future.wait([
+              _fetchUserWorkshops(user?.id),
+              _fetchGamificationData(user?.id)
+            ]),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final workshopData = snapshot.data?[0] as Map<String, List<Map<String, dynamic>>>? ??
+                  {'teaching': [], 'attending': []};
+              final gamificationData = snapshot.data?[1] as Map<String, dynamic>?;
+
 
           // Debug: Print the number of workshops
           print('Total workshops: ${workshopData.length}');
@@ -580,6 +637,7 @@ class DashboardPage extends StatelessWidget {
             ),
           );
         }
+    )
     );
   }
 }
