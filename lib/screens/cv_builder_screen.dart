@@ -10,6 +10,12 @@ import 'dart:io'; // Added
 import 'package:pdf/pdf.dart'; // Added
 import 'package:pdf/widgets.dart' as pw; // Added
 import 'package:printing/printing.dart'; // Added
+import 'package:signin_with_linkedin/signin_with_linkedin.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert'; // For jsonEncode
+import 'dart:developer' as developer;
+import 'package:url_launcher/url_launcher.dart';
+
 
 
 class CVBuilderScreen extends StatefulWidget {
@@ -25,6 +31,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     with SingleTickerProviderStateMixin {
   bool isLinkedInConnected = false;
   late TabController _tabController;
+  String? linkedinAccessToken; // Store token after login
 
   // DB-backed data
   bool _isLoading = true;
@@ -60,6 +67,23 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     if (userId == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
+    }
+
+    final userRes = await supabase
+        .from('users')
+        .select('name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location') // Removed linkedin_token
+        .eq('id', userId)
+        .single();
+
+    userProfile = userRes;
+
+// Add this AFTER userRes is fetched
+    final linkedinToken = userRes['linkedin_token'] as String?;
+    if (linkedinToken != null && linkedinToken.isNotEmpty) {
+      setState(() {
+        isLinkedInConnected = true;
+        linkedinAccessToken = linkedinToken;
+      });
     }
 
     try {
@@ -510,25 +534,97 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     }
   }
 
-  void connectLinkedIn() {
-    setState(() {
-      isLinkedInConnected = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("LinkedIn account connected successfully")),
-    );
+
+  Future<void> connectLinkedIn() async {
+    try {
+      final config = LinkedInConfig(
+        clientId: '867905jxxemuub', // ← your real client ID
+        clientSecret: 'WPL_AP1.zfWkD7CvbaHHkl8B.Sh4YMg==', // ← your real secret (testing only!)
+        redirectUrl: 'https://localhost/linkedin-callback',
+        scope: ['openid', 'profile', 'email'],
+      );
+
+      final linkedin = SignInWithLinkedIn(config: config);
+
+      // Step 1: Open LinkedIn login and get authorization code
+      final result = await linkedin.getAuthorizationCode(context: context);
+      final String? authCode = result.$1;
+      final AuthCodeError? error = result.$2;
+
+      if (authCode != null && authCode.isNotEmpty) {
+        developer.log('Got auth code, exchanging for token...');
+
+        // Step 2: Exchange code for real access token
+        final tokenResult = await linkedin.getAccessToken(authorizationCode: authCode);
+        final tokenInfo = tokenResult.$1;
+        final tokenError = tokenResult.$2;
+
+        if (tokenInfo != null && tokenInfo.accessToken.isNotEmpty) {
+          final tokenString = tokenInfo.accessToken;
+
+          setState(() {
+            isLinkedInConnected = true;
+            linkedinAccessToken = tokenString;
+          });
+
+          // Save the REAL token
+          await supabase
+              .from('users')
+              .update({'linkedin_token': tokenString})
+              .eq('id', supabase.auth.currentUser!.id);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("LinkedIn connected successfully! 🎉")),
+          );
+
+          developer.log('Real access token saved. Posting should now work.');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Token exchange failed: ${tokenError?.toJson()}")),
+          );
+        }
+      } else if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("LinkedIn error: ${error.toJson()}")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login cancelled")),
+        );
+      }
+    } catch (e) {
+      developer.log('LinkedIn exception: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Connection failed: $e")),
+      );
+    }
   }
 
-  void addToLinkedInProfile(String item) {
+// Replace addToLinkedInProfile() to actually post
+  Future<void> addToLinkedInProfile(String item) async {
     if (!isLinkedInConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please connect LinkedIn first")),
+        const SnackBar(content: Text("Connect LinkedIn to share achievements")),
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$item added to LinkedIn profile")),
-    );
+
+    final String text = "Just leveled up on SkillX! 🚀\n\n$item\n\n#SkillX #Learning";
+    final String encodedText = Uri.encodeComponent(text);
+    final String shareUrl = "https://www.linkedin.com/sharing/share-offsite/?mini=true&summary=$encodedText";
+
+    final Uri url = Uri.parse(shareUrl);
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication); // Opens LinkedIn app if installed
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Opened LinkedIn — edit and post!")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not open LinkedIn")),
+      );
+    }
   }
 
   @override
@@ -879,7 +975,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
                             ),
                           const SizedBox(width: 8),
                           IconButton(
-                            onPressed: () => addToLinkedInProfile(s["name"]),
+                            onPressed: () => addToLinkedInProfile("Achieved ${s["level"]} level in ${s["name"]} on SkillX!"),
                             icon: const Icon(Icons.link),
                             color: theme.colorScheme.primary,
                           ),
