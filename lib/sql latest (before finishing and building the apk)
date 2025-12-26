@@ -1228,3 +1228,10 @@ BEGIN
   END IF;
 END;
  $$;
+
+
+
+
+
+
+ ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_token TEXT;

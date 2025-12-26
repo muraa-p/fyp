@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -609,22 +610,39 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       return;
     }
 
-    final String text = "Just leveled up on SkillX! 🚀\n\n$item\n\n#SkillX #Learning";
-    final String encodedText = Uri.encodeComponent(text);
-    final String shareUrl = "https://www.linkedin.com/sharing/share-offsite/?mini=true&summary=$encodedText";
+    // Make the message richer and more engaging
+    final String fullText = """
+Just leveled up my skills on SkillX! 🚀
 
-    final Uri url = Uri.parse(shareUrl);
+$item
 
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication); // Opens LinkedIn app if installed
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Opened LinkedIn — edit and post!")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Could not open LinkedIn")),
-      );
+I'm building real-world experience through teaching workshops and earning endorsements.
+
+Check out SkillX and level up too: https://your-skillx-app-link.com
+
+#SkillX #Learning #ProfessionalDevelopment #Skills #CareerGrowth
+""".trim();
+
+    // Copy to clipboard
+    await Clipboard.setData(ClipboardData(text: fullText));
+
+    // Primary: Mobile web share page — clean "Start a post" screen
+    final Uri mobileShareUri = Uri.parse("https://www.linkedin.com/sharing/share-offsite/?mini=true");
+
+    // Fallback: General feed (if above doesn't open nicely)
+    final Uri feedUri = Uri.parse("https://www.linkedin.com/feed/");
+
+    bool launched = await launchUrl(mobileShareUri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      await launchUrl(feedUri, mode: LaunchMode.externalApplication);
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("📋 Text copied! Open LinkedIn, paste it, and post 🚀"),
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   @override

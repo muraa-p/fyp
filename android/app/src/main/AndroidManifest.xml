@@ -87,4 +87,12 @@
         </intent>
     </queries>
 
+    <!-- REQUIRED FOR url_launcher TO OPEN HTTPS LINKS (LinkedIn share, etc.) on Android 11+ -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
 </manifest>
