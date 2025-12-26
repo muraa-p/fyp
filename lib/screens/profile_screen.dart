@@ -11,7 +11,6 @@ import 'edit_profile_screen.dart';
 import '../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
-  // We pass the userId to fetch data, and a flag for the current user.
   final String userId;
   final bool isCurrentUser;
 
@@ -30,10 +29,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   late TabController _tabController;
   final SupabaseService _supabaseService = SupabaseService();
   final NotificationService _notificationService = NotificationService();
-  DateTime? _lastBackPressTime;
 
+  DateTime? _lastBackPressTime; // For double back press to exit
 
-  // State variables to hold data from Supabase
+  // State variables
   Map<String, dynamic>? _profileData;
   Map<String, dynamic>? _gamificationData;
   List<Map<String, dynamic>>? _createdWorkshops;
@@ -42,12 +41,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   List<Map<String, dynamic>>? _reviews;
 
   bool _isLoading = true;
-
-  // --- State variables for the Settings Tab ---
   bool _workshopRemindersEnabled = true;
   bool _isLoggingOut = false;
-
-
 
   @override
   void initState() {
@@ -55,17 +50,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     _tabController = TabController(length: 5, vsync: this);
     _loadProfileData();
     _initializeNotifications();
-
   }
 
   Future<void> _initializeNotifications() async {
     await _notificationService.initialize();
-
     if (_workshopRemindersEnabled) {
-      // Check if permissions are granted
       final hasPermission = await _notificationService.hasPermission();
       if (!hasPermission) {
-        // Show a dialog explaining why permissions are needed
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -74,14 +65,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               'To receive workshop reminders, please enable notifications in your device settings.',
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  // Open app settings
                   _notificationService.openAppSettings();
                 },
                 child: const Text('Settings'),
@@ -126,18 +113,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  // Function to fetch gamification data
   Future<Map<String, dynamic>?> _fetchGamificationData(String? userId) async {
     if (userId == null || userId.isEmpty) return null;
-
     try {
       final response = await Supabase.instance.client.rpc('get_user_gamification_data',
           params: {'current_user_id': userId});
-
-      // The response from an RPC that returns a table is a list.
-      // We need to get the first element, which contains our data.
       final data = response is List ? response.first : response;
-
       return data;
     } catch (e) {
       print('Error fetching gamification data: $e');
@@ -151,14 +132,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.dispose();
   }
 
-  // Helper function to show snack bars
   void _showSnack(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-
-  // Add this method to your ProfileScreen class
   void _showPasswordUpdateDialog(BuildContext context) {
+    // ... (your existing password dialog code - unchanged)
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
@@ -181,14 +160,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "Current Password",
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      obscureCurrentPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() {
-                      obscureCurrentPassword = !obscureCurrentPassword;
-                    }),
+                    icon: Icon(obscureCurrentPassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => obscureCurrentPassword = !obscureCurrentPassword),
                   ),
                 ),
               ),
@@ -199,14 +172,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "New Password",
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      obscureNewPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() {
-                      obscureNewPassword = !obscureNewPassword;
-                    }),
+                    icon: Icon(obscureNewPassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => obscureNewPassword = !obscureNewPassword),
                   ),
                 ),
               ),
@@ -217,72 +184,52 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "Confirm New Password",
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      obscureConfirmPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() {
-                      obscureConfirmPassword = !obscureConfirmPassword;
-                    }),
+                    icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
                   ),
                 ),
               ),
             ],
           ),
           actions: [
+            TextButton(onPressed: isLoading ? null : () => Navigator.pop(context), child: const Text("Cancel")),
             TextButton(
-              onPressed: isLoading ? null : () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: isLoading ? null : () async {
+              onPressed: isLoading
+                  ? null
+                  : () async {
                 if (currentPasswordController.text.isEmpty ||
                     newPasswordController.text.isEmpty ||
                     confirmPasswordController.text.isEmpty) {
                   _showSnack("Please fill in all fields");
                   return;
                 }
-
                 if (newPasswordController.text != confirmPasswordController.text) {
                   _showSnack("New passwords don't match");
                   return;
                 }
-
                 if (newPasswordController.text.length < 6) {
                   _showSnack("Password must be at least 6 characters");
                   return;
                 }
-
                 setState(() => isLoading = true);
-
                 try {
                   final authService = AuthService();
                   await authService.updatePassword(
                     currentPasswordController.text,
                     newPasswordController.text,
                   );
-
                   if (mounted) {
                     Navigator.pop(context);
                     _showSnack("Password updated successfully");
                   }
                 } catch (e) {
-                  if (mounted) {
-                    _showSnack(e.toString());
-                  }
+                  if (mounted) _showSnack(e.toString());
                 } finally {
-                  if (mounted) {
-                    setState(() => isLoading = false);
-                  }
+                  if (mounted) setState(() => isLoading = false);
                 }
               },
               child: isLoading
-                  ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2.0),
-              )
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.0))
                   : const Text("Update"),
             ),
           ],
@@ -291,33 +238,24 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-
-
-
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     if (_isLoading || _profileData == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Profile")),
-        body: const Center(child: CircularProgressIndicator()),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    // Extract gamification data or use defaults
+    // Extract data (unchanged)
     final userXP = _gamificationData?['user_xp'] ?? 0;
     final userLevel = _gamificationData?['user_level'] ?? 1;
     final workshopsAttended = _gamificationData?['workshops_attended'] ?? 0;
     final workshopsTaught = _gamificationData?['workshops_taught'] ?? 0;
     final badgesEarned = _gamificationData?['badges_earned'] ?? 0;
-    final endorsements = _gamificationData?['endorsements_count'] ?? 0;
 
-    // Extract user badges
     final userBadges = _gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
-
-    // Extract user achievements
     final userAchievements = _gamificationData?['user_achievements_data'] as List<dynamic>? ?? [];
 
     final stats = [
@@ -331,31 +269,21 @@ class _ProfileScreenState extends State<ProfileScreen>
       canPop: false,
       onPopInvoked: (didPop) {
         if (didPop) return;
-
         final now = DateTime.now();
         const interval = Duration(seconds: 2);
-
-        if (_lastBackPressTime == null ||
-            now.difference(_lastBackPressTime!) > interval) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Press back again to exit"),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > interval) {
           _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Press back again to exit"), duration: Duration(seconds: 2)),
+          );
         } else {
-          SystemNavigator.pop(); // Exit app
+          SystemNavigator.pop();
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text("Profile"),
-          automaticallyImplyLeading: false, // ← Removes back arrow completely
-        ),
         body: Column(
           children: [
-            _buildHeader(theme, userLevel, userXP),
+            _buildHeader(theme, userLevel, userXP), // Now goes to the very top
             _buildStats(theme, stats),
             TabBar(
               controller: _tabController,
@@ -366,7 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Tab(text: "Workshops"),
                 Tab(text: "Skills"),
                 Tab(text: "Reviews"),
-                Tab(text: "Settings")
+                Tab(text: "Settings"),
               ],
             ),
             Expanded(
@@ -387,94 +315,104 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader(ThemeData theme, int userLevel, int userXP) {
     final userName = _profileData?['name'] ?? 'User';
     final userUniversity = _profileData?['university'] ?? 'Member since 2024';
     final userAvatarUrl = _profileData?['avatar_url'];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: SafeArea( // Only apply SafeArea inside the header
+        top: true,
+        left: false,
+        right: false,
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.2),
-                backgroundImage: userAvatarUrl != null ? NetworkImage(userAvatarUrl) : null,
-                child: userAvatarUrl == null
-                    ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : "U",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimary))
-                    : null,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.2),
+                    backgroundImage: userAvatarUrl != null ? NetworkImage(userAvatarUrl) : null,
+                    child: userAvatarUrl == null
+                        ? Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : "U",
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimary),
+                    )
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(userName, style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.onPrimary.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "Level $userLevel",
-                            style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
+                        Row(
+                          children: [
+                            Text(userName, style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "Level $userLevel",
+                                style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 4),
+                        Text(userUniversity, style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.7))),
+                        const SizedBox(height: 4),
+                        Text("$userXP XP", style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.9))),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(userUniversity, style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.7))),
-                    const SizedBox(height: 4),
-                    Text("$userXP XP", style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.9))),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 16),
+              if (widget.isCurrentUser)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final userModel = UserModel.fromJson(_profileData!);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditProfileScreen(
+                            user: userModel,
+                            onUpdate: (updatedUser) => _loadProfileData(),
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text("Edit Profile"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.onPrimary,
+                      foregroundColor: theme.colorScheme.primary,
+                    ),
+                  ),
+                )
+              else
+                Container(),
             ],
           ),
-          const SizedBox(height: 16),
-          if (widget.isCurrentUser)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  // Create a UserModel from the fetched data to pass to EditProfileScreen
-                  final userModel = UserModel.fromJson(_profileData!);
-
-                  final updated = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditProfileScreen(
-                        user: userModel,
-                        onUpdate: (updatedUser) {
-                          // The EditProfileScreen already saves to Supabase.
-                          // We just need to refresh our local data.
-                          _loadProfileData();
-                        },
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.edit),
-                label: const Text("Edit Profile"),
-                style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.onPrimary, foregroundColor: theme.colorScheme.primary),
-              ),
-            )
-          else
-            Container(), // Placeholder for Follow/Message buttons
-        ],
+        ),
       ),
     );
   }
