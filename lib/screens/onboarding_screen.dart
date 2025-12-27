@@ -11,60 +11,58 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
   final PageController _controller = PageController();
   int _currentPage = 0;
   final TextEditingController _name = TextEditingController();
-  final List<String> _skills = [
-    "Programming",
-    "Design",
-    "Marketing",
-    "Music",
-    "Languages"
-  ];
+  final List<String> _skills = ["Programming", "Design", "Marketing", "Music", "Languages"];
   final Set<String> _selectedSkills = {};
 
-  void _finishOnboarding(BuildContext context) {
-    final user = UserModel(
-      id: "u1",
-      name: _name.text.isEmpty ? "New User" : _name.text,
-      email: "guest@skillx.app",
-    );
-    context.read<AppState>().setUser(user);
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Onboarding completed!")),
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
-    Navigator.pushReplacementNamed(context, '/auth');
   }
 
-  Widget _buildPage({
-    required String title,
-    required String subtitle,
-    required Widget child,
-  }) {
-    final theme = Theme.of(context);
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildPage({required String title, required String subtitle, required Widget child}) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(32.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          child,
-          const SizedBox(height: 32),
+          ScaleTransition(scale: _pulseAnimation, child: child),
+          const SizedBox(height: 48),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
+            style: const TextStyle(
+              fontSize: 32,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.white.withOpacity(0.85),
+              height: 1.6,
             ),
           ),
         ],
@@ -74,126 +72,118 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     final pages = [
       _buildPage(
-        title: "Welcome to SkillX",
+        title: "Welcome to SkillX 🚀",
         subtitle: "Your journey to learning and teaching starts here.",
-        child: Icon(Icons.rocket_launch,
-            size: 100, color: theme.colorScheme.primary),
+        child: Icon(Icons.rocket_launch_rounded, size: 140, color: Colors.blue.shade400),
       ),
       _buildPage(
-        title: "Tell us your name",
-        subtitle: "So we can personalize your experience.",
+        title: "What's your name?",
+        subtitle: "We'll use this to personalize your experience.",
         child: TextField(
           controller: _name,
-          decoration: const InputDecoration(
+          textCapitalization: TextCapitalization.words,
+          style: const TextStyle(color: Colors.white, fontSize: 18),
+          decoration: InputDecoration(
             hintText: "Enter your name",
-            prefixIcon: Icon(Icons.person_outline),
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+            prefixIcon: const Icon(Icons.person_outline, color: Colors.white70),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.1),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
           ),
         ),
       ),
       _buildPage(
         title: "Choose your interests",
-        subtitle: "Select what you want to learn or teach.",
+        subtitle: "Pick skills you'd love to learn or teach.",
         child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 12,
+          runSpacing: 16,
+          alignment: WrapAlignment.center,
           children: _skills.map((skill) {
             final selected = _selectedSkills.contains(skill);
-            return ChoiceChip(
+            return FilterChip(
               label: Text(skill),
               selected: selected,
-              selectedColor:
-              theme.colorScheme.primary.withOpacity(0.2),
-              labelStyle: TextStyle(
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
+              selectedColor: const Color(0xFF60A5FA).withOpacity(0.3),
+              backgroundColor: Colors.white.withOpacity(0.1),
+              side: BorderSide(color: Colors.white.withOpacity(0.3)),
+              labelStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
               ),
+              checkmarkColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               onSelected: (_) {
-                setState(() {
-                  selected
-                      ? _selectedSkills.remove(skill)
-                      : _selectedSkills.add(skill);
-                });
+                setState(() => selected ? _selectedSkills.remove(skill) : _selectedSkills.add(skill));
               },
             );
           }).toList(),
         ),
       ),
       _buildPage(
-        title: "Ready to explore?",
-        subtitle:
-        "You're all set up, ${_name.text.isEmpty ? "friend" : _name.text}!",
-        child: Icon(Icons.check_circle,
-            size: 100, color: theme.colorScheme.secondary),
+        title: "You're all set! 🎉",
+        subtitle: "Welcome aboard, ${_name.text.isEmpty ? "friend" : _name.text.trim()}!",
+        child: Icon(Icons.sentiment_very_satisfied_rounded, size: 140, color: Colors.green.shade400),
       ),
     ];
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
             Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => _finishOnboarding(context),
-                child: Text(
-                  "Skip",
-                  style: TextStyle(
-                      color: theme.colorScheme.onSurface.withOpacity(0.8)),
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextButton(
+                  onPressed: () => _finishOnboarding(context),
+                  child: Text("Skip", style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16)),
                 ),
               ),
             ),
 
-            // PageView
             Expanded(
               child: PageView.builder(
                 controller: _controller,
                 itemCount: pages.length,
-                onPageChanged: (index) {
-                  setState(() => _currentPage = index);
-                },
-                itemBuilder: (context, index) => pages[index],
+                onPageChanged: (i) => setState(() => _currentPage = i),
+                itemBuilder: (_, i) => pages[i],
               ),
             ),
 
-            // Page indicator
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                pages.length,
-                    (index) => Container(
-                  margin:
-                  const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
-                  width: _currentPage == index ? 12 : 8,
-                  height: _currentPage == index ? 12 : 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _currentPage == index
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurface.withOpacity(0.3),
-                  ),
-                ),
-              ),
-            ),
-
-            // Next / Finish button
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(vertical: 30),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(pages.length, (i) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 400),
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    width: _currentPage == i ? 30 : 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: _currentPage == i ? Colors.blue.shade400 : Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 50),
               child: CustomButton(
-                label: _currentPage == pages.length - 1 ? "Finish" : "Next",
+                label: _currentPage == pages.length - 1 ? "Let's Go!" : "Next",
                 onPressed: () {
                   if (_currentPage == pages.length - 1) {
                     _finishOnboarding(context);
                   } else {
-                    _controller.nextPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
+                    _controller.nextPage(duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
                   }
                 },
               ),
@@ -202,5 +192,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
       ),
     );
+  }
+
+  void _finishOnboarding(BuildContext context) {
+    final user = UserModel(
+      id: "u1",
+      name: _name.text.isEmpty ? "New User" : _name.text,
+      email: "guest@skillx.app",
+    );
+    context.read<AppState>().setUser(user);
+    Navigator.pushReplacementNamed(context, '/auth');
   }
 }

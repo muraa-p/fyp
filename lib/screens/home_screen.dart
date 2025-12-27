@@ -300,342 +300,284 @@ class _DashboardPageState extends State<DashboardPage> {
               .take(4)
               .toList();
 
-          return SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+// Replace the entire DashboardPage build method content with this:
+
+              return SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Welcome back, ${user?.name.isNotEmpty == true ? user!.name : "Student"}!",
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Welcome back, ${user?.name.isNotEmpty == true ? user!.name : "Student"}!",
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              user?.university ?? "SkillX Community",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          user?.email ?? "University",
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        GestureDetector(
+                          onTap: () => context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("profile"),
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: const Color(0xFF60A5FA).withOpacity(0.2),
+                            child: Text(
+                              user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : "U",
+                              style: const TextStyle(
+                                color: Color(0xFF60A5FA),
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        // Access HomeScreen state directly via context
-                        context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("profile");
-                      },
-                      child: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-                        child: Text(
-                          (context.watch<AppState>().user?.name.isNotEmpty ?? false)
-                              ? context.watch<AppState>().user!.name[0]
-                              : "U",
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+                    const SizedBox(height: 32),
 
-                // XP Progress - Now using real data
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Your Progress",
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
-                          Text("Level $userLevel",
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                    // Your Progress Card - Now with GREEN progress bar
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.2),
+                            blurRadius: 30,
+                            offset: const Offset(0, 10),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: progress.clamp(0.0, 1.0), // Ensure value is between 0 and 1
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "Your Progress",
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              Text(
+                                "Level $userLevel",
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          LinearProgressIndicator(
+                            value: progress.clamp(0.0, 1.0),
+                            minHeight: 12,
+                            borderRadius: BorderRadius.circular(8),
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF34D399)), // GREEN!
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            "$userXP / $nextLevelXP XP • ${nextLevelXP - userXP} to next level",
+                            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "$userXP XP • ${nextLevelXP - userXP} XP to next level",
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Search bar
+                    TextField(
+                      readOnly: true,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+                      decoration: InputDecoration(
+                        hintText: "Search workshops, skills, or people...",
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Search bar
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: "Search workshops, skills, or instructors...",
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      style: const TextStyle(color: Colors.white),
                     ),
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SearchScreen()),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
+                    const SizedBox(height: 32),
 
-                // Stats cards - Now using real data
-                Row(
-                  children: [
-                    Expanded(
-                        child: StatCard(
-                            label: "Workshops Attended",
-                            value: workshopsAttended.toString(),
-                            icon: Icons.book_outlined,
-                            color: Colors.blue)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: StatCard(
-                            label: "Workshops Taught",
-                            value: workshopsTaught.toString(),
-                            icon: Icons.group_outlined,
-                            color: Colors.green)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: StatCard(
-                            label: "Badges Earned",
-                            value: badgesEarned.toString(),
-                            icon: Icons.emoji_events_outlined,
-                            color: Colors.amber)),
-                  ],
-                ),
-                const SizedBox(height: 28),
+                    // Stat Cards - Glass style, more spaced out
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 1.3, // ← Increased from 1.1 to 1.2 for more vertical space
+                      children: [
+                        _GlassStatCard("Workshops Attended", workshopsAttended.toString(), Icons.school_rounded, Colors.blue),
+                        _GlassStatCard("Workshops Taught", workshopsTaught.toString(), Icons.record_voice_over, Colors.green),
+                        _GlassStatCard("Badges Earned", badgesEarned.toString(), Icons.emoji_events_rounded, Colors.amber),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
 
-                // Unified Schedule section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                        "Your Schedule",
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ScheduleScreen(
-                              upcomingWorkshops: upcomingWorkshops,    // Only enrolled in others
-                              teachingWorkshops: teachingWorkshops,    // Only created by you
+                    // Your Schedule
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Your Schedule", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ScheduleScreen(
+                                upcomingWorkshops: upcomingWorkshops,
+                                teachingWorkshops: teachingWorkshops,
+                              ),
                             ),
                           ),
-                        );
-                      },
-                      child: Text(
-                        "View All",
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w500,
+                          child: Text("View All", style: TextStyle(color: const Color(0xFF60A5FA), fontWeight: FontWeight.w600)),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 200,
+                      child: allScheduledWorkshops.isEmpty
+                          ? Center(child: Text("No workshops scheduled yet", style: TextStyle(color: Colors.white.withOpacity(0.6))))
+                          : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: allScheduledWorkshops.length,
+                        itemBuilder: (context, index) {
+                          final workshop = allScheduledWorkshops[index];
+                          final isTeaching = teachingWorkshops.contains(workshop);
+                          return Container(
+                            width: 300,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: WorkshopCard(
+                              workshop: workshop,
+                              isTeaching: isTeaching,
+                              fetchCreatorName: _fetchCreatorName,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Combined horizontal scrollable list with auto-sizing
-                SizedBox(
-                  height: 185, // Further reduced height
-                  child: allScheduledWorkshops.isEmpty
-                      ? const Center(child: Text("No workshops scheduled",
-                      style: TextStyle(color: Colors.grey)))
-                      : ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: allScheduledWorkshops.length,
-                    itemBuilder: (context, index) {
-                      final workshop = allScheduledWorkshops[index];
-                      final isTeaching = teachingWorkshops.contains(workshop);
+                    const SizedBox(height: 40),
 
-                      return Container(
-                        width: 280, // Fixed width for each card
-                        margin: const EdgeInsets.only(right: 12),
-                        child: WorkshopCard(
-                          workshop: workshop,
-                          isTeaching: isTeaching,
-                          fetchCreatorName: _fetchCreatorName,
+                    // Quick Actions
+                    const Text("Quick Actions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 16),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 1.6,
+                      children: [
+                        QuickActionCard(
+                          icon: Icons.emoji_events_rounded,
+                          title: "Gamification",
+                          subtitle: "Badges & XP",
+                          color: Colors.amber,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GamificationScreen(
+                                onNavigate: (_) {}, // ← Empty function instead of null
+                                initialTab: 0,
+                              ),
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 28),
+                        QuickActionCard(
+                          icon: Icons.leaderboard_rounded,
+                          title: "Leaderboard",
+                          subtitle: "Global Rankings",
+                          color: Colors.blue,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GamificationScreen(
+                                onNavigate: (_) {}, // ← Empty function
+                                initialTab: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                        QuickActionCard(
+                          icon: Icons.star_rounded,
+                          title: "Endorsements",
+                          subtitle: "Skill Recognition",
+                          color: Colors.purple,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EndorsementsScreen(
+                                onNavigate: (_) {}, // ← Empty function
+                              ),
+                            ),
+                          ),
+                        ),
+                        QuickActionCard(
+                          icon: Icons.description_rounded,
+                          title: "CV Builder",
+                          subtitle: "Export Experience",
+                          color: Colors.green,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
+                          ),
+                        ),
+                        QuickActionCard(
+                          icon: Icons.description_rounded,
+                          title: "CV Builder",
+                          subtitle: "Export Experience",
+                          color: Colors.green,
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CVBuilderScreen())),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
 
-                // Quick Actions
-                Text("Quick Actions",
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.emoji_events,
-                            title: "Gamification",
-                            subtitle: "View XP & Badges",
-                            color: Colors.yellow,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => GamificationScreen(
-                                    onNavigate: (screen) {
-                                      Navigator.pop(context);
-                                    },
-                                    initialTab: 0, // 0 = Overview tab
-                                  ),
-                                ),
-                              );
-                            })),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.leaderboard,
-                            title: "Leaderboard",
-                            subtitle: "Global Rankings",
-                            color: Colors.blue,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => GamificationScreen(
-                                    onNavigate: (screen) {
-                                      Navigator.pop(context);
-                                    },
-                                    initialTab: 2, // 2 = Leaderboard tab
-                                  ),
-                                ),
-                              );
-                            })),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.star,
-                            title: "Endorsements",
-                            subtitle: "Skill Recognition",
-                            color: Colors.purple,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => EndorsementsScreen(
-                                    onNavigate: (screen) {
-                                      Navigator.pop(context);
-                                    },
-                                  ),
-                                ),
-                              );
-                            })),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.description,
-                            title: "CV Builder",
-                            subtitle: "Export Skills",
-                            color: Colors.green,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
-                              );
-                            })),
+                    // Recent Badges
+                    const Text("Recent Achievements", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 16),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 1.4,
+                      children: recentBadges.isEmpty
+                          ? [
+                        _GlassAchievementCard("Keep learning!", "📚", false),
+                        _GlassAchievementCard("Your first badge awaits", "✨", false),
+                      ]
+                          : recentBadges.map((b) => _GlassAchievementCard(b["name"], b["icon"], true)).toList(),
+                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.emoji_events,
-                            title: "Achievements",
-                            subtitle: "View All",
-                            color: Colors.amber,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => GamificationScreen(
-                                    onNavigate: (screen) {
-                                      Navigator.pop(context);
-                                    },
-                                    initialTab: 3, // 3 = Achievements tab
-                                  ),
-                                ),
-                              );
-                            })),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: QuickActionCard(
-                            icon: Icons.chat,
-                            title: "Messages",
-                            subtitle: "View All",
-                            color: Colors.blue,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ChatScreen()),
-                              );
-                            })),
-                  ],
-                ),
-                const SizedBox(height: 28),
-
-                // Recent Achievements - Now using real data
-                Text("Recent Achievements",
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  children: recentBadges.isEmpty
-                      ? [
-                    const AchievementCard(name: "No badges earned yet", icon: "🔒", earned: false),
-                    const AchievementCard(name: "Keep learning!", icon: "📚", earned: false),
-                  ]
-                      : recentBadges.map((badge) {
-                    return AchievementCard(
-                      name: badge["name"] as String,
-                      icon: badge["icon"] as String,
-                      earned: badge["earned"] as bool,
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          );
+              );
         }
     )
     );
@@ -929,6 +871,113 @@ class AchievementCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GlassStatCard extends StatelessWidget {
+  final String title, value;
+  final IconData icon;
+  final Color accentColor;
+
+  const _GlassStatCard(this.title, this.value, this.icon, this.accentColor);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12), // Reduced padding
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.15)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: constraints.maxHeight * 0.25, color: accentColor), // Responsive icon
+              const SizedBox(height: 8),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: constraints.maxHeight * 0.22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Expanded( // ← Takes remaining space safely
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: constraints.maxHeight * 0.12,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GlassAchievementCard extends StatelessWidget {
+  final String name, icon;
+  final bool earned;
+
+  const _GlassAchievementCard(this.name, this.icon, this.earned);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: earned ? const Color(0xFF34D399).withOpacity(0.15) : Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: earned ? const Color(0xFF34D399).withOpacity(0.3) : Colors.white.withOpacity(0.1),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(icon, style: TextStyle(fontSize: constraints.maxHeight * 0.28)),
+              const SizedBox(height: 12),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: constraints.maxHeight * 0.14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                earned ? "Earned ✓" : "Locked",
+                style: TextStyle(
+                  fontSize: constraints.maxHeight * 0.11,
+                  color: earned ? const Color(0xFF34D399) : Colors.white.withOpacity(0.6),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

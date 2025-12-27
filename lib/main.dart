@@ -257,9 +257,7 @@ class _SkillXAppState extends State<SkillXApp> {
       title: 'SkillX',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      theme: AppTheme.dark(),
       routes: {
         '/': (context) => const WelcomeScreen(),
         '/auth': (context) => const AuthScreen(),
