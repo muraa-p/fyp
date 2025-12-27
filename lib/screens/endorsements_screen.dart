@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EndorsementsScreen extends StatefulWidget {
-  final Function(String) onNavigate;
-  const EndorsementsScreen({super.key, required this.onNavigate});
+  final Function(String)? onNavigate;
+  const EndorsementsScreen({super.key, this.onNavigate});
 
   @override
   State<EndorsementsScreen> createState() => _EndorsementsScreenState();
@@ -483,9 +483,9 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
         title: const Text("Endorsements"),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => widget.onNavigate("profile"),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-// In the build method, inside AppBar actions:
+        // In the build method, inside AppBar actions:
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

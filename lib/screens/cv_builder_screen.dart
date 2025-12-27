@@ -676,6 +676,7 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: "Download CV as PDF",
             onPressed: () {
               Navigator.push(
                 context,
@@ -694,8 +695,30 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
             },
           ),
           IconButton(
-            icon: const Icon(Icons.linked_camera_outlined),
-            onPressed: () => addToLinkedInProfile("CV"),
+            icon: const Icon(Icons.info_outline), // ← This is the standard "info" icon (i in circle)
+            tooltip: "About CV Builder",
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("CV Builder"),
+                  content: const Text(
+                    "Your CV is automatically built from your real activity on SkillX:\n\n"
+                        "• Skills from workshops you've taught and endorsements\n"
+                        "• Experience from workshops you've conducted\n"
+                        "• Achievements from badges earned\n"
+                        "• Testimonials from participant reviews\n\n"
+                        "Download as PDF or share to LinkedIn anytime!",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -749,7 +772,12 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: completenessScore / 100,
-                  color: theme.colorScheme.primary,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withOpacity(0.2), // Dark subtle background
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary, // Blue for completed part (your main color: 0xFF60A5FA)
+                  ),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 const SizedBox(height: 12),
                 Text("Suggestions:",
@@ -1525,18 +1553,35 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Edit CV Content',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Tap the pencil icon next to any section to edit")),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.download),
             tooltip: 'Download CV as PDF',
             onPressed: _generateAndSavePDF,
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: "About CV Preview",
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("CV Preview"),
+                  content: const Text(
+                    "This is a live preview of your SkillX-generated CV.\n\n"
+                        "• Content is pulled directly from your workshops, skills, endorsements, and achievements\n"
+                        "• You can edit individual sections using the pencil icon next to each one\n"
+                        "• AI enhancement is optional and can be toggled off\n"
+                        "• Download as PDF anytime using the download button\n\n"
+                        "Your real activity = Your real CV!",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("OK"),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

@@ -530,9 +530,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => EndorsementsScreen(
-                                onNavigate: (_) {}, // ← Empty function
-                              ),
+                              builder: (_) => const EndorsementsScreen(),
                             ),
                           ),
                         ),
@@ -545,13 +543,6 @@ class _DashboardPageState extends State<DashboardPage> {
                             context,
                             MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
                           ),
-                        ),
-                        QuickActionCard(
-                          icon: Icons.description_rounded,
-                          title: "CV Builder",
-                          subtitle: "Export Experience",
-                          color: Colors.green,
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CVBuilderScreen())),
                         ),
                       ],
                     ),
