@@ -722,32 +722,40 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
           ),
         ],
       ),
-      body: Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: theme.colorScheme.onSurface.withAlpha(153),
-            indicatorColor: theme.colorScheme.primary,
-            tabs: const [
-              Tab(text: "Overview"),
-              Tab(text: "Skills"),
-              Tab(text: "Experience"),
-              Tab(text: "LinkedIn"),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(context),
-                _buildSkillsTab(context),
-                _buildExperienceTab(context), // Removed appState.createdWorkshops parameter
-                _buildLinkedInTab(context),
-              ],
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        color: Theme.of(context).colorScheme.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: TabBar(
+                controller: _tabController,
+                labelColor: theme.colorScheme.primary,
+                unselectedLabelColor: theme.colorScheme.onSurface.withAlpha(153),
+                indicatorColor: theme.colorScheme.primary,
+                tabs: const [
+                  Tab(text: "Overview"),
+                  Tab(text: "Skills"),
+                  Tab(text: "Experience"),
+                  Tab(text: "LinkedIn"),
+                ],
+              ),
             ),
-          ),
-        ],
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOverviewTab(context),
+                  _buildSkillsTab(context),
+                  _buildExperienceTab(context),
+                  _buildLinkedInTab(context),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

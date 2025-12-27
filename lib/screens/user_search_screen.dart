@@ -67,75 +67,86 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                hintText: "Search users...",
-                prefixIcon: Icon(Icons.search),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {
+            _usersFuture = _searchUsers(_controller.text);
+          });
+        },
+        color: Theme.of(context).colorScheme.primary,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _controller,
+                decoration: const InputDecoration(
+                  hintText: "Search users...",
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _usersFuture = _searchUsers(value);
+                  });
+                },
               ),
-              // Trigger a new search whenever the text changes
-              onChanged: (value) {
-                setState(() {
-                  _usersFuture = _searchUsers(value);
-                });
-              },
             ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _usersFuture,
-              builder: (context, snapshot) {
-                // Show a loading indicator while waiting for data
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                // Show an error message if something went wrong
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                // If there's no data, show a message
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text("No users found"));
-                }
-                // Display the list of users
-                final users = snapshot.data!;
-                return ListView.builder(
-                  itemCount: users.length,
-                  itemBuilder: (context, i) {
-                    final user = users[i];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        // Use avatar_url if available, otherwise show initial
-                        backgroundImage: user['avatar_url'] != null
-                            ? NetworkImage(user['avatar_url'])
-                            : null,
-                        child: user['avatar_url'] == null
-                            ? Text(user["name"]?.isNotEmpty == true
-                            ? user["name"][0].toUpperCase()
-                            : 'U')
-                            : null,
-                      ),
-                      title: Text(user["name"] ?? 'No Name'),
-                      subtitle: Text(user["email"] ?? 'No Email'),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => UserProfileScreen(user: user),
-                          ),
-                        );
-                      },
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: _usersFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    // This makes pull-to-refresh work even when empty
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 300), // Gives space to pull down
+                        Center(child: Text("No users found")),
+                      ],
                     );
-                  },
-                );
-              },
+                  }
+
+                  final users = snapshot.data!;
+                  return ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(), // Ensures refresh works even on short lists
+                    itemCount: users.length,
+                    itemBuilder: (context, i) {
+                      final user = users[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: user['avatar_url'] != null
+                              ? NetworkImage(user['avatar_url'])
+                              : null,
+                          child: user['avatar_url'] == null
+                              ? Text(user["name"]?.isNotEmpty == true
+                              ? user["name"][0].toUpperCase()
+                              : 'U')
+                              : null,
+                        ),
+                        title: Text(user["name"] ?? 'No Name'),
+                        subtitle: Text(user["email"] ?? 'No Email'),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UserProfileScreen(user: user),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

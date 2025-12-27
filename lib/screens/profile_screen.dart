@@ -281,35 +281,58 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       },
       child: Scaffold(
-        body: Column(
-          children: [
-            _buildHeader(theme, userLevel, userXP), // Now goes to the very top
-            _buildStats(theme, stats),
-            TabBar(
-              controller: _tabController,
-              labelColor: theme.colorScheme.primary,
-              unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
-              tabs: const [
-                Tab(text: "About"),
-                Tab(text: "Workshops"),
-                Tab(text: "Skills"),
-                Tab(text: "Reviews"),
-                Tab(text: "Settings"),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildAboutTab(theme, userBadges, userAchievements),
-                  _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
-                  _buildSkillsTab(theme, _skills ?? []),
-                  _buildReviewsTab(theme, _reviews ?? []),
-                  _buildSettingsTab(theme),
-                ],
+        body: RefreshIndicator(
+          onRefresh: _loadProfileData,
+          color: theme.colorScheme.primary,
+          backgroundColor: theme.colorScheme.surface,
+          child: CustomScrollView(
+            slivers: [
+              // Fixed Header (pinned)
+              SliverToBoxAdapter(
+                child: _buildHeader(theme, userLevel, userXP),
               ),
-            ),
-          ],
+              // Stats section
+              SliverToBoxAdapter(
+                child: _buildStats(theme, stats),
+              ),
+              // TabBar (pinned so it stays on top when scrolling)
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SliverTabBarDelegate(
+                  TabBar(
+                    controller: _tabController,
+                    labelColor: theme.colorScheme.primary,
+                    unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+                    tabs: const [
+                      Tab(text: "About"),
+                      Tab(text: "Workshops"),
+                      Tab(text: "Skills"),
+                      Tab(text: "Reviews"),
+                      Tab(text: "Settings"),
+                    ],
+                  ),
+                ),
+              ),
+              // Tab content - takes remaining space
+              SliverFillRemaining(
+                hasScrollBody: true,
+                child: SafeArea(
+                  top: false,
+                  bottom: true,
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildAboutTab(theme, userBadges, userAchievements),
+                      _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
+                      _buildSkillsTab(theme, _skills ?? []),
+                      _buildReviewsTab(theme, _reviews ?? []),
+                      _buildSettingsTab(theme),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -521,7 +544,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: progress.clamp(0.0, 1.0),
-                        minHeight: 6,
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(4),
+                        backgroundColor: Colors.grey[800],
+                        color: isCompleted
+                            ? Colors.green
+                            : theme.colorScheme.primary.withOpacity(0.6), // Blue-ish when incomplete
                       ),
                       const SizedBox(height: 4),
                       Text("${achievement["progress"]}/${achievement["max"]}", style: theme.textTheme.bodySmall),
@@ -730,21 +758,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSettingsTab(ThemeData theme) {
-    final appState = context.watch<AppState>();
-    bool isDarkMode = appState.isDarkMode;
     return StatefulBuilder(
       builder: (context, setState) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SwitchListTile(
-            title: const Text("Dark Mode"),
-            subtitle: const Text("Switch between light and dark themes"),
-            value: isDarkMode,
-            onChanged: (_) => appState.toggleDarkMode(),
-            secondary: const Icon(Icons.dark_mode_outlined),
-          ),
-          const Divider(height: 32),
-
           // 🌍 Language
           Text("Language",
               style: theme.textTheme.titleMedium?.copyWith(
@@ -955,12 +972,30 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildToggle(String title, bool value, String subtitle, ThemeData theme, Function(bool) onChanged) {
-    return SwitchListTile(
-      title: Text(title),
-      subtitle: Text(subtitle),
-      value: value,
-      onChanged: onChanged,
+}
+
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+
+  _SliverTabBarDelegate(this.tabBar);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Theme.of(context).colorScheme.surface, // Matches your dark background
+      child: tabBar,
     );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SliverTabBarDelegate oldDelegate) {
+    return tabBar != oldDelegate.tabBar;
   }
 }

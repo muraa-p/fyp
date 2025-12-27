@@ -77,10 +77,19 @@ class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
           return Center(child: Text('Error: ${snapshot.error}'));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("No users found"));
+          // This makes pull-to-refresh work even when empty
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: const [
+              SizedBox(height: 300), // Gives enough space to pull down
+              Center(child: Text("No users found")),
+            ],
+          );
         }
+
         final users = snapshot.data!;
         return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(), // Important!
           itemCount: users.length,
           itemBuilder: (context, i) {
             final user = users[i];

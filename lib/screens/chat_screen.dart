@@ -1059,34 +1059,41 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           ]
               : null,
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (_, i) => _buildMessageItem(messages[i]),
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await _fetchMessages(activeChat!['id']);
+          },
+          color: Theme.of(context).colorScheme.primary,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (_, i) => _buildMessageItem(messages[i]),
+                ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
-              child: Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.attach_file), onPressed: _handleAttachmentPress),
-                  Expanded(
-                    child: TextField(
-                      controller: _msgController,
-                      decoration: const InputDecoration(hintText: "Type a message...", border: InputBorder.none),
-                      onSubmitted: (_) => sendMessage(content: _msgController.text.trim()),
+              // Input bar (unchanged)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
+                child: Row(
+                  children: [
+                    IconButton(icon: const Icon(Icons.attach_file), onPressed: _handleAttachmentPress),
+                    Expanded(
+                      child: TextField(
+                        controller: _msgController,
+                        decoration: const InputDecoration(hintText: "Type a message...", border: InputBorder.none),
+                        onSubmitted: (_) => sendMessage(content: _msgController.text.trim()),
+                      ),
                     ),
-                  ),
-                  IconButton(icon: const Icon(Icons.send), onPressed: () => sendMessage(content: _msgController.text.trim())),
-                ],
+                    IconButton(icon: const Icon(Icons.send), onPressed: () => sendMessage(content: _msgController.text.trim())),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -1105,18 +1112,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       canPop: false,
       onPopInvoked: (didPop) {
         if (didPop) return;
-
         final now = DateTime.now();
         const interval = Duration(seconds: 2);
-
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > interval) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Press back again to exit"),
-              duration: Duration(seconds: 2),
-            ),
-          );
           _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Press back again to exit"), duration: Duration(seconds: 2)),
+          );
         } else {
           SystemNavigator.pop();
         }
@@ -1124,7 +1126,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       child: Scaffold(
         appBar: AppBar(
           title: const Text("Messages & Requests"),
-          centerTitle: true, // ← ADD THIS LINE
+          centerTitle: true,
           automaticallyImplyLeading: false,
           bottom: TabBar(
             controller: _tabController,
@@ -1134,112 +1136,131 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
             ],
           ),
         ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    decoration: const InputDecoration(hintText: "Search...", prefixIcon: Icon(Icons.search)),
-                    onChanged: (v) => setState(() => searchQuery = v),
-                  ),
-                ),
-                Expanded(
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : filtered.isEmpty
-                      ? const Center(child: Text("No conversations"))
-                      : ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) {
-                      final c = filtered[i];
-                      final isGroup = c['is_group'] == true;
-                      final isWorkshopChat = c['workshop_id'] != null;
-                      final name = isGroup ? (c['name'] ?? 'Group') : (c['other_user'] as Map)['name'];
-                      final avatar = isGroup ? c['avatar_url'] : (c['other_user'] as Map)['avatar_url'];
-                      final lastMsg = c['last_message_content'] ?? 'No messages';
-                      final time = c['last_message_time'];
-                      final unread = (c['unread_count'] as num?)?.toInt() ?? 0;
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: avatar?.isNotEmpty == true ? NetworkImage(avatar) : null,
-                          child: avatar?.isNotEmpty != true ? const Icon(Icons.person) : null,
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                            if (isWorkshopChat)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                                child: const Text('Workshop', style: TextStyle(fontSize: 10, color: Colors.blue)),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (time != null) Text(_formatTime(time), style: const TextStyle(fontSize: 11)),
-                            if (unread > 0)
-                              CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Text('$unread', style: const TextStyle(fontSize: 10, color: Colors.white))),
-                          ],
-                        ),
-                        onTap: () => _openChat(c),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : workshopRequests.isEmpty
-                ? const Center(child: Text("No pending requests"))
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: workshopRequests.length,
-              itemBuilder: (_, i) {
-                final r = workshopRequests[i];
-                final req = r['requester'] as Map<String, dynamic>;
-                final ws = r['workshop'] as Map<String, dynamic>;
-
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await Future.wait([
+              _fetchConversations(),
+              _fetchWorkshopRequests(),
+            ]);
+          },
+          color: Theme.of(context).colorScheme.primary,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: true,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Messages tab
+                    Column(
                       children: [
-                        Row(
-                          children: [
-                            CircleAvatar(backgroundImage: NetworkImage(req['avatar_url'] ?? '')),
-                            const SizedBox(width: 12),
-                            Expanded(child: Text("${req['name']} wants to join", style: const TextStyle(fontWeight: FontWeight.bold))),
-                          ],
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: TextField(
+                            decoration: const InputDecoration(hintText: "Search...", prefixIcon: Icon(Icons.search)),
+                            onChanged: (v) => setState(() => searchQuery = v),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(ws['title'] ?? 'Workshop'),
-                        if (ws['skill_requested'] != null) Text("Learn: ${ws['skill_requested']}"),
-                        if (ws['skill_offered'] != null) Text("Offers: ${ws['skill_offered']}"),
-                        if (r['message']?.isNotEmpty == true) Text("Message: ${r['message']}"),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
-                            ElevatedButton(onPressed: () => acceptRequest(r), child: const Text("Accept")),
-                          ],
+                        Expanded(
+                          child: isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : filtered.isEmpty
+                              ? const Center(child: Text("No conversations"))
+                              : ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) {
+                              final c = filtered[i];
+                              final isGroup = c['is_group'] == true;
+                              final isWorkshopChat = c['workshop_id'] != null;
+                              final name = isGroup ? (c['name'] ?? 'Group') : (c['other_user'] as Map)['name'];
+                              final avatar = isGroup ? c['avatar_url'] : (c['other_user'] as Map)['avatar_url'];
+                              final lastMsg = c['last_message_content'] ?? 'No messages';
+                              final time = c['last_message_time'];
+                              final unread = (c['unread_count'] as num?)?.toInt() ?? 0;
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: avatar?.isNotEmpty == true ? NetworkImage(avatar) : null,
+                                  child: avatar?.isNotEmpty != true ? const Icon(Icons.person) : null,
+                                ),
+                                title: Row(
+                                  children: [
+                                    Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                                    if (isWorkshopChat)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                                        child: const Text('Workshop', style: TextStyle(fontSize: 10, color: Colors.blue)),
+                                      ),
+                                  ],
+                                ),
+                                subtitle: Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                trailing: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (time != null) Text(_formatTime(time), style: const TextStyle(fontSize: 11)),
+                                    if (unread > 0)
+                                      CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Text('$unread', style: const TextStyle(fontSize: 10, color: Colors.white))),
+                                  ],
+                                ),
+                                onTap: () => _openChat(c),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
-            ),
-          ],
+                    // Requests tab
+                    isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : workshopRequests.isEmpty
+                        ? const Center(child: Text("No pending requests"))
+                        : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: workshopRequests.length,
+                      itemBuilder: (_, i) {
+                        final r = workshopRequests[i];
+                        final req = r['requester'] as Map<String, dynamic>;
+                        final ws = r['workshop'] as Map<String, dynamic>;
+
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(backgroundImage: NetworkImage(req['avatar_url'] ?? '')),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text("${req['name']} wants to join", style: const TextStyle(fontWeight: FontWeight.bold))),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(ws['title'] ?? 'Workshop'),
+                                if (ws['skill_requested'] != null) Text("Learn: ${ws['skill_requested']}"),
+                                if (ws['skill_offered'] != null) Text("Offers: ${ws['skill_offered']}"),
+                                if (r['message']?.isNotEmpty == true) Text("Message: ${r['message']}"),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
+                                    ElevatedButton(onPressed: () => acceptRequest(r), child: const Text("Accept")),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: startNewConversation,

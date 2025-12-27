@@ -500,224 +500,236 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            const TabBar(
-              tabs: [
-                Tab(icon: Icon(Icons.thumb_up_alt_outlined), text: "Received"),
-                Tab(icon: Icon(Icons.person_outline), text: "Given"),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  // --- TAB 1: Received ---
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (pendingEndorsements.isNotEmpty)
-                        Card(
-                          child: Padding(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        color: Theme.of(context).colorScheme.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    const TabBar(
+                      tabs: [
+                        Tab(icon: Icon(Icons.thumb_up_alt_outlined), text: "Received"),
+                        Tab(icon: Icon(Icons.person_outline), text: "Given"),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          // --- TAB 1: Received ---
+                          ListView(
                             padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(Icons.workspace_premium, color: Colors.amber),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "Pending Requests",
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                            children: [
+                              if (pendingEndorsements.isNotEmpty)
+                                Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Row(
+                                          children: [
+                                            Icon(Icons.workspace_premium, color: Colors.amber),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              "Pending Requests",
+                                              style: TextStyle(fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        ...pendingEndorsements.map((req) => Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              CircleAvatar(
+                                                backgroundImage: NetworkImage(req['requester']['avatar_url'] ?? ''),
+                                                child: req['requester']['avatar_url'] == null
+                                                    ? Text(req['requester']['name'][0])
+                                                    : null,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(req['requester']['name'],
+                                                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                                                    Text("Requesting endorsement for ${req['workshop']['skills']}"),
+                                                    Text(
+                                                      "Workshop: ${req['workshop']['title']}",
+                                                      style: theme.textTheme.bodySmall,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Column(
+                                                children: [
+                                                  ElevatedButton(
+                                                    onPressed: () => respondToEndorsement(req['id'], true),
+                                                    child: const Text("Approve"),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () => respondToEndorsement(req['id'], false),
+                                                    child: const Text("Decline"),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        )),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                ...pendingEndorsements.map((req) => Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Row(
+                                ),
+                              const SizedBox(height: 16),
+
+                              // My Skills
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      CircleAvatar(
-                                        backgroundImage: NetworkImage(req['requester']['avatar_url'] ?? ''),
-                                        child: req['requester']['avatar_url'] == null
-                                            ? Text(req['requester']['name'][0])
-                                            : null,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
+                                      const Text("My Skills & Endorsements",
+                                          style: TextStyle(fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 12),
+                                      ...mySkills.map((s) => Card(
+                                        margin: const EdgeInsets.only(bottom: 12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Text(s['name'],
+                                                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                                                      const SizedBox(width: 8),
+                                                      Chip(
+                                                        label: Text(s['level']),
+                                                        backgroundColor: getLevelColor(s['level']),
+                                                        labelStyle: const TextStyle(color: Colors.white),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
+                                                      const SizedBox(width: 4),
+                                                      Text("${s['endorsements']}"),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              TextButton(
+                                                onPressed: () => requestEndorsement(s['name']),
+                                                child: const Text("Request More"),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Endorsements Received
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text("Recent Endorsements Received",
+                                          style: TextStyle(fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 12),
+                                      ...endorsementsReceived.map((e) => ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundImage: NetworkImage(e['endorsed_by']['avatar_url'] ?? ''),
+                                          child: e['endorsed_by']['avatar_url'] == null
+                                              ? Text(e['endorsed_by']['name'][0])
+                                              : null,
+                                        ),
+                                        title: Text("${e['endorsed_by']['name']} endorsed you for ${e['skill']}"),
+                                        subtitle: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(req['requester']['name'],
-                                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                                            Text("Requesting endorsement for ${req['workshop']['skills']}"),
+                                            if (e['text'] != null)
+                                              Text("\"${e['text']}\"",
+                                                  style: const TextStyle(fontStyle: FontStyle.italic)),
                                             Text(
-                                              "Workshop: ${req['workshop']['title']}",
+                                              DateTime.parse(e['created_at']).toString().substring(0, 10),
                                               style: theme.textTheme.bodySmall,
                                             ),
                                           ],
                                         ),
-                                      ),
-                                      Column(
-                                        children: [
-                                          ElevatedButton(
-                                            onPressed: () => respondToEndorsement(req['id'], true),
-                                            child: const Text("Approve"),
-                                          ),
-                                          TextButton(
-                                            onPressed: () => respondToEndorsement(req['id'], false),
-                                            child: const Text("Decline"),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                )),
-                              ],
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-
-                      // My Skills
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("My Skills & Endorsements",
-                                  style: TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 12),
-                              ...mySkills.map((s) => Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Text(s['name'],
-                                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                                              const SizedBox(width: 8),
-                                              Chip(
-                                                label: Text(s['level']),
-                                                backgroundColor: getLevelColor(s['level']),
-                                                labelStyle: const TextStyle(color: Colors.white),
-                                              ),
-                                            ],
-                                          ),
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
-                                              const SizedBox(width: 4),
-                                              Text("${s['endorsements']}"),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextButton(
-                                        onPressed: () => requestEndorsement(s['name']),
-                                        child: const Text("Request More"),
-                                      ),
+                                      )),
                                     ],
                                   ),
                                 ),
-                              )),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Endorsements Received
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("Recent Endorsements Received",
-                                  style: TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 12),
-                              ...endorsementsReceived.map((e) => ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage: NetworkImage(e['endorsed_by']['avatar_url'] ?? ''),
-                                  child: e['endorsed_by']['avatar_url'] == null
-                                      ? Text(e['endorsed_by']['name'][0])
-                                      : null,
-                                ),
-                                title: Text("${e['endorsed_by']['name']} endorsed you for ${e['skill']}"),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (e['text'] != null)
-                                      Text("\"${e['text']}\"",
-                                          style: const TextStyle(fontStyle: FontStyle.italic)),
-                                    Text(
-                                      DateTime.parse(e['created_at']).toString().substring(0, 10),
-                                      style: theme.textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                              )),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // --- TAB 2: Given ---
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: endorsementsGiven.map((e) {
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: NetworkImage(e['endorsed_user']['avatar_url'] ?? ''),
-                            child: e['endorsed_user']['avatar_url'] == null
-                                ? Text(e['endorsed_user']['name'][0])
-                                : null,
-                          ),
-                          title: Text("You endorsed ${e['endorsed_user']['name']} for ${e['skill']}"),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (e['workshops'] != null)
-                                Text("Workshop: ${e['workshops']['title']}",
-                                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                              if (e['text'] != null)
-                                Text("\"${e['text']}\"",
-                                    style: const TextStyle(fontStyle: FontStyle.italic)),
-                              Text(
-                                DateTime.parse(e['created_at']).toString().substring(0, 10),
-                                style: theme.textTheme.bodySmall,
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
+
+                          // --- TAB 2: Given ---
+                          ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: endorsementsGiven.map((e) {
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundImage: NetworkImage(e['endorsed_user']['avatar_url'] ?? ''),
+                                    child: e['endorsed_user']['avatar_url'] == null
+                                        ? Text(e['endorsed_user']['name'][0])
+                                        : null,
+                                  ),
+                                  title: Text("You endorsed ${e['endorsed_user']['name']} for ${e['skill']}"),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (e['workshops'] != null)
+                                        Text("Workshop: ${e['workshops']['title']}",
+                                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      if (e['text'] != null)
+                                        Text("\"${e['text']}\"",
+                                            style: const TextStyle(fontStyle: FontStyle.italic)),
+                                      Text(
+                                        DateTime.parse(e['created_at']).toString().substring(0, 10),
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

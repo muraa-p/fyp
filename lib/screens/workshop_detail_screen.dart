@@ -1375,13 +1375,20 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             border: Border.all(color: Colors.green),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text(
-                "You're enrolled! Check Messages tab for group chat",
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              const SizedBox(width: 12),
+              Expanded( // ← This allows text to wrap safely
+                child: Text(
+                  "You're enrolled! Check the Messages tab for the group chat",
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
+                ),
               ),
             ],
           ),

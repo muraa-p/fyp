@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/delete_account_screen.dart';
+import 'package:skillx/services/profile_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_links/app_links.dart';
@@ -157,17 +158,30 @@ class _SkillXAppState extends State<SkillXApp> {
       final event = data.event;
       final session = data.session;
 
+      final appState = Provider.of<AppState>(context, listen: false);
+
       if (event == AuthChangeEvent.signedIn ||
           event == AuthChangeEvent.tokenRefreshed) {
+
         if (session?.user != null) {
-          final appState = Provider.of<AppState>(context, listen: false);
+          // === NEW: Load user profile when session is restored ===
+          try {
+            final profileService = ProfileService();
+            final profileData = await profileService.getUserProfile(session!.user.id);
+            appState.setUser(UserModel.fromJson(profileData));
+          } catch (e) {
+            print('Failed to load profile on app start: $e');
+            // Optional: show error or stay logged in with null user
+          }
+          // ======================================================
+
           await appState.loadNewWorkshopAlerts();
 
           if (appState.newWorkshopAlertsEnabled) {
             _workshopListener.startListening();
           }
 
-          // === ADD THIS: Listen for new notifications ===
+          // === Existing notification listener ===
           final userId = session!.user.id;
 
           supabase
@@ -178,21 +192,17 @@ class _SkillXAppState extends State<SkillXApp> {
               .listen((List<Map<String, dynamic>> data) {
             for (final notif in data) {
               if (notif['read'] == false) {
-                // Show a simple in-app toast (you can upgrade to local push later)
                 ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
                   SnackBar(
                     content: Text(notif['title']),
                     duration: const Duration(seconds: 4),
                     action: SnackBarAction(
                       label: 'View',
-                      onPressed: () {
-                        // Optional: navigate to notifications screen later
-                      },
+                      onPressed: () {},
                     ),
                   ),
                 );
 
-                // Mark as read
                 supabase
                     .from('notifications')
                     .update({'read': true})
@@ -200,9 +210,9 @@ class _SkillXAppState extends State<SkillXApp> {
               }
             }
           });
-          // ==============================================
         }
       } else if (event == AuthChangeEvent.signedOut) {
+        appState.setUser(null); // Clear user on logout
         _workshopListener.stopListening();
       }
     });
@@ -253,19 +263,83 @@ class _SkillXAppState extends State<SkillXApp> {
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<AppState>().isDarkMode;
+
     return MaterialApp(
       title: 'SkillX',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       routes: {
-        '/': (context) => const WelcomeScreen(),
         '/auth': (context) => const AuthScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/home': (context) => const HomeScreen(),
         '/delete-account': (context) => const DeleteAccountScreen(),
       },
-      initialRoute: '/',
+      home: AuthWrapper(), // ← This replaces initialRoute
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLoadingProfile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load profile immediately if already logged in on app start
+    final session = supabase.auth.currentSession;
+    if (session != null && session.user != null) {
+      _loadUserProfile(session.user!.id);
+    }
+  }
+
+  Future<void> _loadUserProfile(String userId) async {
+    if (_isLoadingProfile) return; // Prevent double load
+    setState(() => _isLoadingProfile = true);
+
+    try {
+      final profileService = ProfileService();
+      final profileData = await profileService.getUserProfile(userId);
+      if (mounted) {
+        context.read<AppState>().setUser(UserModel.fromJson(profileData));
+      }
+    } catch (e) {
+      print('Error loading profile in AuthWrapper: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingProfile = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: supabase.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        // Still waiting for auth state
+        if (snapshot.connectionState == ConnectionState.waiting || _isLoadingProfile) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final session = snapshot.data?.session;
+
+        if (session != null && session.user != null) {
+          // Session exists → go to Home
+          // Profile should already be loaded from initState or listener
+          return const HomeScreen();
+        }
+
+        // No session → Welcome screen
+        return const WelcomeScreen();
+      },
     );
   }
 }

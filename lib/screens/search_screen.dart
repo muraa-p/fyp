@@ -254,73 +254,80 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ],
           ),
-          body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: "Search workshops...",
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (_) => _filterWorkshops(),
-            ),
-          ),
-
-          SizedBox(
-            height: 48,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final selected = _selectedCategory == category;
-                return ChoiceChip(
-                  label: Text(category),
-                  selected: selected,
-                  selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-                  labelStyle: TextStyle(
-                    color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+          body: RefreshIndicator(
+            onRefresh: _fetchWorkshops,
+            color: Theme.of(context).colorScheme.primary,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when list is short/empty
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        hintText: "Search workshops...",
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (_) => _filterWorkshops(),
+                    ),
                   ),
-                  onSelected: (_) {
-                    setState(() {
-                      _selectedCategory = category;
-                    });
-                    _filterWorkshops();
-                  },
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredWorkshops.isEmpty
-                ? Center(
-              child: Text(
-                "No workshops found",
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
                 ),
-              ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _filteredWorkshops.length,
-              itemBuilder: (context, index) {
-                final ws = _filteredWorkshops[index];
-                return _WorkshopCard(workshop: ws, currentUserId: currentUserId);
-              },
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 48,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _categories.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final selected = _selectedCategory == category;
+                        return ChoiceChip(
+                          label: Text(category),
+                          selected: selected,
+                          selectedColor: theme.colorScheme.primary.withOpacity(0.2),
+                          labelStyle: TextStyle(
+                            color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                          ),
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedCategory = category;
+                            });
+                            _filterWorkshops();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                SliverFillRemaining(
+                  hasScrollBody: true,
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredWorkshops.isEmpty
+                      ? Center(
+                    child: Text(
+                      "No workshops found",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  )
+                      : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _filteredWorkshops.length,
+                    itemBuilder: (context, index) {
+                      final ws = _filteredWorkshops[index];
+                      return _WorkshopCard(workshop: ws, currentUserId: currentUserId);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
     )
     );
   }
