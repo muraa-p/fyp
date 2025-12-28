@@ -262,15 +262,26 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final user = fullUserData ?? widget.user;
 
-    final xp = user['xp'] ?? 0;
-    final level = (xp ~/ 500) + 1;
-    final currentXP = xp % 500;
-    final progress = currentXP / 500.0;
+    // Show loading until we have full data (prevents fallback to partial widget.user)
+    if (_isLoading || fullUserData == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Now safe: fullUserData is guaranteed to exist
+    final user = fullUserData!;
+
+    // NEW (CORRECT) - Use DB level + match dashboard exactly
+    final xp = (user['xp'] as num?)?.toInt() ?? 0;
+    final level = (user['level'] as num?)?.toInt() ?? 1;  // ← Use stored level from DB
+    final nextLevelXP = (level + 1) * 500;               // ← Exact dashboard formula
+    final progress = xp / nextLevelXP;                    // ← Exact dashboard formula
+    final xpToNextLevel = nextLevelXP - xp;               // ← Exact dashboard formula
 
     final endorsementsCount = skills.fold<int>(0, (sum, s) => (s['endorsements'] ?? 0) + sum);
-    // Compute overall average rating from all workshops
+
     final List<double> validRatings = workshops
         .where((w) => w['rating'] != null)
         .map((w) => w['rating'] as double)
@@ -279,10 +290,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     final double? overallRating = validRatings.isEmpty
         ? null
         : validRatings.reduce((a, b) => a + b) / validRatings.length;
-
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -322,7 +329,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                     backgroundImage: user['avatar_url']?.toString().isNotEmpty == true
                         ? NetworkImage(user['avatar_url'])
                         : null,
-                    child: user['avatar_url']?.toString().isEmpty != false
+                    child: user['avatar_url']?.toString().isNotEmpty != true
                         ? Text(
                       user['name']?.toString().isNotEmpty == true
                           ? user['name'][0].toUpperCase()
@@ -364,14 +371,15 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                       Text("Level $level", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
                       LinearProgressIndicator(
-                        value: progress,
+                        value: progress.clamp(0.0, 1.0),
                         minHeight: 6,
                         borderRadius: BorderRadius.circular(8),
                         backgroundColor: Colors.white24,
                         color: Colors.amber,
                       ),
                       const SizedBox(height: 4),
-                      Text("${500 - currentXP} XP to next level", style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      Text("$xpToNextLevel XP to next level",
+                          style: const TextStyle(fontSize: 12, color: Colors.white70)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -426,32 +434,45 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   Widget _buildAboutTab(Map<String, dynamic> user, List<Map<String, dynamic>> badges, ThemeData theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text("About ${user['name']}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(
-          user['bio'] ?? "Passionate about sharing knowledge and helping others grow.",
-          style: const TextStyle(color: Colors.black54),
-        ),
-        const SizedBox(height: 16),
-        const Text("Badges", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 8),
-        badges.isEmpty
-            ? const Text("No badges earned yet", style: TextStyle(color: Colors.grey))
-            : Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: badges.map((b) {
-            final def = b['badge_definitions'];
-            return Chip(
-              avatar: Text(def['icon'] ?? '🏅', style: const TextStyle(fontSize: 20)),
-              label: Text(def['name']),
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 80),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "About ${user['name']}",
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            user['bio'] ?? "Passionate about sharing knowledge and helping others grow.",
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Badges",
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          badges.isEmpty
+              ? Text(
+            "No badges earned yet",
+            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+          )
+              : Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: badges.map((b) {
+              final def = b['badge_definitions'];
+              return Chip(
+                avatar: Text(def['icon'] ?? '🏅', style: const TextStyle(fontSize: 20)),
+                label: Text(def['name']),
+                labelStyle: theme.textTheme.labelLarge?.copyWith(color: Colors.white),
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
