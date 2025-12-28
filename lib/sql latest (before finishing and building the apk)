@@ -1238,3 +1238,606 @@ END;
 
 
 
+
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS signup_email_domains (
+  domain TEXT PRIMARY KEY
+);
+
+-- Add your allowed domain (case-insensitive)
+INSERT INTO signup_email_domains (domain)
+VALUES ('mail.apu.edu.my')
+ON CONFLICT (domain) DO NOTHING;
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  email_domain TEXT;
+  allowed BOOLEAN;
+BEGIN
+  -- Extract domain from email (case-insensitive)
+  email_domain := lower(split_part(event->>'email', '@', 2));
+
+  -- Check if domain is allowed
+  SELECT EXISTS(
+    SELECT 1 FROM signup_email_domains WHERE domain = email_domain
+  ) INTO allowed;
+
+  IF allowed THEN
+    -- Allow signup (empty success response)
+    RETURN jsonb_build_object();
+  ELSE
+    -- Block signup with error
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+
+
+
+
+
+-- Grant execute permission on the hook function to supabase_auth_admin
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin;
+-- Also grant SELECT on the domains table (so the function can read it)
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+
+
+
+
+
+
+-- 1. Create the allowlist table (if missing)
+CREATE TABLE IF NOT EXISTS signup_email_domains (
+  domain TEXT PRIMARY KEY
+);
+
+-- 2. Insert your university domain
+INSERT INTO signup_email_domains (domain)
+VALUES ('mail.apu.edu.my')
+ON CONFLICT (domain) DO NOTHING;
+
+-- 3. Ensure permissions for supabase_auth_admin
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+
+
+
+
+
+
+
+
+
+-- 1. Revoke and re-grant everything (forces refresh)
+REVOKE ALL ON TABLE public.signup_email_domains FROM supabase_auth_admin;
+REVOKE EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) FROM supabase_auth_admin;
+REVOKE USAGE ON SCHEMA public FROM supabase_auth_admin;
+
+-- 2. Re-grant properly
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin;
+
+-- 3. Make the function PUBLIC (this is the key for auth hooks)
+ALTER FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO PUBLIC;
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  email_domain TEXT;
+  allowed BOOLEAN := false;
+BEGIN
+  -- Safely extract and normalize domain
+  IF event ? 'email' THEN
+    email_domain := lower(trim(split_part(event->>'email', '@', 2)));
+
+    -- Case-insensitive and trimmed match
+    SELECT EXISTS (
+      SELECT 1 FROM signup_email_domains
+      WHERE lower(trim(domain)) = email_domain
+    ) INTO allowed;
+  END IF;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;  -- Allow signup (empty object)
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO PUBLIC;
+ALTER FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) SET search_path = public;
+
+
+
+
+
+
+
+
+SELECT domain, length(domain), ascii(left(domain,1)), encode(domain::bytea, 'hex')
+FROM signup_email_domains;
+
+
+
+
+
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  raw_email TEXT;
+  email_domain TEXT;
+  allowed BOOLEAN := false;
+BEGIN
+  -- Get raw email for debugging
+  raw_email := event->>'email';
+
+  -- Extract and fully normalize domain
+  IF raw_email IS NOT NULL THEN
+    email_domain := lower(trim(split_part(raw_email, '@', 2)));
+
+    -- Debug: raise notice so we can see in logs what domain was extracted
+    RAISE NOTICE 'Signup hook: raw_email=%, extracted_domain=%', raw_email, email_domain;
+
+    -- Match against normalized stored domains
+    SELECT EXISTS (
+      SELECT 1 FROM signup_email_domains
+      WHERE lower(trim(domain)) = email_domain
+    ) INTO allowed;
+  END IF;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;  -- Success: allow signup
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin, PUBLIC;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+
+
+
+
+
+
+
+
+
+
+
+SELECT domain, lower(domain), length(domain), encode(domain::bytea, 'hex') FROM signup_email_domains;
+
+
+
+
+
+
+
+
+-- Function: auto_notify_on_new_message
+-- Automatically creates a notification when a new message is inserted
+CREATE OR REPLACE FUNCTION public.auto_notify_on_new_message()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  recipient_ids UUID[];
+  recipient_id UUID;
+  sender_name TEXT;
+  conv_name TEXT;
+  payload JSONB;
+BEGIN
+  -- Get sender's name
+  SELECT name INTO sender_name FROM users WHERE id = NEW.sender_id;
+
+  -- Get conversation details
+  SELECT name INTO conv_name FROM conversations WHERE id = NEW.conversation_id;
+
+  -- Find all recipients (all participants except sender)
+  SELECT array_agg(user_id) INTO recipient_ids
+  FROM conversation_participants
+  WHERE conversation_id = NEW.conversation_id
+    AND user_id != NEW.sender_id;
+
+  -- For each recipient, create a notification
+  IF recipient_ids IS NOT NULL THEN
+    FOREACH recipient_id IN ARRAY recipient_ids
+    LOOP
+      -- Build payload for notification
+      payload := jsonb_build_object(
+        'message_id', NEW.id,
+        'conversation_id', NEW.conversation_id,
+        'sender_id', NEW.sender_id
+      );
+
+      -- Insert notification
+      INSERT INTO notifications (
+        user_id,
+        title,
+        body,
+        type,
+        data
+      ) VALUES (
+        recipient_id,
+        'New Message',
+        CASE
+          WHEN conv_name IS NOT NULL THEN sender_name || ' in ' || conv_name
+          ELSE sender_name || ' sent you a message'
+        END,
+        'chat_message',
+        payload
+      );
+    END LOOP;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+
+
+
+
+
+
+
+
+-- Drop if exists (safe)
+DROP TRIGGER IF EXISTS notify_on_new_message ON public.messages;
+
+-- Create the trigger
+CREATE TRIGGER notify_on_new_message
+  AFTER INSERT ON public.messages
+  FOR EACH ROW
+  EXECUTE FUNCTION public.auto_notify_on_new_message();
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  raw_email TEXT;
+  email_domain TEXT;
+  allowed BOOLEAN := false;
+BEGIN
+  raw_email := event->>'email';
+
+  IF raw_email IS NULL THEN
+    RAISE NOTICE 'Signup hook: No email in event';
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'No email provided'
+      )
+    );
+  END IF;
+
+  email_domain := lower(trim(split_part(raw_email, '@', 2)));
+
+  RAISE NOTICE 'Signup hook: raw_email=%, extracted_domain=%, length=%',
+               raw_email, email_domain, length(email_domain);
+
+  SELECT EXISTS (
+    SELECT 1 FROM signup_email_domains
+    WHERE lower(trim(domain)) = email_domain
+  ) INTO allowed;
+
+  RAISE NOTICE 'Signup hook: allowed=%', allowed;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  raw_email TEXT;
+  email_domain TEXT;
+  allowed BOOLEAN := false;
+BEGIN
+  -- Try multiple possible locations for email
+  raw_email := COALESCE(
+    event->>'email',                    -- Top level
+    event->'user'->>'email',            -- Nested under 'user'
+    (event->'data'->'user'->>'email')   -- Sometimes deeper
+  );
+
+  IF raw_email IS NULL OR raw_email = '' THEN
+    RAISE NOTICE 'Signup hook: No email found in event payload. Event: %', event;
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Unable to process email for domain check.'
+      )
+    );
+  END IF;
+
+  -- Extract and normalize domain
+  email_domain := lower(trim(split_part(raw_email, '@', 2)));
+
+  RAISE NOTICE 'Signup hook: raw_email=%, extracted_domain=%', raw_email, email_domain;
+
+  -- Check against allowed domains
+  SELECT EXISTS (
+    SELECT 1 FROM signup_email_domains
+    WHERE lower(trim(domain)) = email_domain
+  ) INTO allowed;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;  -- Allow signup
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin, PUBLIC;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+
+
+
+
+
+
+
+
+
+
+-- 1. Create the table (if it doesn't exist)
+CREATE TABLE IF NOT EXISTS signup_email_domains (
+  domain TEXT PRIMARY KEY
+);
+
+-- 2. Insert your university domain
+INSERT INTO signup_email_domains (domain)
+VALUES ('mail.apu.edu.my')
+ON CONFLICT (domain) DO NOTHING;
+
+-- 3. Grant permissions so the auth hook can read it
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  raw_email TEXT;
+  email_domain TEXT;
+  allowed BOOLEAN := false;
+BEGIN
+  -- Extract email from possible locations in the event payload
+  raw_email := COALESCE(
+    event->>'email',
+    event->'user'->>'email',
+    (event->'data'->'user'->>'email')
+  );
+
+  IF raw_email IS NULL OR raw_email = '' THEN
+    RAISE LOG 'Signup hook: No email found in event payload';
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Unable to verify email domain.'
+      )
+    );
+  END IF;
+
+  email_domain := lower(trim(split_part(raw_email, '@', 2)));
+
+  RAISE LOG 'Signup hook: email=%, domain=%', raw_email, email_domain;
+
+  SELECT EXISTS (
+    SELECT 1 FROM signup_email_domains
+    WHERE lower(trim(domain)) = email_domain
+  ) INTO allowed;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;  -- Allow signup
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+END;
+$$;
+
+
+
+
+
+
+
+
+
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin, PUBLIC;
+
+
+
+
+
+
+
+
+
+-- 1. Confirm domain is there
+SELECT * FROM signup_email_domains;
+
+-- 2. Ultra-robust hook function (handles ALL possible event structures + logging)
+CREATE OR REPLACE FUNCTION public.hook_restrict_signup_by_email_domain(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  raw_email TEXT := '';
+  email_domain TEXT := '';
+  allowed BOOLEAN := false;
+BEGIN
+  -- Log the full event for debugging (visible in Supabase logs)
+  RAISE LOG '=== SIGNUP HOOK CALLED === Event: %', event::text;
+
+  -- Extract email from EVERY possible location Supabase might put it
+  raw_email := COALESCE(
+    event->>'email',
+    event->'user'->>'email',
+    event->'data'->>'email',
+    event->'data'->'user'->>'email',
+    event->'request'->'user'->>'email',
+    (event->'user_attributes'->>'email')
+  );
+
+  IF raw_email IS NULL OR raw_email = '' THEN
+    RAISE LOG 'Signup hook: No email found in any field';
+    RETURN '{}'::jsonb;  -- Fail open — don't block if we can't check
+  END IF;
+
+  email_domain := lower(trim(split_part(raw_email, '@', 2)));
+
+  RAISE LOG 'Signup hook: Extracted email=%, domain=%', raw_email, email_domain;
+
+  -- Check allowed domains
+  SELECT EXISTS(
+    SELECT 1 FROM signup_email_domains
+    WHERE lower(domain) = email_domain
+  ) INTO allowed;
+
+  RAISE LOG 'Signup hook: Domain allowed = %', allowed;
+
+  IF allowed THEN
+    RETURN '{}'::jsonb;  -- Allow
+  ELSE
+    RETURN jsonb_build_object(
+      'error', jsonb_build_object(
+        'http_code', 400,
+        'message', 'Only university emails (@mail.apu.edu.my) are allowed to sign up.'
+      )
+    );
+  END IF;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG 'Signup hook EXCEPTION: % %', SQLERRM, SQLSTATE;
+  RETURN '{}'::jsonb;  -- Never crash — fail open
+END;
+$$;
+
+-- 3. Permissions (run again to be 100% sure)
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.signup_email_domains TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.hook_restrict_signup_by_email_domain(jsonb) TO PUBLIC;

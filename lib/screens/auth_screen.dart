@@ -212,7 +212,23 @@ class _AuthScreenState extends State<AuthScreen>
 
       Navigator.pushReplacementNamed(context, '/home');
     } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      String errorMessage = error.toString();
+
+if (errorMessage.contains('Only university emails')) {
+  errorMessage = 'Only APU university emails (@mail.apu.edu.my) are allowed to sign up.';
+} else if (errorMessage.contains('Invalid email or password')) {
+  errorMessage = 'Invalid email or password. Please try again.';
+} else if (errorMessage.contains('Email not confirmed')) {
+  errorMessage = 'Please verify your email first.';
+}
+
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(errorMessage),
+    backgroundColor: Colors.red.shade700,
+    behavior: SnackBarBehavior.floating,
+  ),
+);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -300,6 +316,21 @@ class _AuthScreenState extends State<AuthScreen>
                               const SizedBox(height: 20),
                             ],
                             _buildTextField(_email, "Email", Icons.email_outlined, validator: _validateEmail),
+                            if (!_isLogin) ...[
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text(
+                                  "currently Only APU emails (tpxxxxx@mail.apu.edu.my) are allowed",
+                                  style: TextStyle(
+                                    color: Colors.white70.withOpacity(0.7),
+                                    fontSize: 13,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                  textAlign: TextAlign.start,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 20),
                             _buildTextField(_password, "Password", Icons.lock_outline,
                                 isPassword: true, validator: _validatePassword),
