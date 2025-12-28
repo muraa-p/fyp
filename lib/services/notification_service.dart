@@ -11,6 +11,7 @@
  */
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io'; // For Platform check
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -22,6 +23,8 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
+import '../screens/chat_screen.dart';
+import '../screens/gamification_screen.dart';
 import '../screens/workshop_detail_screen.dart'; // Add this import
 
 class NotificationService {
@@ -115,21 +118,49 @@ class NotificationService {
   void _onNotificationTapped(NotificationResponse response) async {
     if (response.payload != null) {
       try {
-        // Fetch full workshop data before navigating
-        final workshopData = await Supabase.instance.client
-            .from('workshops')
-            .select('*, users!workshops_creator_id_fkey (name)')
-            .eq('id', response.payload as Object) // Fixed: removed "as Object"
-            .single();
+        // Handle workshop payload (existing)
+        if (response.payload!.contains('workshop_id')) {
+          final workshopData = await Supabase.instance.client
+              .from('workshops')
+              .select('*, users!workshops_creator_id_fkey (name)')
+              .eq('id', response.payload as Object)
+              .single();
 
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (context) => WorkshopDetailScreen(workshop: workshopData),
+            ),
+          );
+          return;
+        }
+
+        // Handle chat message payload (new)
+        if (response.payload!.contains('conversation_id')) {
+          // Parse payload (e.g., {"conversation_id": "..."})
+          final payloadMap = jsonDecode(response.payload!);
+          final convId = payloadMap['conversation_id'];
+
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (context) => ChatScreen(
+                initialConversation: {'id': convId},
+              ),
+            ),
+          );
+          return;
+        }
+
+        // Default: open Gamification screen
         navigatorKey.currentState?.push(
           MaterialPageRoute(
-            builder: (context) => WorkshopDetailScreen(workshop: workshopData),
+            builder: (context) => GamificationScreen(
+              onNavigate: (_) {},
+              initialTab: 1,
+            ),
           ),
         );
       } catch (e) {
-        print('Error fetching workshop data: $e');
-        // Navigate to home screen as fallback
+        print('Notification tap error: $e');
         navigatorKey.currentState?.pushNamed('/home');
       }
     }
@@ -306,6 +337,51 @@ class NotificationService {
         iOS: DarwinNotificationDetails(),
       ),
       payload: workshop['id'],
+    );
+  }
+
+
+  // Add this new method
+  Future<void> showGeneralNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+    String channelId = 'general_notifications',
+    String channelName = 'General Notifications',
+    String channelDescription = 'Notifications for badges, achievements, etc.',
+    String? type, // NEW: pass type to customize
+  }) async {
+    // Create channel if not exists
+    if (Platform.isAndroid) {
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'general_notifications',
+        'General Notifications',
+        description: 'Notifications for badges, achievements, and chat messages',
+        importance: Importance.high,
+      );
+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+    }
+
+    await flutterLocalNotificationsPlugin.show(
+      id,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          channelDescription: channelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: payload,
     );
   }
 }

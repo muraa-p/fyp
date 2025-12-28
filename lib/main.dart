@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/delete_account_screen.dart';
+import 'package:skillx/screens/gamification_screen.dart';
+import 'package:skillx/services/notification_service.dart';
 import 'package:skillx/services/profile_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -137,14 +139,16 @@ class SkillXApp extends StatefulWidget {
 class _SkillXAppState extends State<SkillXApp> {
   late final WorkshopListenerService _workshopListener;
   late final AppLinks _appLinks;
+  late final NotificationService _notificationService; // Add this
   StreamSubscription<Uri>? _sub;
 
   @override
   void initState() {
     super.initState();
     _appLinks = AppLinks();
-    _handleDeepLinks();
     _workshopListener = WorkshopListenerService();
+    _notificationService = NotificationService(); // Initialize once
+
 
     // Add this to ensure deep link is handled after auth restore
     supabase.auth.onAuthStateChange.listen((data) {
@@ -181,32 +185,70 @@ class _SkillXAppState extends State<SkillXApp> {
             _workshopListener.startListening();
           }
 
-          // === Existing notification listener ===
           final userId = session!.user.id;
+          final notificationService = NotificationService(); // Get instance
 
           supabase
               .from('notifications')
               .stream(primaryKey: ['id'])
               .eq('user_id', userId)
               .order('created_at', ascending: false)
-              .listen((List<Map<String, dynamic>> data) {
-            for (final notif in data) {
-              if (notif['read'] == false) {
-                ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-                  SnackBar(
-                    content: Text(notif['title']),
-                    duration: const Duration(seconds: 4),
-                    action: SnackBarAction(
-                      label: 'View',
-                      onPressed: () {},
-                    ),
-                  ),
+              .listen((List<Map<String, dynamic>> events) async {
+            for (final event in events) {
+              if (event['__op'] == 'INSERT' && event['read'] == false) {
+                final String title = event['title'] ?? 'New Notification';
+                final String? type = event['type'];
+                final String body = event['body'] ?? 'You have a new notification!';
+
+                // Use the pre-initialized service
+                await _notificationService.showGeneralNotification(
+                  id: event['id'].hashCode,
+                  title: title,
+                  body: body,
+                  payload: event['data']?.toString(),
+                  type: type,
                 );
 
+                // === ALSO show in-app SnackBar if app is open ===
+                if (navigatorKey.currentContext != null) {
+                  ScaffoldMessenger.of(navigatorKey.currentContext!).hideCurrentSnackBar();
+
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    if (navigatorKey.currentContext != null && navigatorKey.currentContext!.mounted) {
+                      ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+                        SnackBar(
+                          content: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          duration: const Duration(seconds: 6),
+                          backgroundColor: Theme.of(navigatorKey.currentContext!).colorScheme.surfaceVariant,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          margin: const EdgeInsets.all(16),
+                          action: SnackBarAction(
+                            label: 'View',
+                            textColor: Theme.of(navigatorKey.currentContext!).colorScheme.primary,
+                            onPressed: () {
+                              navigatorKey.currentState?.push(
+                                MaterialPageRoute(
+                                  builder: (context) => GamificationScreen(
+                                    onNavigate: (_) {},
+                                    initialTab: type == 'badge' ? 1 : 0,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    }
+                  });
+                }
+
+                // Mark as read
                 supabase
                     .from('notifications')
                     .update({'read': true})
-                    .eq('id', notif['id']);
+                    .eq('id', event['id'])
+                    .catchError((error) => print('Failed to mark read: $error'));
               }
             }
           });
