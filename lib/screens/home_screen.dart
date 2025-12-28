@@ -433,7 +433,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             // Search bar
                             TextField(
                               readOnly: true,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+                              onTap: () => context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("search"),
                               decoration: InputDecoration(
                                 hintText: "Search workshops, skills, or people...",
                                 hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),

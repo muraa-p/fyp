@@ -241,7 +241,6 @@ class _SearchScreenState extends State<SearchScreen> {
           appBar: AppBar(
             title: const Text("Explore Workshops"),
             centerTitle: true,
-            automaticallyImplyLeading: false, // No back arrow
             actions: [
               IconButton(
                 icon: const Icon(Icons.person_outline),
