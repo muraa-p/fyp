@@ -18,7 +18,7 @@
     <application
         android:label="skillx"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"> <!-- Fixes console warning (Android 13+/API 33+ predictive back + IME) -->
 
         <activity
