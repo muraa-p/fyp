@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <application
-        android:label="skillx"
+        android:label="SkillX"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"> <!-- Fixes console warning (Android 13+/API 33+ predictive back + IME) -->

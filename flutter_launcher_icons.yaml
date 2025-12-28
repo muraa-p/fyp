@@ -1,4 +1,4 @@
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: false                  # ← Important: disable iOS
-  image_path: "assets/images/app_icon.png"
+  image_path: "assets/images/playstore.png"
