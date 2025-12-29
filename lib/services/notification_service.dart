@@ -116,53 +116,55 @@ class NotificationService {
 
   // Handle notification tap
   void _onNotificationTapped(NotificationResponse response) async {
-    if (response.payload != null) {
-      try {
-        // Handle workshop payload (existing)
-        if (response.payload!.contains('workshop_id')) {
-          final workshopData = await Supabase.instance.client
-              .from('workshops')
-              .select('*, users!workshops_creator_id_fkey (name)')
-              .eq('id', response.payload as Object)
-              .single();
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) {
+      navigatorKey.currentState?.pushNamed('/home');
+      return;
+    }
 
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (context) => WorkshopDetailScreen(workshop: workshopData),
-            ),
-          );
-          return;
-        }
+    try {
+      // Case 1: Direct workshop ID (string) → Open Workshop Detail
+      // This handles BOTH workshop reminders AND new workshop alerts
+      if (payload.length == 36 && payload.contains('-')) {
+        final workshopData = await Supabase.instance.client
+            .from('workshops')
+            .select('*, users!workshops_creator_id_fkey (name)')
+            .eq('id', payload)
+            .single();
 
-        // Handle chat message payload (new)
-        if (response.payload!.contains('conversation_id')) {
-          // Parse payload (e.g., {"conversation_id": "..."})
-          final payloadMap = jsonDecode(response.payload!);
-          final convId = payloadMap['conversation_id'];
-
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (context) => ChatScreen(
-                initialConversation: {'id': convId},
-              ),
-            ),
-          );
-          return;
-        }
-
-        // Default: open Gamification screen
         navigatorKey.currentState?.push(
           MaterialPageRoute(
-            builder: (context) => GamificationScreen(
-              onNavigate: (_) {},
-              initialTab: 1,
-            ),
+            builder: (context) => WorkshopDetailScreen(workshop: workshopData),
           ),
         );
-      } catch (e) {
-        print('Notification tap error: $e');
-        navigatorKey.currentState?.pushNamed('/home');
+        return;
       }
+
+      // Case 2: Chat message (JSON payload with conversation_id)
+      if (payload.contains('conversation_id')) {
+        final data = jsonDecode(payload);
+        final convId = data['conversation_id'];
+
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => ChatScreen(initialConversation: {'id': convId}),
+          ),
+        );
+        return;
+      }
+
+      // Case 3: Everything else (badge, achievement, etc.) → Gamification
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => GamificationScreen(
+            onNavigate: (_) {},
+            initialTab: 1,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error handling notification tap: $e');
+      navigatorKey.currentState?.pushNamed('/home');
     }
   }
 
