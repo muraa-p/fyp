@@ -16,7 +16,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   final PageController _controller = PageController();
   int _currentPage = 0;
   final TextEditingController _name = TextEditingController();
-  final List<String> _skills = ["Programming", "Design", "Marketing", "Music", "Languages"];
+  final List<String> _skills = [
+    "Programming",
+    "Design",
+    "Marketing",
+    "Music",
+    "Languages"
+  ];
   final Set<String> _selectedSkills = {};
 
   late AnimationController _pulseController;
@@ -25,7 +31,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _pulseController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
     _pulseAnimation = Tween<double>(begin: 0.95, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
@@ -37,7 +45,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.dispose();
   }
 
-  Widget _buildPage({required String title, required String subtitle, required Widget child}) {
+  Widget _buildPage(
+      {required String title,
+      required String subtitle,
+      required Widget child}) {
     return Padding(
       padding: const EdgeInsets.all(32.0),
       child: Column(
@@ -76,7 +87,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       _buildPage(
         title: "Welcome to SkillX 🚀",
         subtitle: "Your journey to learning and teaching starts here.",
-        child: Icon(Icons.rocket_launch_rounded, size: 140, color: Colors.blue.shade400),
+        child: Icon(Icons.rocket_launch_rounded,
+            size: 140, color: Colors.blue.shade400),
       ),
       _buildPage(
         title: "What's your name?",
@@ -91,7 +103,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             prefixIcon: const Icon(Icons.person_outline, color: Colors.white70),
             filled: true,
             fillColor: Colors.white.withOpacity(0.1),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none),
           ),
         ),
       ),
@@ -118,7 +132,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               checkmarkColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               onSelected: (_) {
-                setState(() => selected ? _selectedSkills.remove(skill) : _selectedSkills.add(skill));
+                setState(() => selected
+                    ? _selectedSkills.remove(skill)
+                    : _selectedSkills.add(skill));
               },
             );
           }).toList(),
@@ -126,8 +142,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       ),
       _buildPage(
         title: "You're all set! 🎉",
-        subtitle: "Welcome aboard, ${_name.text.isEmpty ? "friend" : _name.text.trim()}!",
-        child: Icon(Icons.sentiment_very_satisfied_rounded, size: 140, color: Colors.green.shade400),
+        subtitle:
+            "Welcome aboard, ${_name.text.isEmpty ? "friend" : _name.text.trim()}!",
+        child: Icon(Icons.sentiment_very_satisfied_rounded,
+            size: 140, color: Colors.green.shade400),
       ),
     ];
 
@@ -142,11 +160,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 padding: const EdgeInsets.all(16),
                 child: TextButton(
                   onPressed: () => _finishOnboarding(context),
-                  child: Text("Skip", style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16)),
+                  child: Text("Skip",
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.7), fontSize: 16)),
                 ),
               ),
             ),
-
             Expanded(
               child: PageView.builder(
                 controller: _controller,
@@ -155,7 +174,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 itemBuilder: (_, i) => pages[i],
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30),
               child: Row(
@@ -167,14 +185,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     width: _currentPage == i ? 30 : 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: _currentPage == i ? Colors.blue.shade400 : Colors.white.withOpacity(0.3),
+                      color: _currentPage == i
+                          ? Colors.blue.shade400
+                          : Colors.white.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                   );
                 }),
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.fromLTRB(32, 0, 32, 50),
               child: CustomButton(
@@ -183,7 +202,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   if (_currentPage == pages.length - 1) {
                     _finishOnboarding(context);
                   } else {
-                    _controller.nextPage(duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+                    _controller.nextPage(
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeInOut);
                   }
                 },
               ),

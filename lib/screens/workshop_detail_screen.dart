@@ -40,16 +40,23 @@ class _InstructorReviewItem extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                child: avatarUrl == null ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 12)) : null,
+                backgroundImage:
+                    avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                child: avatarUrl == null
+                    ? Text(name[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 12))
+                    : null,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text("from \"$workshopTitle\"", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(name,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text("from \"$workshopTitle\"",
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -57,11 +64,13 @@ class _InstructorReviewItem extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Row(
-            children: List.generate(5, (i) => Icon(
-              i < rating ? Icons.star : Icons.star_border,
-              color: Colors.amber,
-              size: 18,
-            )),
+            children: List.generate(
+                5,
+                (i) => Icon(
+                      i < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 18,
+                    )),
           ),
           const SizedBox(height: 8),
           Text(
@@ -75,7 +84,6 @@ class _InstructorReviewItem extends StatelessWidget {
     );
   }
 }
-
 
 class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
   bool isEnrolled = false;
@@ -103,10 +111,18 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     syllabus = passed != null && passed is List
         ? List<Map<String, dynamic>>.from(passed)
         : [
-      {"title": "Introduction", "duration": "10 min", "completed": false},
-      {"title": "Core Concepts", "duration": "20 min", "completed": false},
-      {"title": "Project Practice", "duration": "30 min", "completed": false},
-    ];
+            {"title": "Introduction", "duration": "10 min", "completed": false},
+            {
+              "title": "Core Concepts",
+              "duration": "20 min",
+              "completed": false
+            },
+            {
+              "title": "Project Practice",
+              "duration": "30 min",
+              "completed": false
+            },
+          ];
 
     lessonReviews = {};
     for (int i = 0; i < syllabus.length; i++) {
@@ -146,7 +162,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       if (mounted) {
         setState(() {
           widget.workshop['participants'] =
-          '${countRes.count}/${widget.workshop['max_participants'] ?? 0}';
+              '${countRes.count}/${widget.workshop['max_participants'] ?? 0}';
         });
       }
     } catch (e) {
@@ -193,7 +209,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             .single();
 
         if (conversationData['conversation_id'] != null) {
-          await Supabase.instance.client.rpc('add_user_to_workshop_chat', params: {
+          await Supabase.instance.client
+              .rpc('add_user_to_workshop_chat', params: {
             'workshop_id': widget.workshop['id'],
             'participant_id': currentUser.id,
           });
@@ -203,7 +220,6 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               .select('id, name, avatar_url')
               .eq('id', conversationData['conversation_id'])
               .single();
-
         }
       }
     } catch (e) {
@@ -237,7 +253,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
   void _toggleLessonComplete(int index) async {
     final currentUser = supabase.auth.currentUser;
-    final isCreator = currentUser != null && widget.workshop['creator_id'] == currentUser.id;
+    final isCreator =
+        currentUser != null && widget.workshop['creator_id'] == currentUser.id;
 
     if (!isCreator) return;
 
@@ -270,7 +287,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lesson marked complete for all participants!')),
+            const SnackBar(
+                content: Text('Lesson marked complete for all participants!')),
           );
         }
       } catch (e) {
@@ -290,8 +308,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     try {
       await Supabase.instance.client
           .from('workshops')
-          .update({'syllabus': syllabus})
-          .eq('id', widget.workshop['id']);
+          .update({'syllabus': syllabus}).eq('id', widget.workshop['id']);
     } catch (e) {
       print('Error updating syllabus: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -357,7 +374,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  Future<void> _submitLessonReview(int lessonIndex, int rating, String review) async {
+  Future<void> _submitLessonReview(
+      int lessonIndex, int rating, String review) async {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return;
 
@@ -443,16 +461,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     if (currentUser == null) return;
 
     try {
-      await supabase
-          .from('workshop_ratings')
-          .upsert({
+      await supabase.from('workshop_ratings').upsert({
         'workshop_id': widget.workshop['id'],
         'user_id': currentUser.id,
         'rating': rating,
         'review': review,
       }, onConflict: 'workshop_id,user_id');
 
-      final isCompleted = await supabase.rpc('check_workshop_completion', params: {
+      final isCompleted =
+          await supabase.rpc('check_workshop_completion', params: {
         'p_user_id': currentUser.id,
         'p_workshop_id': widget.workshop['id'],
       });
@@ -471,10 +488,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                isCompleted
-                    ? 'Workshop review submitted! Workshop completed! +20 XP'
-                    : 'Workshop review submitted! +20 XP'),
+            content: Text(isCompleted
+                ? 'Workshop review submitted! Workshop completed! +20 XP'
+                : 'Workshop review submitted! +20 XP'),
             backgroundColor: Colors.green,
           ),
         );
@@ -521,7 +537,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(
               children: [
                 Icon(Icons.auto_awesome, color: Colors.deepPurple),
@@ -531,7 +548,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             ),
             content: Text(
               _workshopSummary,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
+              style:
+                  Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5),
             ),
             actions: [
               TextButton(
@@ -587,8 +605,10 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     final isCreator = currentUser != null && ws['creator_id'] == currentUser.id;
 
     final completedCount = syllabus.where((item) => item['completed']).length;
-    final progressPercent = syllabus.isEmpty ? 0.0 : completedCount / syllabus.length;
-    final allLessonsCompleted = syllabus.every((lesson) => lesson['completed'] == true);
+    final progressPercent =
+        syllabus.isEmpty ? 0.0 : completedCount / syllabus.length;
+    final allLessonsCompleted =
+        syllabus.every((lesson) => lesson['completed'] == true);
 
     DateTime? workshopDate;
     TimeOfDay? workshopTime;
@@ -604,7 +624,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isTeach4Learn ? (ws['title'] ?? 'Skill Exchange') : (ws['title'] ?? 'Workshop Details'),
+          isTeach4Learn
+              ? (ws['title'] ?? 'Skill Exchange')
+              : (ws['title'] ?? 'Workshop Details'),
         ),
         actions: [
           if (!isCreator)
@@ -619,7 +641,10 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             onPressed: () {
               setState(() => isLiked = !isLiked);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(isLiked ? "Added to favorites" : "Removed from favorites")),
+                SnackBar(
+                    content: Text(isLiked
+                        ? "Added to favorites"
+                        : "Removed from favorites")),
               );
             },
           ),
@@ -637,61 +662,83 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (isTeach4Learn)
-            _banner(theme, "Teach4Learn Exchange", Icons.swap_horiz, Colors.blue)
+            _banner(
+                theme, "Teach4Learn Exchange", Icons.swap_horiz, Colors.blue)
           else
             _banner(theme, "Free Workshop", Icons.school, Colors.deepPurple),
-
           const SizedBox(height: 16),
           _coverImage(ws),
           const SizedBox(height: 20),
-
           if (!isTeach4Learn)
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Date & Time", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Text("Date & Time",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 12),
-                    Row(children: [Icon(Icons.calendar_today, color: theme.colorScheme.primary), const SizedBox(width: 12), Text(_formatDate(workshopDate), style: const TextStyle(fontSize: 16))]),
+                    Row(children: [
+                      Icon(Icons.calendar_today,
+                          color: theme.colorScheme.primary),
+                      const SizedBox(width: 12),
+                      Text(_formatDate(workshopDate),
+                          style: const TextStyle(fontSize: 16))
+                    ]),
                     const SizedBox(height: 8),
-                    Row(children: [Icon(Icons.access_time, color: theme.colorScheme.primary), const SizedBox(width: 12), Text(_formatTime(workshopTime), style: const TextStyle(fontSize: 16))]),
-                    if (ws['location'] != null && ws['location'].toString().isNotEmpty) ...[
+                    Row(children: [
+                      Icon(Icons.access_time, color: theme.colorScheme.primary),
+                      const SizedBox(width: 12),
+                      Text(_formatTime(workshopTime),
+                          style: const TextStyle(fontSize: 16))
+                    ]),
+                    if (ws['location'] != null &&
+                        ws['location'].toString().isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Row(children: [Icon(Icons.location_on, color: theme.colorScheme.primary), const SizedBox(width: 12), Expanded(child: Text(ws['location'], style: const TextStyle(fontSize: 16)))]),
+                      Row(children: [
+                        Icon(Icons.location_on,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Text(ws['location'],
+                                style: const TextStyle(fontSize: 16)))
+                      ]),
                     ],
                   ],
                 ),
               ),
             ),
-
           if (!isTeach4Learn) const SizedBox(height: 20),
-
           if (!isTeach4Learn)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _StatItem(icon: Icons.star, label: "${ws['rating'] ?? 'N/A'}", color: Colors.amber),
-                _StatItem(icon: Icons.group, label: "${ws['participants'] ?? '0/0'}", color: Colors.green),
-                _StatItem(icon: Icons.access_time, label: ws['duration'] ?? '', color: Colors.blue),
+                _StatItem(
+                    icon: Icons.star,
+                    label: "${ws['rating'] ?? 'N/A'}",
+                    color: Colors.amber),
+                _StatItem(
+                    icon: Icons.group,
+                    label: "${ws['participants'] ?? '0/0'}",
+                    color: Colors.green),
+                _StatItem(
+                    icon: Icons.access_time,
+                    label: ws['duration'] ?? '',
+                    color: Colors.blue),
               ],
             ),
           if (!isTeach4Learn) const SizedBox(height: 20),
-
           _instructorCard(context, ws, theme, isTeach4Learn),
           const SizedBox(height: 20),
-
-
           _aboutCard(ws, theme, isTeach4Learn),
           const SizedBox(height: 20),
-
           if ((ws['syllabus'] ?? []).isNotEmpty)
             _syllabusCard(theme, progressPercent, isCreator),
-
           const SizedBox(height: 20),
-
           if (isEnrolled && allLessonsCompleted && !hasReviewedWorkshop)
             Container(
               width: double.infinity,
@@ -707,43 +754,45 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                 onPressed: _showWorkshopReviewDialog,
               ),
             ),
-
           if ((ws['prerequisites'] ?? '').toString().trim().isNotEmpty)
-            _infoCard(title: "Prerequisites", content: ws['prerequisites'], icon: Icons.check_circle_outline, color: Colors.orange),
-
+            _infoCard(
+                title: "Prerequisites",
+                content: ws['prerequisites'],
+                icon: Icons.check_circle_outline,
+                color: Colors.orange),
           const SizedBox(height: 20),
-
           if ((ws['outcomes'] ?? '').toString().trim().isNotEmpty)
-            _infoCard(title: "Learning Outcomes", content: ws['outcomes'], icon: Icons.emoji_events_outlined, color: Colors.green),
-
+            _infoCard(
+                title: "Learning Outcomes",
+                content: ws['outcomes'],
+                icon: Icons.emoji_events_outlined,
+                color: Colors.green),
           const SizedBox(height: 20),
-
           if ((ws['tags'] ?? []).isNotEmpty) _tagsCard(ws['tags']),
-
           const SizedBox(height: 20),
-
           _reviewCard(),
-
           const SizedBox(height: 80),
         ],
       ),
       bottomNavigationBar: _bottomButton(context, theme, isTeach4Learn),
 
       // Floating Summarize Button
-      floatingActionButton: (ws['description'] != null && (ws['description'] as String).trim().isNotEmpty)
+      floatingActionButton: (ws['description'] != null &&
+              (ws['description'] as String).trim().isNotEmpty)
           ? FloatingActionButton(
-        onPressed: _isSummarizing ? null : _summarizeWorkshop,
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: Colors.white,
-        tooltip: "Summarize this workshop",
-        child: _isSummarizing
-            ? const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-        )
-            : const Icon(Icons.summarize),
-      )
+              onPressed: _isSummarizing ? null : _summarizeWorkshop,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+              tooltip: "Summarize this workshop",
+              child: _isSummarizing
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.summarize),
+            )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
@@ -772,23 +821,23 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       borderRadius: BorderRadius.circular(16),
       child: ws['image'] != null
           ? Image.network(
-        ws['image'],
-        height: 200,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Image.asset(
-          'assets/images/placeholder.png',
-          height: 200,
-          width: double.infinity,
-          fit: BoxFit.cover,
-        ),
-      )
+              ws['image'],
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/images/placeholder.png',
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            )
           : Image.asset(
-        'assets/images/placeholder.png',
-        height: 200,
-        width: double.infinity,
-        fit: BoxFit.cover,
-      ),
+              'assets/images/placeholder.png',
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
     );
   }
 
@@ -829,15 +878,15 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               (isTeach4Learn ? "Exchange Partner" : "Instructor"),
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(isTeach4Learn
-            ? "Skill Exchange Partner"
-            : "Workshop Instructor"),
+        subtitle: Text(
+            isTeach4Learn ? "Skill Exchange Partner" : "Workshop Instructor"),
         trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
 
-  Widget _aboutCard(Map<String, dynamic> ws, ThemeData theme, bool isTeach4Learn) {
+  Widget _aboutCard(
+      Map<String, dynamic> ws, ThemeData theme, bool isTeach4Learn) {
     if (!isTeach4Learn) {
       // Normal workshops stay as-is
       return Card(
@@ -853,7 +902,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                ws['description'] ?? "No description available for this workshop.",
+                ws['description'] ??
+                    "No description available for this workshop.",
                 style: theme.textTheme.bodyMedium,
               ),
             ],
@@ -877,12 +927,14 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             const SizedBox(height: 8),
 
             // Skill the user wants to learn
-            if (ws['skill_requested'] != null && ws['skill_requested'].toString().isNotEmpty)
+            if (ws['skill_requested'] != null &&
+                ws['skill_requested'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
-                    const Icon(Icons.school, color: Colors.deepPurple, size: 20),
+                    const Icon(Icons.school,
+                        color: Colors.deepPurple, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -896,7 +948,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
               ),
 
             // Skill the user can teach in return
-            if (ws['skill_offered'] != null && ws['skill_offered'].toString().isNotEmpty)
+            if (ws['skill_offered'] != null &&
+                ws['skill_offered'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
@@ -929,7 +982,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  Widget _syllabusCard(ThemeData theme, double progressPercent, bool isCreator) {
+  Widget _syllabusCard(
+      ThemeData theme, double progressPercent, bool isCreator) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -966,16 +1020,16 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     children: [
                       // Only make the circle clickable for the creator
                       GestureDetector(
-                        onTap: isCreator ? () => _toggleLessonComplete(index) : null,
+                        onTap: isCreator
+                            ? () => _toggleLessonComplete(index)
+                            : null,
                         child: CircleAvatar(
                           radius: 14,
                           backgroundColor: item['completed']
                               ? Colors.green
                               : theme.colorScheme.primary,
                           child: Icon(
-                            item['completed']
-                                ? Icons.check
-                                : Icons.play_arrow,
+                            item['completed'] ? Icons.check : Icons.play_arrow,
                             color: Colors.white,
                             size: 16,
                           ),
@@ -995,13 +1049,19 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                         ),
                       ),
                       // Show "Give Review" button for completed lessons (for enrolled users, not creators)
-                      if (item['completed'] && isEnrolled && !isCreator && !hasReviewed)
+                      if (item['completed'] &&
+                          isEnrolled &&
+                          !isCreator &&
+                          !hasReviewed)
                         TextButton(
                           onPressed: () => _showLessonReviewDialog(index),
                           child: const Text("Give Review"),
                         ),
                       // Show "Reviewed" indicator if already reviewed
-                      if (item['completed'] && isEnrolled && !isCreator && hasReviewed)
+                      if (item['completed'] &&
+                          isEnrolled &&
+                          !isCreator &&
+                          hasReviewed)
                         const Text(
                           "Reviewed",
                           style: TextStyle(
@@ -1060,7 +1120,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
           creator_id
         )
       ''')
-                  .neq('review', '')  // Only this one — removes null reviews
+                  .neq('review', '') // Only this one — removes null reviews
                   .order('created_at', ascending: false)
                   .limit(6),
               builder: (context, snapshot) {
@@ -1073,13 +1133,16 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                   );
                 }
 
-                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Center(
                       child: Text(
                         "No feedback yet",
-                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                        style: TextStyle(
+                            color: Colors.grey, fontStyle: FontStyle.italic),
                       ),
                     ),
                   );
@@ -1100,7 +1163,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     child: Center(
                       child: Text(
                         "No feedback yet",
-                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                        style: TextStyle(
+                            color: Colors.grey, fontStyle: FontStyle.italic),
                       ),
                     ),
                   );
@@ -1111,8 +1175,11 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 800),
                     transitionBuilder: (child, animation) {
-                      final offsetAnimation = Tween(begin: const Offset(0, 0.3), end: Offset.zero)
-                          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+                      final offsetAnimation =
+                          Tween(begin: const Offset(0, 0.3), end: Offset.zero)
+                              .animate(CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutCubic));
                       return SlideTransition(
                         position: offsetAnimation,
                         child: FadeTransition(opacity: animation, child: child),
@@ -1127,7 +1194,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                     ),
                     key: ValueKey<int>(_currentReviewIndex),
                     child: _InstructorReviewItem(
-                      review: instructorReviews[_currentReviewIndex % instructorReviews.length],
+                      review: instructorReviews[
+                          _currentReviewIndex % instructorReviews.length],
                     ),
                   ),
                 );
@@ -1159,15 +1227,16 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             ...items.map((item) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text("• $item"),
-            )),
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text("• $item"),
+                )),
           ],
         ),
       ),
@@ -1183,7 +1252,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: isDark
           ? const Color(0xFF273549) // lighter than dark surface
-          : Colors.white,            // clean white in light mode
+          : Colors.white, // clean white in light mode
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Wrap(
@@ -1204,7 +1273,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
     );
   }
 
-  Widget _bottomButton(BuildContext context, ThemeData theme, bool isTeach4Learn) {
+  Widget _bottomButton(
+      BuildContext context, ThemeData theme, bool isTeach4Learn) {
     final ws = widget.workshop;
     final currentUser = Supabase.instance.client.auth.currentUser;
     final isCreator = currentUser != null && ws['creator_id'] == currentUser.id;
@@ -1226,7 +1296,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                 label: const Text("Edit"),
                 onPressed: () async {
                   // Navigate to CreateWorkshopScreen in edit mode
-                  final updatedWorkshop = await Navigator.push<Map<String, dynamic>>(
+                  final updatedWorkshop =
+                      await Navigator.push<Map<String, dynamic>>(
                     context,
                     MaterialPageRoute(
                       builder: (_) => CreateWorkshopScreen(
@@ -1347,7 +1418,9 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
 
                       // Show error message
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error deleting workshop: ${e.toString()}")),
+                        SnackBar(
+                            content: Text(
+                                "Error deleting workshop: ${e.toString()}")),
                       );
                     }
                   }
@@ -1377,7 +1450,8 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             children: [
               Icon(Icons.check_circle, color: Colors.green, size: 28),
               SizedBox(width: 12),
-              Expanded( // ← This allows text to wrap safely
+              Expanded(
+                // ← This allows text to wrap safely
                 child: Text(
                   "You're enrolled! Check the Messages tab for the group chat",
                   style: TextStyle(
@@ -1406,86 +1480,94 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16),
           backgroundColor: enrollmentStatus == 'enrolled'
-              ? Colors.green  // Changed to green color when enrolled
+              ? Colors.green // Changed to green color when enrolled
               : theme.colorScheme.primary,
           foregroundColor: Colors.white,
         ),
         // Disable the button if enrolled (approved) to prevent unenrollment
-        onPressed: (isLoadingEnrollment || enrollmentStatus == 'enrolled') ? null : () async {
-          setState(() => isLoadingEnrollment = true);
+        onPressed: (isLoadingEnrollment || enrollmentStatus == 'enrolled')
+            ? null
+            : () async {
+                setState(() => isLoadingEnrollment = true);
 
-          try {
-            if (enrollmentStatus == 'pending') {
-              // Withdraw pending request
-              await Supabase.instance.client
-                  .from('workshop_requests')
-                  .delete()
-                  .eq('requester_id', currentUser!.id)  // Changed from user_id to requester_id
-                  .eq('workshop_id', ws['id']);
+                try {
+                  if (enrollmentStatus == 'pending') {
+                    // Withdraw pending request
+                    await Supabase.instance.client
+                        .from('workshop_requests')
+                        .delete()
+                        .eq(
+                            'requester_id',
+                            currentUser!
+                                .id) // Changed from user_id to requester_id
+                        .eq('workshop_id', ws['id']);
 
-              setState(() {
-                enrollmentStatus = 'none';
-              });
+                    setState(() {
+                      enrollmentStatus = 'none';
+                    });
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(isTeach4Learn
-                      ? "Exchange request withdrawn"
-                      : "Enrollment request withdrawn"),
-                ),
-              );
-            } else {
-              // Send new enrollment request
-              await Supabase.instance.client
-                  .from('workshop_requests')
-                  .insert({
-                'workshop_id': ws['id'],
-                'requester_id': currentUser!.id,
-                'status': 'pending',
-              });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isTeach4Learn
+                            ? "Exchange request withdrawn"
+                            : "Enrollment request withdrawn"),
+                      ),
+                    );
+                  } else {
+                    // Send new enrollment request
+                    await Supabase.instance.client
+                        .from('workshop_requests')
+                        .insert({
+                      'workshop_id': ws['id'],
+                      'requester_id': currentUser!.id,
+                      'status': 'pending',
+                    });
 
-              setState(() {
-                enrollmentStatus = 'pending';
-              });
+                    setState(() {
+                      enrollmentStatus = 'pending';
+                    });
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(isTeach4Learn
-                      ? "Exchange request sent! 🎯"
-                      : "Enrollment request sent! Awaiting approval."),
-                ),
-              );
-            }
-          } catch (e) {
-            print('Error with enrollment: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: ${e.toString()}')),
-            );
-          } finally {
-            setState(() => isLoadingEnrollment = false);
-          }
-        },
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isTeach4Learn
+                            ? "Exchange request sent! 🎯"
+                            : "Enrollment request sent! Awaiting approval."),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('Error with enrollment: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}')),
+                  );
+                } finally {
+                  setState(() => isLoadingEnrollment = false);
+                }
+              },
         child: isLoadingEnrollment
             ? const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Flexible(
-          child: Text(
-            enrollmentStatus == 'enrolled'
-                ? "Enrolled ✓"
-                : enrollmentStatus == 'pending'
-                ? "Withdraw Request"
-                : (isTeach4Learn ? "Send Exchange Request" : "Request Enrollment"),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
+                child: Text(
+                  enrollmentStatus == 'enrolled'
+                      ? "Enrolled ✓"
+                      : enrollmentStatus == 'pending'
+                          ? "Withdraw Request"
+                          : (isTeach4Learn
+                              ? "Send Exchange Request"
+                              : "Request Enrollment"),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
       ),
     );
   }
@@ -1496,7 +1578,8 @@ class _StatItem extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _StatItem({required this.icon, required this.label, required this.color});
+  const _StatItem(
+      {required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {

@@ -5,14 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/chat_screen.dart' show ChatScreen;
-import 'package:skillx/screens/endorsements_screen.dart' show EndorsementsScreen;
-import 'package:skillx/screens/gamification_screen.dart' show GamificationScreen;
+import 'package:skillx/screens/endorsements_screen.dart'
+    show EndorsementsScreen;
+import 'package:skillx/screens/gamification_screen.dart'
+    show GamificationScreen;
 import 'package:skillx/screens/profile_screen.dart' show ProfileScreen;
 import 'package:skillx/screens/schedule_screen.dart' show ScheduleScreen;
 import 'package:skillx/screens/cv_builder_screen.dart' show CVBuilderScreen;
-import 'package:skillx/screens/create_workshop_screen.dart' show CreateWorkshopScreen;
+import 'package:skillx/screens/create_workshop_screen.dart'
+    show CreateWorkshopScreen;
 import 'package:skillx/screens/search_screen.dart' show SearchScreen;
-import 'package:skillx/screens/workshop_detail_screen.dart' show WorkshopDetailScreen;
+import 'package:skillx/screens/workshop_detail_screen.dart'
+    show WorkshopDetailScreen;
 import '../main.dart';
 import '../components/custom_bottom_nav.dart';
 // Add this import for Supabase
@@ -28,7 +32,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _currentScreen = "home";
   DateTime? _lastBackPressTime;
-
 
   void onNavigate(String screen) {
     setState(() {
@@ -70,8 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
         page = const DashboardPage();
     }
 
-
-
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
@@ -107,7 +108,8 @@ class _HomeScreenState extends State<HomeScreen> {
 //
 // --- DASHBOARD PAGE ---
 //
-class DashboardPage extends StatefulWidget {  // ← Changed to StatefulWidget
+class DashboardPage extends StatefulWidget {
+  // ← Changed to StatefulWidget
   const DashboardPage({super.key});
 
   @override
@@ -118,25 +120,23 @@ class _DashboardPageState extends State<DashboardPage> {
   DateTime? _lastBackPressTime;
 
   // Function to fetch user workshops from database - moved outside build method
-  Future<Map<String, List<Map<String, dynamic>>>> _fetchUserWorkshops(String? userId) async {
+  Future<Map<String, List<Map<String, dynamic>>>> _fetchUserWorkshops(
+      String? userId) async {
     if (userId == null || userId.isEmpty) {
       return {'teaching': [], 'attending': []};
     }
 
     try {
       // 1. Fetch workshops created by the user (Teaching)
-      final teachingResponse = await Supabase.instance.client
-          .from('workshops')
-          .select('''
+      final teachingResponse =
+          await Supabase.instance.client.from('workshops').select('''
           id, title, creator_id, date, time, status, 
           max_participants, rating, duration, image_url, tags,
           users!creator_id(name, avatar_url)
-        ''')
-          .eq('creator_id', userId)
-          .order('date', ascending: true);
+        ''').eq('creator_id', userId).order('date', ascending: true);
 
       final List<Map<String, dynamic>> teachingWorkshops =
-      List<Map<String, dynamic>>.from(teachingResponse);
+          List<Map<String, dynamic>>.from(teachingResponse);
 
       // 2. Fetch workshops the user is enrolled in (Attending)
       final enrollmentsResponse = await Supabase.instance.client
@@ -144,28 +144,23 @@ class _DashboardPageState extends State<DashboardPage> {
           .select('workshop_id')
           .eq('user_id', userId);
 
-      final List<String> enrolledWorkshopIds = enrollmentsResponse
-          .map((e) => e['workshop_id'] as String)
-          .toList();
+      final List<String> enrolledWorkshopIds =
+          enrollmentsResponse.map((e) => e['workshop_id'] as String).toList();
 
       List<Map<String, dynamic>> attendingWorkshops = [];
       if (enrolledWorkshopIds.isNotEmpty) {
-        var query = Supabase.instance.client
-            .from('workshops')
-            .select('''
+        var query = Supabase.instance.client.from('workshops').select('''
             id, title, creator_id, date, time, status, 
             max_participants, rating, duration, image_url, tags,
             users!creator_id(name, avatar_url)
           ''');
 
         // Build OR filter for multiple IDs
-        String orFilter = enrolledWorkshopIds
-            .map((id) => 'id.eq.$id')
-            .join(',');
+        String orFilter =
+            enrolledWorkshopIds.map((id) => 'id.eq.$id').join(',');
 
-        final attendingResponse = await query
-            .or(orFilter)
-            .order('date', ascending: true);
+        final attendingResponse =
+            await query.or(orFilter).order('date', ascending: true);
 
         attendingWorkshops = List<Map<String, dynamic>>.from(attendingResponse);
 
@@ -204,7 +199,8 @@ class _DashboardPageState extends State<DashboardPage> {
     if (userId == null || userId.isEmpty) return null;
 
     try {
-      final response = await Supabase.instance.client.rpc('get_user_gamification_data',
+      final response = await Supabase.instance.client.rpc(
+          'get_user_gamification_data',
           params: {'current_user_id': userId});
 
       // The response from an RPC that returns a table is a list.
@@ -260,44 +256,51 @@ class _DashboardPageState extends State<DashboardPage> {
                 return Center(child: Text('Error: ${snapshot.error}'));
               }
 
-              final workshopData = snapshot.data?[0] as Map<String, List<Map<String, dynamic>>>? ??
+              final workshopData = snapshot.data?[0]
+                      as Map<String, List<Map<String, dynamic>>>? ??
                   {'teaching': [], 'attending': []};
               final gamificationData = snapshot.data?[1];
 
+              // Debug: Print the number of workshops
+              print('Total workshops: ${workshopData.length}');
 
-          // Debug: Print the number of workshops
-          print('Total workshops: ${workshopData.length}');
+              // Separate workshops into upcoming and teaching
+              final List<Map<String, dynamic>> teachingWorkshops =
+                  workshopData['teaching'] ?? [];
+              final List<Map<String, dynamic>> upcomingWorkshops =
+                  workshopData['attending'] ?? [];
 
-          // Separate workshops into upcoming and teaching
-          final List<Map<String, dynamic>> teachingWorkshops = workshopData['teaching'] ?? [];
-          final List<Map<String, dynamic>> upcomingWorkshops = workshopData['attending'] ?? [];
+              // Combine both lists for the unified schedule
+              final allScheduledWorkshops = [
+                ...upcomingWorkshops,
+                ...teachingWorkshops
+              ];
 
-          // Combine both lists for the unified schedule
-          final allScheduledWorkshops = [...upcomingWorkshops, ...teachingWorkshops];
+              // Debug: Print the number of workshops in each category
+              print('Upcoming workshops: ${upcomingWorkshops.length}');
+              print('Teaching workshops: ${teachingWorkshops.length}');
 
-          // Debug: Print the number of workshops in each category
-          print('Upcoming workshops: ${upcomingWorkshops.length}');
-          print('Teaching workshops: ${teachingWorkshops.length}');
+              // Extract gamification data or use defaults
+              final userXP = gamificationData?['user_xp'] ?? 0;
+              final userLevel = gamificationData?['user_level'] ?? 1;
+              final workshopsAttended =
+                  gamificationData?['workshops_attended'] ?? 0;
+              final workshopsTaught =
+                  gamificationData?['workshops_taught'] ?? 0;
+              final badgesEarned = gamificationData?['badges_earned'] ?? 0;
 
-          // Extract gamification data or use defaults
-          final userXP = gamificationData?['user_xp'] ?? 0;
-          final userLevel = gamificationData?['user_level'] ?? 1;
-          final workshopsAttended = gamificationData?['workshops_attended'] ?? 0;
-          final workshopsTaught = gamificationData?['workshops_taught'] ?? 0;
-          final badgesEarned = gamificationData?['badges_earned'] ?? 0;
+              // Calculate progress for next level
+              final nextLevelXP =
+                  (userLevel + 1) * 500; // Based on your gamification system
+              final progress = userXP / nextLevelXP;
 
-          // Calculate progress for next level
-          final nextLevelXP = (userLevel + 1) * 500; // Based on your gamification system
-          final progress = userXP / nextLevelXP;
+              // Extract user badges
+              final userBadges =
+                  gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
 
-          // Extract user badges
-          final userBadges = gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
-
-          // Get recent earned badges (up to 4)
-          final recentBadges = userBadges
-              .where((b) => b["earned"] == true)
-              .take(4)
-              .toList();
+              // Get recent earned badges (up to 4)
+              final recentBadges =
+                  userBadges.where((b) => b["earned"] == true).take(4).toList();
 
 // Replace the entire DashboardPage build method content with this:
 
@@ -309,7 +312,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   ]);
                 },
                 color: Colors.white,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                backgroundColor:
+                    Theme.of(context).colorScheme.primary.withOpacity(0.3),
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
@@ -325,7 +329,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         "Welcome back,",
@@ -338,7 +343,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                         maxLines: 1,
                                       ),
                                       Text(
-                                        user?.name.isNotEmpty == true ? user!.name : "Student",
+                                        user?.name.isNotEmpty == true
+                                            ? user!.name
+                                            : "Student",
                                         style: const TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
@@ -362,12 +369,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                                 const SizedBox(width: 16),
                                 GestureDetector(
-                                  onTap: () => context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("profile"),
+                                  onTap: () => context
+                                      .findAncestorStateOfType<
+                                          _HomeScreenState>()
+                                      ?.onNavigate("profile"),
                                   child: CircleAvatar(
                                     radius: 28,
-                                    backgroundColor: const Color(0xFF60A5FA).withOpacity(0.2),
+                                    backgroundColor: const Color(0xFF60A5FA)
+                                        .withOpacity(0.2),
                                     child: Text(
-                                      user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : "U",
+                                      user?.name.isNotEmpty == true
+                                          ? user!.name[0].toUpperCase()
+                                          : "U",
                                       style: const TextStyle(
                                         color: Color(0xFF60A5FA),
                                         fontSize: 24,
@@ -386,7 +399,9 @@ class _DashboardPageState extends State<DashboardPage> {
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(28),
-                                border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.15),
+                                    width: 1),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.green.withOpacity(0.2),
@@ -399,15 +414,22 @@ class _DashboardPageState extends State<DashboardPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
                                         "Your Progress",
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                                        style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white),
                                       ),
                                       Text(
                                         "Level $userLevel",
-                                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                                        style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white),
                                       ),
                                     ],
                                   ),
@@ -416,13 +438,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                     value: progress.clamp(0.0, 1.0),
                                     minHeight: 12,
                                     borderRadius: BorderRadius.circular(8),
-                                    backgroundColor: Colors.white.withOpacity(0.2),
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF34D399)),
+                                    backgroundColor:
+                                        Colors.white.withOpacity(0.2),
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                            Color(0xFF34D399)),
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
                                     "$userXP / $nextLevelXP XP • ${nextLevelXP - userXP} to next level",
-                                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                                    style: TextStyle(
+                                        color: Colors.white.withOpacity(0.8),
+                                        fontSize: 14),
                                   ),
                                 ],
                               ),
@@ -432,20 +459,27 @@ class _DashboardPageState extends State<DashboardPage> {
                             // Search bar
                             TextField(
                               readOnly: true,
-                              onTap: () => context.findAncestorStateOfType<_HomeScreenState>()?.onNavigate("search"),
+                              onTap: () => context
+                                  .findAncestorStateOfType<_HomeScreenState>()
+                                  ?.onNavigate("search"),
                               decoration: InputDecoration(
-                                hintText: "Search workshops, skills, or people...",
-                                hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                                prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                                hintText:
+                                    "Search workshops, skills, or people...",
+                                hintStyle: TextStyle(
+                                    color: Colors.white.withOpacity(0.6)),
+                                prefixIcon: const Icon(Icons.search,
+                                    color: Colors.white70),
                                 filled: true,
                                 fillColor: Colors.white.withOpacity(0.1),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                                  borderSide: BorderSide(
+                                      color: Colors.white.withOpacity(0.2)),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                                  borderSide: BorderSide(
+                                      color: Colors.white.withOpacity(0.2)),
                                 ),
                               ),
                               style: const TextStyle(color: Colors.white),
@@ -461,9 +495,21 @@ class _DashboardPageState extends State<DashboardPage> {
                               crossAxisSpacing: 16,
                               childAspectRatio: 1.3,
                               children: [
-                                _GlassStatCard("Workshops Attended", workshopsAttended.toString(), Icons.school_rounded, Colors.blue),
-                                _GlassStatCard("Workshops Taught", workshopsTaught.toString(), Icons.record_voice_over, Colors.green),
-                                _GlassStatCard("Badges Earned", badgesEarned.toString(), Icons.emoji_events_rounded, Colors.amber),
+                                _GlassStatCard(
+                                    "Workshops Attended",
+                                    workshopsAttended.toString(),
+                                    Icons.school_rounded,
+                                    Colors.blue),
+                                _GlassStatCard(
+                                    "Workshops Taught",
+                                    workshopsTaught.toString(),
+                                    Icons.record_voice_over,
+                                    Colors.green),
+                                _GlassStatCard(
+                                    "Badges Earned",
+                                    badgesEarned.toString(),
+                                    Icons.emoji_events_rounded,
+                                    Colors.amber),
                               ],
                             ),
                             const SizedBox(height: 40),
@@ -472,7 +518,11 @@ class _DashboardPageState extends State<DashboardPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text("Your Schedule", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                                const Text("Your Schedule",
+                                    style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white)),
                                 GestureDetector(
                                   onTap: () => Navigator.push(
                                     context,
@@ -483,7 +533,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ),
                                     ),
                                   ),
-                                  child: const Text("View All", style: TextStyle(color: Color(0xFF60A5FA), fontWeight: FontWeight.w600)),
+                                  child: const Text("View All",
+                                      style: TextStyle(
+                                          color: Color(0xFF60A5FA),
+                                          fontWeight: FontWeight.w600)),
                                 ),
                               ],
                             ),
@@ -491,29 +544,40 @@ class _DashboardPageState extends State<DashboardPage> {
                             SizedBox(
                               height: 200,
                               child: allScheduledWorkshops.isEmpty
-                                  ? Center(child: Text("No workshops scheduled yet", style: TextStyle(color: Colors.white.withOpacity(0.6))))
+                                  ? Center(
+                                      child: Text("No workshops scheduled yet",
+                                          style: TextStyle(
+                                              color: Colors.white
+                                                  .withOpacity(0.6))))
                                   : ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: allScheduledWorkshops.length,
-                                itemBuilder: (context, index) {
-                                  final workshop = allScheduledWorkshops[index];
-                                  final isTeaching = teachingWorkshops.contains(workshop);
-                                  return Container(
-                                    width: 300,
-                                    margin: const EdgeInsets.only(right: 16),
-                                    child: WorkshopCard(
-                                      workshop: workshop,
-                                      isTeaching: isTeaching,
-                                      fetchCreatorName: _fetchCreatorName,
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: allScheduledWorkshops.length,
+                                      itemBuilder: (context, index) {
+                                        final workshop =
+                                            allScheduledWorkshops[index];
+                                        final isTeaching = teachingWorkshops
+                                            .contains(workshop);
+                                        return Container(
+                                          width: 300,
+                                          margin:
+                                              const EdgeInsets.only(right: 16),
+                                          child: WorkshopCard(
+                                            workshop: workshop,
+                                            isTeaching: isTeaching,
+                                            fetchCreatorName: _fetchCreatorName,
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
-                              ),
                             ),
                             const SizedBox(height: 40),
 
                             // Quick Actions
-                            const Text("Quick Actions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                            const Text("Quick Actions",
+                                style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
                             const SizedBox(height: 16),
                             GridView.count(
                               shrinkWrap: true,
@@ -530,7 +594,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => GamificationScreen(onNavigate: (_) {}, initialTab: 0),
+                                      builder: (_) => GamificationScreen(
+                                          onNavigate: (_) {}, initialTab: 0),
                                     ),
                                   ),
                                 ),
@@ -541,7 +606,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => GamificationScreen(onNavigate: (_) {}, initialTab: 2),
+                                      builder: (_) => GamificationScreen(
+                                          onNavigate: (_) {}, initialTab: 2),
                                     ),
                                   ),
                                 ),
@@ -551,7 +617,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   color: Colors.purple,
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const EndorsementsScreen()),
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const EndorsementsScreen()),
                                   ),
                                 ),
                                 QuickActionCard(
@@ -560,7 +628,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   color: Colors.green,
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const CVBuilderScreen()),
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const CVBuilderScreen()),
                                   ),
                                 ),
                               ],
@@ -568,7 +638,11 @@ class _DashboardPageState extends State<DashboardPage> {
                             const SizedBox(height: 40),
 
                             // Recent Achievements
-                            const Text("Recent Achievements", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                            const Text("Recent Achievements",
+                                style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
                             const SizedBox(height: 16),
                             GridView.count(
                               shrinkWrap: true,
@@ -579,12 +653,21 @@ class _DashboardPageState extends State<DashboardPage> {
                               childAspectRatio: 1.4,
                               children: recentBadges.isEmpty
                                   ? [
-                                const _GlassAchievementCard("Keep learning!", "📚", false),
-                                const _GlassAchievementCard("Your first badge awaits", "✨", false),
-                              ]
-                                  : recentBadges.map((b) => _GlassAchievementCard(b["name"], b["icon"], true)).toList(),
+                                      const _GlassAchievementCard(
+                                          "Keep learning!", "📚", false),
+                                      const _GlassAchievementCard(
+                                          "Your first badge awaits",
+                                          "✨",
+                                          false),
+                                    ]
+                                  : recentBadges
+                                      .map((b) => _GlassAchievementCard(
+                                          b["name"], b["icon"], true))
+                                      .toList(),
                             ),
-                            const SizedBox(height: 80), // Extra space at bottom for comfortable scrolling
+                            const SizedBox(
+                                height:
+                                    80), // Extra space at bottom for comfortable scrolling
                           ],
                         ),
                       ),
@@ -592,9 +675,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
               );
-        }
-    )
-    );
+            }));
   }
 }
 
@@ -602,7 +683,12 @@ class StatCard extends StatelessWidget {
   final String label, value;
   final IconData icon;
   final Color color;
-  const StatCard({super.key, required this.label, required this.value, required this.icon, required this.color});
+  const StatCard(
+      {super.key,
+      required this.label,
+      required this.value,
+      required this.icon,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -666,7 +752,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
     // Safely parse the date
     DateTime? date;
     try {
-      if (widget.workshop['date'] != null && widget.workshop['date'].toString().isNotEmpty) {
+      if (widget.workshop['date'] != null &&
+          widget.workshop['date'].toString().isNotEmpty) {
         date = DateTime.parse(widget.workshop['date'].toString());
       }
     } catch (e) {
@@ -685,7 +772,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
         );
       },
       child: Card(
-        margin: EdgeInsets.zero, // Remove margin since we're handling it in the parent
+        margin: EdgeInsets
+            .zero, // Remove margin since we're handling it in the parent
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(8), // Reduced padding
@@ -696,7 +784,9 @@ class _WorkshopCardState extends State<WorkshopCard> {
               // Title & Chip stacked vertically
               Text(
                 widget.workshop["title"]?.toString() ?? "Untitled Workshop",
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), // Slightly smaller font
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14), // Slightly smaller font
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -707,7 +797,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
                   style: const TextStyle(fontSize: 11), // Smaller font
                 ),
                 backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Smaller padding
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 2), // Smaller padding
               ),
               const SizedBox(height: 4), // Reduced spacing
 
@@ -718,7 +809,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
                     if (date != null)
                       Text(
                         "${date.day}/${date.month}/${date.year}",
-                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.grey), // Smaller font
                       ),
                     if (date != null && time != null)
                       const Text(
@@ -728,7 +820,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
                     if (time != null)
                       Text(
                         time,
-                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.grey), // Smaller font
                       ),
                   ],
                 ),
@@ -739,7 +832,8 @@ class _WorkshopCardState extends State<WorkshopCard> {
               if (widget.isTeaching)
                 Text(
                   "${widget.workshop["workshop_enrollments"]?.length ?? 0}/${widget.workshop["max_participants"] ?? 0} participants",
-                  style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                  style: const TextStyle(
+                      fontSize: 11, color: Colors.grey), // Smaller font
                 )
               else
                 FutureBuilder<String>(
@@ -748,17 +842,20 @@ class _WorkshopCardState extends State<WorkshopCard> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Text(
                         "Loading...",
-                        style: TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey), // Smaller font
                       );
                     } else if (snapshot.hasError) {
                       return const Text(
                         "Unknown creator",
-                        style: TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey), // Smaller font
                       );
                     } else {
                       return Text(
                         "by ${snapshot.data ?? "Unknown creator"}",
-                        style: const TextStyle(fontSize: 11, color: Colors.grey), // Smaller font
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.grey), // Smaller font
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       );
@@ -772,13 +869,16 @@ class _WorkshopCardState extends State<WorkshopCard> {
                 alignment: Alignment.centerLeft,
                 child: Chip(
                   label: Text(
-                    widget.isTeaching ? "Teaching" : (widget.workshop["status"]?.toString() ?? "Unknown"),
+                    widget.isTeaching
+                        ? "Teaching"
+                        : (widget.workshop["status"]?.toString() ?? "Unknown"),
                     style: const TextStyle(fontSize: 11), // Smaller font
                   ),
                   backgroundColor: widget.isTeaching
                       ? theme.colorScheme.primary.withOpacity(0.2)
                       : theme.colorScheme.secondary.withOpacity(0.2),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Smaller padding
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2), // Smaller padding
                 ),
               ),
             ],
@@ -846,7 +946,8 @@ class AchievementCard extends StatelessWidget {
   final String icon;
   final bool earned;
 
-  const AchievementCard({super.key, 
+  const AchievementCard({
+    super.key,
     required this.name,
     required this.icon,
     required this.earned,
@@ -917,7 +1018,9 @@ class _GlassStatCard extends StatelessWidget {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: constraints.maxHeight * 0.25, color: accentColor), // Responsive icon
+              Icon(icon,
+                  size: constraints.maxHeight * 0.25,
+                  color: accentColor), // Responsive icon
               const SizedBox(height: 8),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -932,7 +1035,8 @@ class _GlassStatCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Expanded( // ← Takes remaining space safely
+              Expanded(
+                // ← Takes remaining space safely
                 child: Text(
                   title,
                   textAlign: TextAlign.center,
@@ -963,10 +1067,14 @@ class _GlassAchievementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: earned ? const Color(0xFF34D399).withOpacity(0.15) : Colors.white.withOpacity(0.08),
+        color: earned
+            ? const Color(0xFF34D399).withOpacity(0.15)
+            : Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: earned ? const Color(0xFF34D399).withOpacity(0.3) : Colors.white.withOpacity(0.1),
+          color: earned
+              ? const Color(0xFF34D399).withOpacity(0.3)
+              : Colors.white.withOpacity(0.1),
         ),
       ),
       child: LayoutBuilder(
@@ -974,7 +1082,8 @@ class _GlassAchievementCard extends StatelessWidget {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(icon, style: TextStyle(fontSize: constraints.maxHeight * 0.28)),
+              Text(icon,
+                  style: TextStyle(fontSize: constraints.maxHeight * 0.28)),
               const SizedBox(height: 12),
               Text(
                 name,
@@ -992,7 +1101,9 @@ class _GlassAchievementCard extends StatelessWidget {
                 earned ? "Earned ✓" : "Locked",
                 style: TextStyle(
                   fontSize: constraints.maxHeight * 0.11,
-                  color: earned ? const Color(0xFF34D399) : Colors.white.withOpacity(0.6),
+                  color: earned
+                      ? const Color(0xFF34D399)
+                      : Colors.white.withOpacity(0.6),
                 ),
               ),
             ],

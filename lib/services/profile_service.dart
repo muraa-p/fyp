@@ -18,20 +18,18 @@ class ProfileService {
       'year': data['year'],
       'location': data['location'],
       'website': data['website'],
-      'avatar_url': data['avatarUrl'],  // Use avatar_url instead of avatar
+      'avatar_url': data['avatarUrl'], // Use avatar_url instead of avatar
       'skills_to_teach': data['skillsToTeach'],
       'skills_to_learn': data['skillsToLearn'],
       'social': data['social'],
     });
   }
 
-
   // ---------------------------------------------------------
   // GET USER PROFILE
   // ---------------------------------------------------------
   Future<Map<String, dynamic>> getUserProfile(String id) async {
-    final response =
-    await _client.from('users').select().eq('id', id).single();
+    final response = await _client.from('users').select().eq('id', id).single();
 
     return {
       "id": response['id'],
@@ -44,18 +42,18 @@ class ProfileService {
       "year": response['year'],
       "location": response['location'],
       "website": response['website'],
-      "avatar_url": response['avatar_url'],  // Make sure to use avatar_url
+      "avatar_url": response['avatar_url'], // Make sure to use avatar_url
       "skillsToTeach": response['skills_to_teach'] ?? [],
       "skillsToLearn": response['skills_to_learn'] ?? [],
-      "social": response['social'] ?? {
-        "instagram": "",
-        "twitter": "",
-        "linkedin": "",
-        "github": "",
-      }
+      "social": response['social'] ??
+          {
+            "instagram": "",
+            "twitter": "",
+            "linkedin": "",
+            "github": "",
+          }
     };
   }
-
 
   // ---------------------------------------------------------
   // UPDATE USER PROFILE
@@ -71,7 +69,7 @@ class ProfileService {
       'year': data['year'],
       'location': data['location'],
       'website': data['website'],
-      'avatar_url': data['avatarUrl'],  // Updated to use avatar_url
+      'avatar_url': data['avatarUrl'], // Updated to use avatar_url
       'skills_to_teach': data['skillsToTeach'],
       'skills_to_learn': data['skillsToLearn'],
       'social': data['social'],
@@ -83,7 +81,7 @@ class ProfileService {
   // ---------------------------------------------------------
   Future<void> updateAvatar(String userId, String url) async {
     await _client.from('users').update({
-      'avatar': url,                              // FIXED
+      'avatar': url, // FIXED
     }).eq('id', userId);
   }
 

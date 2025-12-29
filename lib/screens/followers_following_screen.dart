@@ -6,7 +6,8 @@ class FollowersFollowingScreen extends StatefulWidget {
   const FollowersFollowingScreen({super.key});
 
   @override
-  State<FollowersFollowingScreen> createState() => _FollowersFollowingScreenState();
+  State<FollowersFollowingScreen> createState() =>
+      _FollowersFollowingScreenState();
 }
 
 class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
@@ -41,10 +42,13 @@ class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
       // It selects all columns from the 'users' table where the user is a follower
       final data = await Supabase.instance.client
           .from('follows')
-          .select('users!follows_follower_id_fkey(*)') // Selects user data via the foreign key relationship
+          .select(
+              'users!follows_follower_id_fkey(*)') // Selects user data via the foreign key relationship
           .eq('following_id', currentUserId!);
       // The result is a list of maps, where each map contains a 'users' key with the user's data
-      return data.map((follow) => follow['users'] as Map<String, dynamic>).toList();
+      return data
+          .map((follow) => follow['users'] as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print('Error fetching followers: $e');
       return [];
@@ -57,9 +61,12 @@ class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
     try {
       final data = await Supabase.instance.client
           .from('follows')
-          .select('users!follows_following_id_fkey(*)') // Selects user data via the foreign key relationship
+          .select(
+              'users!follows_following_id_fkey(*)') // Selects user data via the foreign key relationship
           .eq('follower_id', currentUserId!);
-      return data.map((follow) => follow['users'] as Map<String, dynamic>).toList();
+      return data
+          .map((follow) => follow['users'] as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print('Error fetching following: $e');
       return [];
@@ -95,7 +102,8 @@ class _FollowersFollowingScreenState extends State<FollowersFollowingScreen>
             final user = users[i];
             return ListTile(
               leading: CircleAvatar(
-                child: Text(user["name"]?.isNotEmpty == true ? user["name"][0] : 'U'),
+                child: Text(
+                    user["name"]?.isNotEmpty == true ? user["name"][0] : 'U'),
               ),
               title: Text(user["name"] ?? 'No Name'),
               subtitle: Text(user["email"] ?? 'No Email'),

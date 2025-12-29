@@ -9,9 +9,6 @@ class UserProfileScreen extends StatefulWidget {
   State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
-
-
-
 String _formatRelativeDate(String? isoString) {
   if (isoString == null) return 'Unknown date';
   final date = DateTime.tryParse(isoString);
@@ -23,8 +20,10 @@ String _formatRelativeDate(String? isoString) {
   if (difference.inDays == 0) return 'Today';
   if (difference.inDays == 1) return 'Yesterday';
   if (difference.inDays < 7) return '${difference.inDays} days ago';
-  if (difference.inDays < 30) return '${(difference.inDays / 7).floor()} weeks ago';
-  if (difference.inDays < 365) return '${(difference.inDays / 30).floor()} months ago';
+  if (difference.inDays < 30)
+    return '${(difference.inDays / 7).floor()} weeks ago';
+  if (difference.inDays < 365)
+    return '${(difference.inDays / 30).floor()} months ago';
   return '${(difference.inDays / 365).floor()} years ago';
 }
 
@@ -86,11 +85,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
     try {
       // 1. Full user data
-      final userResponse = await supabase
-          .from('users')
-          .select()
-          .eq('id', userId)
-          .single();
+      final userResponse =
+          await supabase.from('users').select().eq('id', userId).single();
 
       // 2. Workshops taught by this user
       final workshopsResponse = await supabase
@@ -114,8 +110,11 @@ class _UserProfileScreenState extends State<UserProfileScreen>
             .select('rating')
             .eq('workshop_id', w['id']);
 
-        final List<num> ratings = ratingsResponse.map((r) => r['rating'] as num).toList();
-        final avgRating = ratings.isEmpty ? null : ratings.reduce((a, b) => a + b) / ratings.length;
+        final List<num> ratings =
+            ratingsResponse.map((r) => r['rating'] as num).toList();
+        final avgRating = ratings.isEmpty
+            ? null
+            : ratings.reduce((a, b) => a + b) / ratings.length;
 
         processedWorkshops.add({
           'title': w['title'],
@@ -127,7 +126,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       }
 
       // 3. Skills + endorsements
-      final skillsToTeach = List<String>.from(userResponse['skills_to_teach'] ?? []);
+      final skillsToTeach =
+          List<String>.from(userResponse['skills_to_teach'] ?? []);
       final List<Map<String, dynamic>> processedSkills = [];
       for (var skill in skillsToTeach) {
         final endorsementsResponse = await supabase
@@ -144,17 +144,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       }
 
       // 4. Reviews on their workshops
-      final allReviews = await supabase
-          .from('workshop_ratings')
-          .select('''
+      final allReviews = await supabase.from('workshop_ratings').select('''
             rating, review, created_at,
             user_id,
             users!workshop_ratings_user_id_fkey(name, avatar_url),
             workshop_id,
             workshops!workshop_ratings_workshop_id_fkey(title, creator_id)
-          ''')
-          .not('review', 'is', null)
-          .order('created_at', ascending: false);
+          ''').not('review', 'is', null).order('created_at', ascending: false);
 
       // Filter only reviews for workshops by this creator
       final userReviews = allReviews.where((r) {
@@ -169,7 +165,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           .eq('user_id', userId)
           .eq('earned', true);
 
-      final List<Map<String, dynamic>> processedBadges = badgesResponse.map((row) {
+      final List<Map<String, dynamic>> processedBadges =
+          badgesResponse.map((row) {
         final def = row['badge_definitions'] as Map<String, dynamic>;
         return {
           'badge_definitions': {
@@ -181,14 +178,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         };
       }).toList();
 
-
       if (mounted) {
         setState(() {
           fullUserData = userResponse;
           workshops = processedWorkshops;
           skills = processedSkills;
           reviews = userReviews;
-          badges = processedBadges;  // ← use processedBadges here
+          badges = processedBadges; // ← use processedBadges here
           _isLoading = false;
         });
       }
@@ -202,9 +198,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       }
     }
   }
-
-
-
 
   Future<void> _followUser() async {
     final currentUserId = supabase.auth.currentUser?.id;
@@ -275,12 +268,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
     // NEW (CORRECT) - Use DB level + match dashboard exactly
     final xp = (user['xp'] as num?)?.toInt() ?? 0;
-    final level = (user['level'] as num?)?.toInt() ?? 1;  // ← Use stored level from DB
-    final nextLevelXP = (level + 1) * 500;               // ← Exact dashboard formula
-    final progress = xp / nextLevelXP;                    // ← Exact dashboard formula
-    final xpToNextLevel = nextLevelXP - xp;               // ← Exact dashboard formula
+    final level =
+        (user['level'] as num?)?.toInt() ?? 1; // ← Use stored level from DB
+    final nextLevelXP = (level + 1) * 500; // ← Exact dashboard formula
+    final progress = xp / nextLevelXP; // ← Exact dashboard formula
+    final xpToNextLevel = nextLevelXP - xp; // ← Exact dashboard formula
 
-    final endorsementsCount = skills.fold<int>(0, (sum, s) => (s['endorsements'] ?? 0) + sum);
+    final endorsementsCount =
+        skills.fold<int>(0, (sum, s) => (s['endorsements'] ?? 0) + sum);
 
     final List<double> validRatings = workshops
         .where((w) => w['rating'] != null)
@@ -304,8 +299,10 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
-              IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {}),
-              IconButton(icon: const Icon(Icons.flag_outlined), onPressed: () {}),
+              IconButton(
+                  icon: const Icon(Icons.share_outlined), onPressed: () {}),
+              IconButton(
+                  icon: const Icon(Icons.flag_outlined), onPressed: () {}),
               const SizedBox(width: 8),
             ],
           ),
@@ -318,7 +315,10 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.primary.withOpacity(0.8)
+                  ],
                 ),
               ),
               child: Column(
@@ -326,22 +326,27 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.white24,
-                    backgroundImage: user['avatar_url']?.toString().isNotEmpty == true
-                        ? NetworkImage(user['avatar_url'])
-                        : null,
+                    backgroundImage:
+                        user['avatar_url']?.toString().isNotEmpty == true
+                            ? NetworkImage(user['avatar_url'])
+                            : null,
                     child: user['avatar_url']?.toString().isNotEmpty != true
                         ? Text(
-                      user['name']?.toString().isNotEmpty == true
-                          ? user['name'][0].toUpperCase()
-                          : 'U',
-                      style: const TextStyle(fontSize: 28, color: Colors.white),
-                    )
+                            user['name']?.toString().isNotEmpty == true
+                                ? user['name'][0].toUpperCase()
+                                : 'U',
+                            style: const TextStyle(
+                                fontSize: 28, color: Colors.white),
+                          )
                         : null,
                   ),
                   const SizedBox(height: 10),
                   Text(
                     user['name'] ?? 'New User',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                   Text(
                     user['university'] ?? 'SkillX Community Member',
@@ -360,15 +365,20 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                         style: const TextStyle(color: Colors.white),
                       ),
                       const SizedBox(width: 16),
-                      const Icon(Icons.people_alt_rounded, color: Colors.white70, size: 16),
+                      const Icon(Icons.people_alt_rounded,
+                          color: Colors.white70, size: 16),
                       const SizedBox(width: 4),
-                      Text("$endorsementsCount endorsements", style: const TextStyle(color: Colors.white)),
+                      Text("$endorsementsCount endorsements",
+                          style: const TextStyle(color: Colors.white)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Column(
                     children: [
-                      Text("Level $level", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text("Level $level",
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
                       LinearProgressIndicator(
                         value: progress.clamp(0.0, 1.0),
@@ -379,7 +389,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                       ),
                       const SizedBox(height: 4),
                       Text("$xpToNextLevel XP to next level",
-                          style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.white70)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -388,12 +399,20 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isFollowing ? Colors.grey[300] : Colors.white,
+                            backgroundColor:
+                                isFollowing ? Colors.grey[300] : Colors.white,
                             foregroundColor: theme.colorScheme.primary,
                           ),
-                          onPressed: _isLoadingFollow ? null : () => isFollowing ? _unfollowUser() : _followUser(),
+                          onPressed: _isLoadingFollow
+                              ? null
+                              : () =>
+                                  isFollowing ? _unfollowUser() : _followUser(),
                           child: _isLoadingFollow
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : Text(isFollowing ? "Following" : "Follow"),
                         ),
                       ),
@@ -431,7 +450,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     );
   }
 
-  Widget _buildAboutTab(Map<String, dynamic> user, List<Map<String, dynamic>> badges, ThemeData theme) {
+  Widget _buildAboutTab(Map<String, dynamic> user,
+      List<Map<String, dynamic>> badges, ThemeData theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -439,11 +459,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         children: [
           Text(
             "About ${user['name']}",
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            user['bio'] ?? "Passionate about sharing knowledge and helping others grow.",
+            user['bio'] ??
+                "Passionate about sharing knowledge and helping others grow.",
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -454,22 +476,26 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           const SizedBox(height: 8),
           badges.isEmpty
               ? Text(
-            "No badges earned yet",
-            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-          )
+                  "No badges earned yet",
+                  style:
+                      theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                )
               : Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: badges.map((b) {
-              final def = b['badge_definitions'];
-              return Chip(
-                avatar: Text(def['icon'] ?? '🏅', style: const TextStyle(fontSize: 20)),
-                label: Text(def['name']),
-                labelStyle: theme.textTheme.labelLarge?.copyWith(color: Colors.white),
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              );
-            }).toList(),
-          ),
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: badges.map((b) {
+                    final def = b['badge_definitions'];
+                    return Chip(
+                      avatar: Text(def['icon'] ?? '🏅',
+                          style: const TextStyle(fontSize: 20)),
+                      label: Text(def['name']),
+                      labelStyle: theme.textTheme.labelLarge
+                          ?.copyWith(color: Colors.white),
+                      backgroundColor:
+                          theme.colorScheme.primary.withOpacity(0.1),
+                    );
+                  }).toList(),
+                ),
           const SizedBox(height: 80),
         ],
       ),
@@ -484,7 +510,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           children: [
             Icon(Icons.school_outlined, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text("No workshops taught yet", style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text("No workshops taught yet",
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -500,27 +527,33 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
-            title: Text(w['title'], style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Text(w['title'],
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
-                Text("$dateStr • ${w['participants']}/${w['max_participants']} participants"),
+                Text(
+                    "$dateStr • ${w['participants']}/${w['max_participants']} participants"),
               ],
             ),
             trailing: w['rating'] != null
                 ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.star, color: Colors.amber, size: 20),
-                const SizedBox(width: 4),
-                Text(w['rating'].toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            )
-                : const Text("Upcoming", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 20),
+                      const SizedBox(width: 4),
+                      Text(w['rating'].toStringAsFixed(1),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  )
+                : const Text("Upcoming",
+                    style: TextStyle(
+                        color: Colors.blue, fontWeight: FontWeight.w500)),
           ),
         );
       },
@@ -535,7 +568,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           children: [
             Icon(Icons.auto_awesome_outlined, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text("No skills listed yet", style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text("No skills listed yet",
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -547,12 +581,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       itemBuilder: (_, i) {
         final s = skills[i];
         final endorsements = s['endorsements'] as int;
-        final progress = (endorsements / 50).clamp(0.0, 1.0); // Full at 50 endorsements
+        final progress =
+            (endorsements / 50).clamp(0.0, 1.0); // Full at 50 endorsements
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -561,7 +597,9 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(s['name'],
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
                     Text(s['level'], style: TextStyle(color: Colors.grey[600])),
                   ],
                 ),
@@ -577,8 +615,12 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("$endorsements endorsements", style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                    Text("${(progress * 100).toInt()}% mastery", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    Text("$endorsements endorsements",
+                        style:
+                            const TextStyle(fontSize: 13, color: Colors.grey)),
+                    Text("${(progress * 100).toInt()}% mastery",
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ],
@@ -597,9 +639,11 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           children: [
             Icon(Icons.rate_review_outlined, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text("No reviews yet", style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text("No reviews yet",
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
             SizedBox(height: 8),
-            Text("Reviews appear after workshops are completed", style: TextStyle(fontSize: 14, color: Colors.grey)),
+            Text("Reviews appear after workshops are completed",
+                style: TextStyle(fontSize: 14, color: Colors.grey)),
           ],
         ),
       );
@@ -617,7 +661,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
             leading: CircleAvatar(
@@ -626,25 +671,33 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                   ? NetworkImage(reviewer['avatar_url'])
                   : null,
               child: reviewer['avatar_url']?.isEmpty != false
-                  ? Text((reviewer['name']?[0] ?? 'U').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold))
+                  ? Text((reviewer['name']?[0] ?? 'U').toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.bold))
                   : null,
             ),
-            title: Text(reviewer['name'] ?? 'Anonymous', style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Text(reviewer['name'] ?? 'Anonymous',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
                 Row(
-                  children: List.generate(5, (index) => Icon(
-                    Icons.star_rounded,
-                    size: 18,
-                    color: index < (r['rating'] ?? 0) ? Colors.amber : Colors.grey[400],
-                  )),
+                  children: List.generate(
+                      5,
+                      (index) => Icon(
+                            Icons.star_rounded,
+                            size: 18,
+                            color: index < (r['rating'] ?? 0)
+                                ? Colors.amber
+                                : Colors.grey[400],
+                          )),
                 ),
                 const SizedBox(height: 8),
-                Text('"${r['review'] ?? 'Great workshop!'}"', style: const TextStyle(fontStyle: FontStyle.italic)),
+                Text('"${r['review'] ?? 'Great workshop!'}"',
+                    style: const TextStyle(fontStyle: FontStyle.italic)),
                 const SizedBox(height: 4),
-                Text("from \"$workshopTitle\" • $dateStr", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text("from \"$workshopTitle\" • $dateStr",
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               ],
             ),
           ),

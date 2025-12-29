@@ -31,7 +31,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       websiteCtrl;
   String academicYear = "";
 
-  late TextEditingController instagramCtrl, twitterCtrl, linkedinCtrl, githubCtrl;
+  late TextEditingController instagramCtrl,
+      twitterCtrl,
+      linkedinCtrl,
+      githubCtrl;
 
   List<String> skillsToTeach = [];
   List<String> skillsToLearn = [];
@@ -71,10 +74,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       name: nameCtrl.text.trim(),
       phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
       bio: bioCtrl.text.trim().isEmpty ? null : bioCtrl.text.trim(),
-      university: universityCtrl.text.trim().isEmpty ? null : universityCtrl.text.trim(),
+      university: universityCtrl.text.trim().isEmpty
+          ? null
+          : universityCtrl.text.trim(),
       major: majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim(),
       year: academicYear.isEmpty ? null : academicYear,
-      location: locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
+      location:
+          locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
       website: websiteCtrl.text.trim().isEmpty ? null : websiteCtrl.text.trim(),
       skillsToTeach: skillsToTeach,
       skillsToLearn: skillsToLearn,
@@ -92,19 +98,19 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     final response = await Supabase.instance.client
         .from('users')
         .update({
-      'name': updatedUser.name,
-      'phone': updatedUser.phone,
-      'bio': updatedUser.bio,
-      'university': updatedUser.university,
-      'major': updatedUser.major,
-      'year': updatedUser.year,
-      'location': updatedUser.location,
-      'website': updatedUser.website,
-      'avatar_url': updatedUser.avatarUrl,  // Correctly using avatar_url
-      'skills_to_teach': updatedUser.skillsToTeach,
-      'skills_to_learn': updatedUser.skillsToLearn,
-      'social': updatedUser.social,
-    })
+          'name': updatedUser.name,
+          'phone': updatedUser.phone,
+          'bio': updatedUser.bio,
+          'university': updatedUser.university,
+          'major': updatedUser.major,
+          'year': updatedUser.year,
+          'location': updatedUser.location,
+          'website': updatedUser.website,
+          'avatar_url': updatedUser.avatarUrl, // Correctly using avatar_url
+          'skills_to_teach': updatedUser.skillsToTeach,
+          'skills_to_learn': updatedUser.skillsToLearn,
+          'social': updatedUser.social,
+        })
         .eq('id', updatedUser.id)
         .select()
         .single();
@@ -120,8 +126,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
     Navigator.pop(context, updatedUser);
   }
-
-
 
   Widget _buildChipList(List<String> items, Function(String) onRemove) {
     return Wrap(
@@ -171,7 +175,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   children: [
                     CircleAvatar(
                       radius: 40,
-                      backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                      backgroundColor:
+                          theme.colorScheme.primary.withOpacity(0.2),
                       child: Text(
                         nameCtrl.text.isNotEmpty ? nameCtrl.text[0] : "U",
                         style: TextStyle(
@@ -184,7 +189,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     ElevatedButton.icon(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Avatar upload not implemented")),
+                          const SnackBar(
+                              content: Text("Avatar upload not implemented")),
                         );
                       },
                       icon: const Icon(Icons.camera_alt),
@@ -195,27 +201,50 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               ),
               const SizedBox(height: 20),
 
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Full Name")),
               TextField(
-              controller: emailCtrl,
-              decoration: const InputDecoration(labelText: "Email (cannot change)"),
-              enabled: false,
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: "Full Name")),
+              TextField(
+                controller: emailCtrl,
+                decoration:
+                    const InputDecoration(labelText: "Email (cannot change)"),
+                enabled: false,
               ),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: "Phone")),
-              TextField(controller: bioCtrl, maxLines: 3, decoration: const InputDecoration(labelText: "Bio")),
+              TextField(
+                  controller: phoneCtrl,
+                  decoration: const InputDecoration(labelText: "Phone")),
+              TextField(
+                  controller: bioCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: "Bio")),
               const Divider(height: 30),
-              TextField(controller: universityCtrl, decoration: const InputDecoration(labelText: "University")),
-              TextField(controller: majorCtrl, decoration: const InputDecoration(labelText: "Major")),
+              TextField(
+                  controller: universityCtrl,
+                  decoration: const InputDecoration(labelText: "University")),
+              TextField(
+                  controller: majorCtrl,
+                  decoration: const InputDecoration(labelText: "Major")),
               DropdownButtonFormField<String>(
                 initialValue: academicYear.isEmpty ? null : academicYear,
                 decoration: const InputDecoration(labelText: "Academic Year"),
-                items: ["Freshman", "Sophomore", "Junior", "Senior", "Graduate", "PhD"]
+                items: [
+                  "Freshman",
+                  "Sophomore",
+                  "Junior",
+                  "Senior",
+                  "Graduate",
+                  "PhD"
+                ]
                     .map((y) => DropdownMenuItem(value: y, child: Text(y)))
                     .toList(),
                 onChanged: (val) => setState(() => academicYear = val ?? ""),
               ),
-              TextField(controller: locationCtrl, decoration: const InputDecoration(labelText: "Location")),
-              TextField(controller: websiteCtrl, decoration: const InputDecoration(labelText: "Website")),
+              TextField(
+                  controller: locationCtrl,
+                  decoration: const InputDecoration(labelText: "Location")),
+              TextField(
+                  controller: websiteCtrl,
+                  decoration: const InputDecoration(labelText: "Website")),
             ],
           ),
 
@@ -223,14 +252,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text("Skills I Can Teach", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Skills I Can Teach",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               _buildChipList(skillsToTeach, (s) => skillsToTeach.remove(s)),
               Row(
                 children: [
                   Expanded(
                       child: TextField(
                           controller: newSkillTeachCtrl,
-                          decoration: const InputDecoration(hintText: "Add skill"))),
+                          decoration:
+                              const InputDecoration(hintText: "Add skill"))),
                   IconButton(
                     icon: const Icon(Icons.add),
                     onPressed: () {
@@ -244,14 +275,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 ],
               ),
               const SizedBox(height: 20),
-              const Text("Skills I Want to Learn", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Skills I Want to Learn",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               _buildChipList(skillsToLearn, (s) => skillsToLearn.remove(s)),
               Row(
                 children: [
                   Expanded(
                       child: TextField(
                           controller: newSkillLearnCtrl,
-                          decoration: const InputDecoration(hintText: "Add skill"))),
+                          decoration:
+                              const InputDecoration(hintText: "Add skill"))),
                   IconButton(
                     icon: const Icon(Icons.add),
                     onPressed: () {
@@ -271,12 +304,21 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(controller: instagramCtrl, decoration: const InputDecoration(labelText: "Instagram")),
-              TextField(controller: twitterCtrl, decoration: const InputDecoration(labelText: "Twitter")),
-              TextField(controller: linkedinCtrl, decoration: const InputDecoration(labelText: "LinkedIn")),
-              TextField(controller: githubCtrl, decoration: const InputDecoration(labelText: "GitHub")),
+              TextField(
+                  controller: instagramCtrl,
+                  decoration: const InputDecoration(labelText: "Instagram")),
+              TextField(
+                  controller: twitterCtrl,
+                  decoration: const InputDecoration(labelText: "Twitter")),
+              TextField(
+                  controller: linkedinCtrl,
+                  decoration: const InputDecoration(labelText: "LinkedIn")),
+              TextField(
+                  controller: githubCtrl,
+                  decoration: const InputDecoration(labelText: "GitHub")),
               const Divider(height: 30),
-              const Text("Contact Preferences", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Contact Preferences",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const ListTile(
                 leading: Icon(Icons.mail, color: Colors.blue),
                 title: Text("Email"),

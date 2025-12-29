@@ -15,8 +15,6 @@ import 'package:signin_with_linkedin/signin_with_linkedin.dart';
 import 'dart:developer' as developer;
 import 'package:url_launcher/url_launcher.dart';
 
-
-
 class CVBuilderScreen extends StatefulWidget {
   final Function(String, {Map<String, dynamic>? data})? onNavigate;
 
@@ -70,7 +68,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
 
     final userRes = await supabase
         .from('users')
-        .select('name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location') // Removed linkedin_token
+        .select(
+            'name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location') // Removed linkedin_token
         .eq('id', userId)
         .single();
 
@@ -90,7 +89,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       final userRes = await supabase
           .from('users')
           .select(
-          'name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location')
+              'name,email,phone,bio,website,skills_to_teach,avatar_url,xp,level,university,major,year,location')
           .eq('id', userId)
           .single();
 
@@ -100,9 +99,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       _calculateCompletenessAndSuggestions(userRes);
 
       // 3. Fetch gamification data
-      final gamificationRes = await supabase
-          .rpc('get_user_gamification_data', params: {'current_user_id': userId})
-          .single();
+      final gamificationRes = await supabase.rpc('get_user_gamification_data',
+          params: {'current_user_id': userId}).single();
 
       final gamification = gamificationRes;
       badgesEarned = (gamification['badges_earned'] as num).toInt();
@@ -110,7 +108,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       // 4. Workshops taught - Modified to fetch more fields
       final taughtWorkshopsRes = await supabase
           .from('workshops')
-          .select('id, title, date, rating, skills, category, duration, difficulty, description')
+          .select(
+              'id, title, date, rating, skills, category, duration, difficulty, description')
           .eq('creator_id', userId);
 
       // Store the workshops in state
@@ -146,11 +145,11 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       achievements = (badgesJson ?? [])
           .where((b) => b['earned'] == true)
           .map((b) => {
-        'title': b['name'],
-        'desc': b['description'],
-        'icon': b['icon'],
-        'earned': (b['earned_at'] as String?)?.split('T')[0] ?? 'N/A',
-      })
+                'title': b['name'],
+                'desc': b['description'],
+                'icon': b['icon'],
+                'earned': (b['earned_at'] as String?)?.split('T')[0] ?? 'N/A',
+              })
           .toList();
 
       // 8. Skills: endorsements + taught
@@ -180,7 +179,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       // 9. Get workshop ratings for evidence
       final workshopRatings = <String, List<Map<String, dynamic>>>{};
       if (taughtWorkshopsRes.isNotEmpty) {
-        final taughtWorkshopIds = taughtWorkshopsRes.map((w) => w['id'] as String).toList();
+        final taughtWorkshopIds =
+            taughtWorkshopsRes.map((w) => w['id'] as String).toList();
 
         final ratingsRes = await supabase
             .from('workshop_ratings')
@@ -190,12 +190,15 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
             .filter('workshop_id', 'in', taughtWorkshopIds);
 
         // Get user names for reviews
-        final reviewerIds = ratingsRes.map((r) => r['user_id'] as String).toSet().toList();
+        final reviewerIds =
+            ratingsRes.map((r) => r['user_id'] as String).toSet().toList();
         final authorsRes = await supabase
             .from('users')
             .select('id, name')
             .filter('id', 'in', reviewerIds);
-        final authorsMap = {for (var a in authorsRes) a['id'] as String: a['name'] as String?};
+        final authorsMap = {
+          for (var a in authorsRes) a['id'] as String: a['name'] as String?
+        };
 
         // Organize ratings by workshop
         for (var rating in ratingsRes) {
@@ -279,7 +282,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
 
             if (workshopId != null) {
               final workshop = taughtWorkshopsRes.firstWhere(
-                    (w) => w['id'] == workshopId,
+                (w) => w['id'] == workshopId,
                 orElse: () => {'title': 'General'},
               );
               workshopTitle = workshop['title'] as String? ?? "General";
@@ -308,7 +311,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
           "endorsements": endorsements,
           "workshops": relatedWorkshops,
           "average_rating": skillRating,
-          "evidence": evidence.take(5).toList(), // Limit to top 5 evidence items
+          "evidence":
+              evidence.take(5).toList(), // Limit to top 5 evidence items
         });
       }
 
@@ -383,7 +387,7 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
 
               if (workshopId != null) {
                 final workshop = taughtWorkshopsRes.firstWhere(
-                      (w) => w['id'] == workshopId,
+                  (w) => w['id'] == workshopId,
                   orElse: () => {'title': 'General'},
                 );
                 workshopTitle = workshop['title'] as String? ?? "General";
@@ -403,7 +407,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
             if (a['date'] == null && b['date'] == null) return 0;
             if (a['date'] == null) return 1;
             if (b['date'] == null) return -1;
-            return DateTime.parse(b['date']).compareTo(DateTime.parse(a['date']));
+            return DateTime.parse(b['date'])
+                .compareTo(DateTime.parse(a['date']));
           });
 
           skills.add({
@@ -412,7 +417,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
             "endorsements": endorsements,
             "workshops": relatedWorkshops,
             "average_rating": skillRating,
-            "evidence": evidence.take(5).toList(), // Limit to top 5 evidence items
+            "evidence":
+                evidence.take(5).toList(), // Limit to top 5 evidence items
             "from_workshop": true, // Mark as derived from workshop
           });
         }
@@ -422,7 +428,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
       testimonials = [];
       if (taughtWorkshopsRes.isNotEmpty) {
         // Get a list of IDs for workshops taught by user
-        final taughtWorkshopIds = taughtWorkshopsRes.map((w) => w['id'] as String).toList();
+        final taughtWorkshopIds =
+            taughtWorkshopsRes.map((w) => w['id'] as String).toList();
 
         // Fetch ratings only for those specific workshops
         final ratingsRes = await supabase
@@ -430,28 +437,33 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
             .select('rating, review, user_id, workshop_id')
             .not('review', 'is', null)
             .not('review', 'eq', '')
-        // CORRECTED: Use .filter() for older library versions
+            // CORRECTED: Use .filter() for older library versions
             .filter('workshop_id', 'in', taughtWorkshopIds)
             .limit(5);
 
         if (ratingsRes.isNotEmpty) {
           // Get all unique reviewer IDs to fetch their names in one query
-          final reviewerIds = ratingsRes.map((r) => r['user_id'] as String).toSet().toList();
+          final reviewerIds =
+              ratingsRes.map((r) => r['user_id'] as String).toSet().toList();
           final authorsRes = await supabase
               .from('users')
               .select('id, name')
-          // CORRECTED: Use .filter() here as well
+              // CORRECTED: Use .filter() here as well
               .filter('id', 'in', reviewerIds);
-          final authorsMap = {for (var a in authorsRes) a['id'] as String: a['name'] as String?};
+          final authorsMap = {
+            for (var a in authorsRes) a['id'] as String: a['name'] as String?
+          };
 
           // Create a map for quick lookup of workshop skills
           final workshopSkillsMap = {
-            for (var w in taughtWorkshopsRes) w['id'] as String: w['skills'] as List?
+            for (var w in taughtWorkshopsRes)
+              w['id'] as String: w['skills'] as List?
           };
 
           testimonials = ratingsRes.map((r) {
             final skillList = workshopSkillsMap[r['workshop_id']];
-            final skill = (skillList?.isNotEmpty == true) ? skillList![0] : "General";
+            final skill =
+                (skillList?.isNotEmpty == true) ? skillList![0] : "General";
 
             return {
               "author": authorsMap[r['user_id']] ?? "Anonymous",
@@ -533,12 +545,12 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
     }
   }
 
-
   Future<void> connectLinkedIn() async {
     try {
       final config = LinkedInConfig(
         clientId: '867905jxxemuub', // ← your real client ID
-        clientSecret: 'WPL_AP1.zfWkD7CvbaHHkl8B.Sh4YMg==', // ← your real secret (testing only!)
+        clientSecret:
+            'WPL_AP1.zfWkD7CvbaHHkl8B.Sh4YMg==', // ← your real secret (testing only!)
         redirectUrl: 'https://localhost/linkedin-callback',
         scope: ['openid', 'profile', 'email'],
       );
@@ -554,7 +566,8 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
         developer.log('Got auth code, exchanging for token...');
 
         // Step 2: Exchange code for real access token
-        final tokenResult = await linkedin.getAccessToken(authorizationCode: authCode);
+        final tokenResult =
+            await linkedin.getAccessToken(authorizationCode: authCode);
         final tokenInfo = tokenResult.$1;
         final tokenError = tokenResult.$2;
 
@@ -569,17 +582,20 @@ class _CVBuilderScreenState extends State<CVBuilderScreen>
           // Save the REAL token
           await supabase
               .from('users')
-              .update({'linkedin_token': tokenString})
-              .eq('id', supabase.auth.currentUser!.id);
+              .update({'linkedin_token': tokenString}).eq(
+                  'id', supabase.auth.currentUser!.id);
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("LinkedIn connected successfully! 🎉")),
+            const SnackBar(
+                content: Text("LinkedIn connected successfully! 🎉")),
           );
 
           developer.log('Real access token saved. Posting should now work.');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Token exchange failed: ${tokenError?.toJson()}")),
+            SnackBar(
+                content:
+                    Text("Token exchange failed: ${tokenError?.toJson()}")),
           );
         }
       } else if (error != null) {
@@ -619,18 +635,21 @@ I'm building real-world experience through teaching workshops and earning endors
 Check out SkillX and level up too: https://your-skillx-app-link.com
 
 #SkillX #Learning #ProfessionalDevelopment #Skills #CareerGrowth
-""".trim();
+"""
+        .trim();
 
     // Copy to clipboard
     await Clipboard.setData(ClipboardData(text: fullText));
 
     // Primary: Mobile web share page — clean "Start a post" screen
-    final Uri mobileShareUri = Uri.parse("https://www.linkedin.com/sharing/share-offsite/?mini=true");
+    final Uri mobileShareUri =
+        Uri.parse("https://www.linkedin.com/sharing/share-offsite/?mini=true");
 
     // Fallback: General feed (if above doesn't open nicely)
     final Uri feedUri = Uri.parse("https://www.linkedin.com/feed/");
 
-    bool launched = await launchUrl(mobileShareUri, mode: LaunchMode.externalApplication);
+    bool launched =
+        await launchUrl(mobileShareUri, mode: LaunchMode.externalApplication);
     if (!launched) {
       await launchUrl(feedUri, mode: LaunchMode.externalApplication);
     }
@@ -693,7 +712,8 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
             },
           ),
           IconButton(
-            icon: const Icon(Icons.info_outline), // ← This is the standard "info" icon (i in circle)
+            icon: const Icon(Icons
+                .info_outline), // ← This is the standard "info" icon (i in circle)
             tooltip: "About CV Builder",
             onPressed: () {
               showDialog(
@@ -702,11 +722,11 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                   title: const Text("CV Builder"),
                   content: const Text(
                     "Your CV is automatically built from your real activity on SkillX:\n\n"
-                        "• Skills from workshops you've taught and endorsements\n"
-                        "• Experience from workshops you've conducted\n"
-                        "• Achievements from badges earned\n"
-                        "• Testimonials from participant reviews\n\n"
-                        "Download as PDF or share to LinkedIn anytime!",
+                    "• Skills from workshops you've taught and endorsements\n"
+                    "• Experience from workshops you've conducted\n"
+                    "• Achievements from badges earned\n"
+                    "• Testimonials from participant reviews\n\n"
+                    "Download as PDF or share to LinkedIn anytime!",
                   ),
                   actions: [
                     TextButton(
@@ -730,7 +750,8 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
               child: TabBar(
                 controller: _tabController,
                 labelColor: theme.colorScheme.primary,
-                unselectedLabelColor: theme.colorScheme.onSurface.withAlpha(153),
+                unselectedLabelColor:
+                    theme.colorScheme.onSurface.withAlpha(153),
                 indicatorColor: theme.colorScheme.primary,
                 tabs: const [
                   Tab(text: "Overview"),
@@ -770,18 +791,22 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text("Profile Completeness",
-                      style: theme.textTheme.titleMedium),
-                  Text("$completenessScore%"),
-                ]),
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Profile Completeness",
+                          style: theme.textTheme.titleMedium),
+                      Text("$completenessScore%"),
+                    ]),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: completenessScore / 100,
                   minHeight: 8,
-                  backgroundColor: Colors.white.withOpacity(0.2), // Dark subtle background
+                  backgroundColor:
+                      Colors.white.withOpacity(0.2), // Dark subtle background
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    theme.colorScheme.primary, // Blue for completed part (your main color: 0xFF60A5FA)
+                    theme.colorScheme
+                        .primary, // Blue for completed part (your main color: 0xFF60A5FA)
                   ),
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -791,13 +816,13 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                         ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 ...suggestions.map((s) => Row(
-                  children: [
-                    Icon(Icons.circle,
-                        size: 6, color: theme.colorScheme.primary),
-                    const SizedBox(width: 6),
-                    Text(s, style: theme.textTheme.bodyMedium),
-                  ],
-                )),
+                      children: [
+                        Icon(Icons.circle,
+                            size: 6, color: theme.colorScheme.primary),
+                        const SizedBox(width: 6),
+                        Text(s, style: theme.textTheme.bodyMedium),
+                      ],
+                    )),
               ],
             ),
           ),
@@ -842,7 +867,7 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate:
-      const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+          const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
       itemBuilder: (context, i) {
         final item = stats[i];
         return Card(
@@ -884,16 +909,16 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
           Text("Recent Achievements", style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           ...achievements.map((a) => ListTile(
-            leading: Text(a["icon"], style: const TextStyle(fontSize: 24)),
-            title: Text(a["title"], style: theme.textTheme.bodyLarge),
-            subtitle: Text("${a["desc"]}\nEarned: ${a["earned"]}",
-                style: theme.textTheme.bodySmall),
-            trailing: IconButton(
-              icon: const Icon(Icons.link),
-              color: theme.colorScheme.primary,
-              onPressed: () => addToLinkedInProfile(a["title"]),
-            ),
-          ))
+                leading: Text(a["icon"], style: const TextStyle(fontSize: 24)),
+                title: Text(a["title"], style: theme.textTheme.bodyLarge),
+                subtitle: Text("${a["desc"]}\nEarned: ${a["earned"]}",
+                    style: theme.textTheme.bodySmall),
+                trailing: IconButton(
+                  icon: const Icon(Icons.link),
+                  color: theme.colorScheme.primary,
+                  onPressed: () => addToLinkedInProfile(a["title"]),
+                ),
+              ))
         ]),
       ),
     );
@@ -995,195 +1020,202 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
           )
         else
           ...skills.map((s) => Card(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                color: theme.colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "${s["name"]} (${s["level"]})",
-                        style: theme.textTheme.titleMedium,
-                      ),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (s["from_workshop"] == true)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                "From Workshop",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: theme.colorScheme.onPrimaryContainer,
-                                ),
-                              ),
-                            ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: () => addToLinkedInProfile("Achieved ${s["level"]} level in ${s["name"]} on SkillX!"),
-                            icon: const Icon(Icons.link),
-                            color: theme.colorScheme.primary,
+                          Text(
+                            "${s["name"]} (${s["level"]})",
+                            style: theme.textTheme.titleMedium,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text(
-                        "Endorsements: ${s["endorsements"]}",
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        "Workshops: ${s["workshops"].length}",
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(width: 16),
-                      if (s["average_rating"] > 0)
-                        Row(
-                          children: [
-                            Text(
-                              "Rating: ",
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            ...List.generate(
-                              5,
-                                  (i) => Icon(
-                                Icons.star,
-                                size: 14,
-                                color: i < s["average_rating"]
-                                    ? Colors.amber
-                                    : theme.disabledColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-
-                  // Show related workshops
-                  if (s["workshops"].isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      "Related Workshops",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    ...s["workshops"].take(3).map((w) => Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            size: 16,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "${w["title"]} (${_formatDate(w["date"])})",
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
-                    if (s["workshops"].length > 3)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 4),
-                        child: Text(
-                          "+${s["workshops"].length - 3} more workshops",
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                  ],
-
-                  // Show evidence (reviews and endorsements)
-                  if (s["evidence"].isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      "Evidence",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    ...s["evidence"].map((e) => Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
                           Row(
                             children: [
-                              Icon(
-                                e["type"] == "review"
-                                    ? Icons.rate_review
-                                    : Icons.thumb_up,
-                                size: 16,
+                              if (s["from_workshop"] == true)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    "From Workshop",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: () => addToLinkedInProfile(
+                                    "Achieved ${s["level"]} level in ${s["name"]} on SkillX!"),
+                                icon: const Icon(Icons.link),
                                 color: theme.colorScheme.primary,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                e["type"] == "review"
-                                    ? "Review from ${e["author"]}"
-                                    : "Endorsement",
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text(
+                            "Endorsements: ${s["endorsements"]}",
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            "Workshops: ${s["workshops"].length}",
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 16),
+                          if (s["average_rating"] > 0)
+                            Row(
+                              children: [
+                                Text(
+                                  "Rating: ",
+                                  style: theme.textTheme.bodySmall,
                                 ),
-                              ),
-                              if (e["type"] == "review" && e["rating"] != null) ...[
-                                const SizedBox(width: 8),
                                 ...List.generate(
                                   5,
-                                      (i) => Icon(
+                                  (i) => Icon(
                                     Icons.star,
-                                    size: 12,
-                                    color: i < e["rating"]
+                                    size: 14,
+                                    color: i < s["average_rating"]
                                         ? Colors.amber
                                         : theme.disabledColor,
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "\"${e["text"]}\"",
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                          if (e["workshop_title"] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 24),
-                              child: Text(
-                                "From: ${e["workshop_title"]}",
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withAlpha(179),
-                                ),
-                              ),
                             ),
                         ],
                       ),
-                    )),
-                  ],
-                ],
-              ),
-            ),
-          )),
+
+                      // Show related workshops
+                      if (s["workshops"].isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          "Related Workshops",
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ...s["workshops"].take(3).map((w) => Padding(
+                              padding: const EdgeInsets.only(left: 8, top: 4),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    size: 16,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "${w["title"]} (${_formatDate(w["date"])})",
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                        if (s["workshops"].length > 3)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, top: 4),
+                            child: Text(
+                              "+${s["workshops"].length - 3} more workshops",
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                      ],
+
+                      // Show evidence (reviews and endorsements)
+                      if (s["evidence"].isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          "Evidence",
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ...s["evidence"].map((e) => Padding(
+                              padding: const EdgeInsets.only(left: 8, top: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        e["type"] == "review"
+                                            ? Icons.rate_review
+                                            : Icons.thumb_up,
+                                        size: 16,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        e["type"] == "review"
+                                            ? "Review from ${e["author"]}"
+                                            : "Endorsement",
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      if (e["type"] == "review" &&
+                                          e["rating"] != null) ...[
+                                        const SizedBox(width: 8),
+                                        ...List.generate(
+                                          5,
+                                          (i) => Icon(
+                                            Icons.star,
+                                            size: 12,
+                                            color: i < e["rating"]
+                                                ? Colors.amber
+                                                : theme.disabledColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "\"${e["text"]}\"",
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  if (e["workshop_title"] != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 24),
+                                      child: Text(
+                                        "From: ${e["workshop_title"]}",
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: theme.colorScheme.onSurface
+                                              .withAlpha(179),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            )),
+                      ],
+                    ],
+                  ),
+                ),
+              )),
         const SizedBox(height: 12),
         CustomButton(
           label: "Add New Skill",
@@ -1196,7 +1228,12 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
   // Add this method to show a dialog for adding a new skill
   void _showAddSkillDialog(BuildContext context) {
     final TextEditingController skillController = TextEditingController();
-    final List<String> skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
+    final List<String> skillLevels = [
+      'Beginner',
+      'Intermediate',
+      'Advanced',
+      'Expert'
+    ];
     String selectedLevel = 'Intermediate';
 
     showDialog(
@@ -1261,19 +1298,22 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                               .eq('id', userId)
                               .single();
 
-                          final currentSkills = currentUserRes['skills_to_teach'] as List? ?? [];
+                          final currentSkills =
+                              currentUserRes['skills_to_teach'] as List? ?? [];
 
                           // Add new skill if not already present
-                          if (!currentSkills.contains(skillController.text.trim())) {
-                            final updatedSkills = [...currentSkills, skillController.text.trim()];
+                          if (!currentSkills
+                              .contains(skillController.text.trim())) {
+                            final updatedSkills = [
+                              ...currentSkills,
+                              skillController.text.trim()
+                            ];
 
                             // Update user's skills_to_teach
                             await supabase
                                 .from('users')
-                                .update({
-                              'skills_to_teach': updatedSkills
-                            })
-                                .eq('id', userId);
+                                .update({'skills_to_teach': updatedSkills}).eq(
+                                    'id', userId);
 
                             // Refresh data
                             _loadData();
@@ -1281,20 +1321,24 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                             if (mounted) {
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Skill added successfully!")),
+                                const SnackBar(
+                                    content: Text("Skill added successfully!")),
                               );
                             }
                           } else {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Skill already exists")),
+                                const SnackBar(
+                                    content: Text("Skill already exists")),
                               );
                             }
                           }
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Error adding skill: ${e.toString()}")),
+                              SnackBar(
+                                  content: Text(
+                                      "Error adding skill: ${e.toString()}")),
                             );
                           }
                         }
@@ -1311,9 +1355,11 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
     );
   }
 
-  Widget _buildExperienceTab(BuildContext context) { // Modified to use taughtWorkshops state
+  Widget _buildExperienceTab(BuildContext context) {
+    // Modified to use taughtWorkshops state
     final theme = Theme.of(context);
-    final hasCreated = taughtWorkshops.isNotEmpty; // Use taughtWorkshops instead of created
+    final hasCreated =
+        taughtWorkshops.isNotEmpty; // Use taughtWorkshops instead of created
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1322,16 +1368,16 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
           color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Workshop Experience Timeline",
-                      style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  if (!hasCreated)
-                    const Text("No workshops created yet.",
-                        style: TextStyle(color: Colors.grey)),
-                  ...taughtWorkshops.map((w) => ListTile( // Use taughtWorkshops instead of created
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text("Workshop Experience Timeline",
+                  style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (!hasCreated)
+                const Text("No workshops created yet.",
+                    style: TextStyle(color: Colors.grey)),
+              ...taughtWorkshops.map((w) => ListTile(
+                    // Use taughtWorkshops instead of created
                     title: Text(w["title"] ?? "Untitled",
                         style: theme.textTheme.bodyLarge
                             ?.copyWith(fontWeight: FontWeight.w500)),
@@ -1346,7 +1392,7 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
                           addToLinkedInProfile(w["title"] ?? "Workshop"),
                     ),
                   )),
-                ]),
+            ]),
           ),
         ),
         const SizedBox(height: 12),
@@ -1354,33 +1400,32 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
           color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Testimonials & Reviews",
-                      style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  if (testimonials.isEmpty)
-                    const Text("No reviews yet.",
-                        style: TextStyle(color: Colors.grey)),
-                  ...testimonials.map((t) {
-                    final int rating = t["rating"] as int? ?? 0;
-                    return ListTile(
-                      title: Text(t["author"], style: theme.textTheme.bodyLarge),
-                      subtitle: Text("\"${t["text"]}\" — ${t["skill"]}",
-                          style: theme.textTheme.bodySmall),
-                      trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: List.generate(
-                              5,
-                                  (i) => Icon(Icons.star,
-                                  size: 16,
-                                  color: i < rating
-                                      ? Colors.amber
-                                      : theme.disabledColor))),
-                    );
-                  })
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text("Testimonials & Reviews",
+                  style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (testimonials.isEmpty)
+                const Text("No reviews yet.",
+                    style: TextStyle(color: Colors.grey)),
+              ...testimonials.map((t) {
+                final int rating = t["rating"] as int? ?? 0;
+                return ListTile(
+                  title: Text(t["author"], style: theme.textTheme.bodyLarge),
+                  subtitle: Text("\"${t["text"]}\" — ${t["skill"]}",
+                      style: theme.textTheme.bodySmall),
+                  trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                          5,
+                          (i) => Icon(Icons.star,
+                              size: 16,
+                              color: i < rating
+                                  ? Colors.amber
+                                  : theme.disabledColor))),
+                );
+              })
+            ]),
           ),
         ),
       ],
@@ -1394,40 +1439,41 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
         padding: const EdgeInsets.all(16),
         child: isLinkedInConnected
             ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.check_circle,
-              color: theme.colorScheme.secondary, size: 64),
-          const SizedBox(height: 12),
-          Text("LinkedIn Connected!",
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          CustomButton(
-            label: "Add All Skills to LinkedIn",
-            onPressed: () => addToLinkedInProfile("All Skills"),
-            isPrimary: false,
-          ),
-          const SizedBox(height: 8),
-          CustomButton(
-            label: "Share Recent Achievements",
-            onPressed: () => addToLinkedInProfile("Recent Achievements"),
-            isPrimary: false,
-          ),
-        ])
+                Icon(Icons.check_circle,
+                    color: theme.colorScheme.secondary, size: 64),
+                const SizedBox(height: 12),
+                Text("LinkedIn Connected!",
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                CustomButton(
+                  label: "Add All Skills to LinkedIn",
+                  onPressed: () => addToLinkedInProfile("All Skills"),
+                  isPrimary: false,
+                ),
+                const SizedBox(height: 8),
+                CustomButton(
+                  label: "Share Recent Achievements",
+                  onPressed: () => addToLinkedInProfile("Recent Achievements"),
+                  isPrimary: false,
+                ),
+              ])
             : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.link, color: theme.colorScheme.primary, size: 64),
-          const SizedBox(height: 12),
-          Text("Connect LinkedIn Account",
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(
-            "Share your SkillX achievements directly to your LinkedIn profile.",
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 20),
-          CustomButton(label: "Connect LinkedIn", onPressed: connectLinkedIn)
-        ]),
+                Icon(Icons.link, color: theme.colorScheme.primary, size: 64),
+                const SizedBox(height: 12),
+                Text("Connect LinkedIn Account",
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  "Share your SkillX achievements directly to your LinkedIn profile.",
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 20),
+                CustomButton(
+                    label: "Connect LinkedIn", onPressed: connectLinkedIn)
+              ]),
       ),
     );
   }
@@ -1573,11 +1619,11 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   title: const Text("CV Preview"),
                   content: const Text(
                     "This is a live preview of your SkillX-generated CV.\n\n"
-                        "• Content is pulled directly from your workshops, skills, endorsements, and achievements\n"
-                        "• You can edit individual sections using the pencil icon next to each one\n"
-                        "• AI enhancement is optional and can be toggled off\n"
-                        "• Download as PDF anytime using the download button\n\n"
-                        "Your real activity = Your real CV!",
+                    "• Content is pulled directly from your workshops, skills, endorsements, and achievements\n"
+                    "• You can edit individual sections using the pencil icon next to each one\n"
+                    "• AI enhancement is optional and can be toggled off\n"
+                    "• Download as PDF anytime using the download button\n\n"
+                    "Your real activity = Your real CV!",
                   ),
                   actions: [
                     TextButton(
@@ -1608,10 +1654,16 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Enhance with AI", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        Text("Enhance with AI",
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold)),
                         Row(
                           children: [
-                            Text("AI Mode", style: TextStyle(color: _useAIGeneration ? Colors.green : Colors.grey)),
+                            Text("AI Mode",
+                                style: TextStyle(
+                                    color: _useAIGeneration
+                                        ? Colors.green
+                                        : Colors.grey)),
                             const SizedBox(width: 8),
                             Switch(
                               value: _useAIGeneration,
@@ -1632,8 +1684,13 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 _buildEditableSection(
                   context,
                   "PROFESSIONAL SUMMARY",
-                  _getDisplayText('summary', _professionalSummary, _generateTemplateSummary()),
-                      () => _editSection('summary', "Professional Summary", _getDisplayText('summary', _professionalSummary, _generateTemplateSummary())),
+                  _getDisplayText('summary', _professionalSummary,
+                      _generateTemplateSummary()),
+                  () => _editSection(
+                      'summary',
+                      "Professional Summary",
+                      _getDisplayText('summary', _professionalSummary,
+                          _generateTemplateSummary())),
                 ),
                 const SizedBox(height: 24),
 
@@ -1644,13 +1701,17 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   _useAIGeneration && _skillsText.isNotEmpty
                       ? _skillsText
                       : _buildSkillsSectionFallback(), // fallback is widget, so handle separately
-                      () => _editSection('skills', "Skills", _getDisplayText('skills', _skillsText, "")),
-                  isRichText: _useAIGeneration && _skillsText.isEmpty, // only allow edit if AI text exists or user wants custom
+                  () => _editSection('skills', "Skills",
+                      _getDisplayText('skills', _skillsText, "")),
+                  isRichText: _useAIGeneration &&
+                      _skillsText
+                          .isEmpty, // only allow edit if AI text exists or user wants custom
                 ),
 
                 // For Skills, we use fallback widget if no AI text and no edit
                 if (!_useAIGeneration || _skillsText.isEmpty)
-                  _buildSection(context, "SKILLS", _buildSkillsSection(context)),
+                  _buildSection(
+                      context, "SKILLS", _buildSkillsSection(context)),
 
                 const SizedBox(height: 24),
 
@@ -1659,10 +1720,12 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   context,
                   "EXPERIENCE",
                   _getDisplayText('experience', _experienceText, ""),
-                      () => _editSection('experience', "Experience", _getDisplayText('experience', _experienceText, "")),
+                  () => _editSection('experience', "Experience",
+                      _getDisplayText('experience', _experienceText, "")),
                 ),
                 if (!_useAIGeneration || _experienceText.isEmpty)
-                  _buildSection(context, "EXPERIENCE", _buildExperienceSection(context)),
+                  _buildSection(
+                      context, "EXPERIENCE", _buildExperienceSection(context)),
 
                 const SizedBox(height: 24),
 
@@ -1671,10 +1734,12 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   context,
                   "EDUCATION",
                   _getDisplayText('education', _educationText, ""),
-                      () => _editSection('education', "Education", _getDisplayText('education', _educationText, "")),
+                  () => _editSection('education', "Education",
+                      _getDisplayText('education', _educationText, "")),
                 ),
                 if (!_useAIGeneration || _educationText.isEmpty)
-                  _buildSection(context, "EDUCATION", _buildEducationSection(context)),
+                  _buildSection(
+                      context, "EDUCATION", _buildEducationSection(context)),
 
                 const SizedBox(height: 24),
 
@@ -1684,22 +1749,24 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                     context,
                     "ACHIEVEMENTS",
                     _getDisplayText('achievements', _achievementsText, ""),
-                        () => _editSection('achievements', "Achievements", _getDisplayText('achievements', _achievementsText, "")),
+                    () => _editSection('achievements', "Achievements",
+                        _getDisplayText('achievements', _achievementsText, "")),
                   ),
                   if (!_useAIGeneration || _achievementsText.isEmpty)
-                    _buildSection(context, "ACHIEVEMENTS", _buildAchievementsSection(context)),
+                    _buildSection(context, "ACHIEVEMENTS",
+                        _buildAchievementsSection(context)),
                   const SizedBox(height: 24),
                 ],
 
                 // Testimonials
                 if (widget.testimonials.isNotEmpty)
-                  _buildSection(context, "TESTIMONIALS", _buildTestimonialsSection(context)),
+                  _buildSection(context, "TESTIMONIALS",
+                      _buildTestimonialsSection(context)),
 
                 const SizedBox(height: 80),
               ],
             ),
           ),
-
           if (_isGenerating)
             Container(
               color: Colors.black54,
@@ -1709,7 +1776,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   children: [
                     CircularProgressIndicator(color: Colors.white),
                     SizedBox(height: 16),
-                    Text("Enhancing your CV with AI...", style: TextStyle(color: Colors.white, fontSize: 16)),
+                    Text("Enhancing your CV with AI...",
+                        style: TextStyle(color: Colors.white, fontSize: 16)),
                   ],
                 ),
               ),
@@ -1720,7 +1788,9 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
   }
 
   // New helper: editable section with pencil icon
-  Widget _buildEditableSection(BuildContext context, String title, String content, VoidCallback onEdit, {bool isRichText = true}) {
+  Widget _buildEditableSection(
+      BuildContext context, String title, String content, VoidCallback onEdit,
+      {bool isRichText = true}) {
     final theme = Theme.of(context);
     final hasContent = content.isNotEmpty;
 
@@ -1749,21 +1819,32 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
         const SizedBox(height: 12),
         if (hasContent)
           if (isRichText)
-            ...content.split('\n').where((line) => line.trim().isNotEmpty).map((line) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(line.trim(), style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
-            ))
+            ...content
+                .split('\n')
+                .where((line) => line.trim().isNotEmpty)
+                .map((line) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(line.trim(),
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(height: 1.5)),
+                    ))
           else
-            Text(content, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5))
+            Text(content,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5))
         else
-          Text("No content yet — tap edit to add your own", style: theme.textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.onSurface.withAlpha(150))),
+          Text("No content yet — tap edit to add your own",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurface.withAlpha(150))),
       ],
     );
   }
 
   // Fallback for Skills when no AI text
   String _buildSkillsSectionFallback() {
-    return widget.skills.map((s) => "• ${s['name']} (${s['level']})").join('\n');
+    return widget.skills
+        .map((s) => "• ${s['name']} (${s['level']})")
+        .join('\n');
   }
 
   Future<void> _generateAllSections() async {
@@ -1788,8 +1869,10 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
             taughtWorkshops: widget.taughtWorkshops,
             name: widget.userProfile['name'] ?? "Professional",
           ),
-          HuggingFaceService.generateEducationSection(userProfile: widget.userProfile),
-          HuggingFaceService.generateAchievementsSection(achievements: widget.achievements),
+          HuggingFaceService.generateEducationSection(
+              userProfile: widget.userProfile),
+          HuggingFaceService.generateAchievementsSection(
+              achievements: widget.achievements),
         ]);
 
         if (!mounted) return;
@@ -1847,28 +1930,38 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     final List<pw.Widget> content = [];
 
     // Header
-    content.add(pw.Text(name, style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.Text(name,
+        style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
     content.add(pw.Text(email, style: const pw.TextStyle(fontSize: 12)));
-    if (phone.isNotEmpty) content.add(pw.Text(phone, style: const pw.TextStyle(fontSize: 12)));
-    if (location.isNotEmpty) content.add(pw.Text(location, style: const pw.TextStyle(fontSize: 12)));
+    if (phone.isNotEmpty)
+      content.add(pw.Text(phone, style: const pw.TextStyle(fontSize: 12)));
+    if (location.isNotEmpty)
+      content.add(pw.Text(location, style: const pw.TextStyle(fontSize: 12)));
     content.add(pw.SizedBox(height: 20));
     content.add(pw.Divider());
     content.add(pw.SizedBox(height: 20));
 
     // Professional Summary — uses edited > AI > template
-    content.add(pw.Text("PROFESSIONAL SUMMARY", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.Text("PROFESSIONAL SUMMARY",
+        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
-    final summaryText = _getDisplayText('summary', _professionalSummary, _generateTemplateSummary());
-    content.add(pw.Paragraph(text: summaryText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
+    final summaryText = _getDisplayText(
+        'summary', _professionalSummary, _generateTemplateSummary());
+    content.add(pw.Paragraph(
+        text: summaryText,
+        style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
     content.add(pw.SizedBox(height: 20));
 
     // Skills — uses edited > AI > fallback chips
-    content.add(pw.Text("SKILLS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.Text("SKILLS",
+        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
-    final skillsText = _getDisplayText('skills', _skillsText, _buildSkillsSectionFallback());
+    final skillsText =
+        _getDisplayText('skills', _skillsText, _buildSkillsSectionFallback());
     if (skillsText.isNotEmpty) {
-      content.add(pw.Paragraph(text: skillsText, style: const pw.TextStyle(fontSize: 11)));
+      content.add(pw.Paragraph(
+          text: skillsText, style: const pw.TextStyle(fontSize: 11)));
     } else {
       content.add(
         pw.Wrap(
@@ -1876,12 +1969,14 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           runSpacing: 10,
           children: widget.skills.map((s) {
             return pw.Container(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding:
+                  const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: pw.BoxDecoration(
                 color: PdfColors.grey300,
                 borderRadius: pw.BorderRadius.circular(6),
               ),
-              child: pw.Text("${s['name']} (${s['level']})", style: const pw.TextStyle(fontSize: 11)),
+              child: pw.Text("${s['name']} (${s['level']})",
+                  style: const pw.TextStyle(fontSize: 11)),
             );
           }).toList(),
         ),
@@ -1890,11 +1985,14 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     content.add(pw.SizedBox(height: 20));
 
     // Experience — uses edited > AI > fallback
-    content.add(pw.Text("EXPERIENCE", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.Text("EXPERIENCE",
+        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 12));
     final experienceText = _getDisplayText('experience', _experienceText, "");
     if (experienceText.isNotEmpty) {
-      content.add(pw.Paragraph(text: experienceText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
+      content.add(pw.Paragraph(
+          text: experienceText,
+          style: const pw.TextStyle(fontSize: 11, lineSpacing: 5)));
     } else {
       for (final w in widget.taughtWorkshops) {
         final title = w['title'] as String? ?? "Untitled";
@@ -1902,10 +2000,15 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
         content.add(pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text(title, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-            pw.Text("Workshop Instructor", style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+            pw.Text(title,
+                style:
+                    pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Workshop Instructor",
+                style:
+                    pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
             pw.SizedBox(height: 6),
-            pw.Paragraph(text: description, style: const pw.TextStyle(fontSize: 11)),
+            pw.Paragraph(
+                text: description, style: const pw.TextStyle(fontSize: 11)),
             pw.SizedBox(height: 12),
           ],
         ));
@@ -1914,32 +2017,45 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     content.add(pw.SizedBox(height: 20));
 
     // Education — uses edited > AI > fallback
-    content.add(pw.Text("EDUCATION", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+    content.add(pw.Text("EDUCATION",
+        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
     final educationText = _getDisplayText('education', _educationText, "");
     if (educationText.isNotEmpty) {
-      content.add(pw.Paragraph(text: educationText, style: const pw.TextStyle(fontSize: 11)));
+      content.add(pw.Paragraph(
+          text: educationText, style: const pw.TextStyle(fontSize: 11)));
     } else {
       final university = widget.userProfile['university'] as String?;
       final major = widget.userProfile['major'] as String?;
       final year = widget.userProfile['year'] as String?;
-      if (university != null) content.add(pw.Text(university, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)));
-      if (major != null) content.add(pw.Text(major, style: const pw.TextStyle(fontSize: 11)));
-      if (year != null) content.add(pw.Text("Graduated: $year", style: const pw.TextStyle(fontSize: 11)));
+      if (university != null)
+        content.add(pw.Text(university,
+            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)));
+      if (major != null)
+        content.add(pw.Text(major, style: const pw.TextStyle(fontSize: 11)));
+      if (year != null)
+        content.add(pw.Text("Graduated: $year",
+            style: const pw.TextStyle(fontSize: 11)));
     }
     content.add(pw.SizedBox(height: 20));
 
     // Achievements — uses edited > AI > fallback
     if (widget.achievements.isNotEmpty) {
-      content.add(pw.Text("ACHIEVEMENTS", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
+      content.add(pw.Text("ACHIEVEMENTS",
+          style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)));
       content.add(pw.SizedBox(height: 8));
-      final achievementsText = _getDisplayText('achievements', _achievementsText, "");
+      final achievementsText =
+          _getDisplayText('achievements', _achievementsText, "");
       if (achievementsText.isNotEmpty) {
-        content.add(pw.Paragraph(text: achievementsText, style: const pw.TextStyle(fontSize: 11)));
+        content.add(pw.Paragraph(
+            text: achievementsText, style: const pw.TextStyle(fontSize: 11)));
       } else {
         for (final a in widget.achievements) {
-          content.add(pw.Text("• ${a['title']} ${a['icon'] ?? ''}", style: const pw.TextStyle(fontSize: 11)));
-          if (a['desc'] != null) content.add(pw.Text(a['desc'], style: const pw.TextStyle(fontSize: 11)));
+          content.add(pw.Text("• ${a['title']} ${a['icon'] ?? ''}",
+              style: const pw.TextStyle(fontSize: 11)));
+          if (a['desc'] != null)
+            content.add(
+                pw.Text(a['desc'], style: const pw.TextStyle(fontSize: 11)));
           content.add(pw.SizedBox(height: 6));
         }
       }
@@ -1949,7 +2065,11 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
-        build: (context) => [pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: content)],
+        build: (context) => [
+          pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: content)
+        ],
       ),
     );
 
@@ -1958,8 +2078,6 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
       bytes: await pdf.save(),
     );
   }
-
-
 
   String _generateTemplateSummary() {
     final name = widget.userProfile['name'] as String? ?? "Professional";
@@ -1975,16 +2093,17 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           : skillNames.join(', ');
       summary += " specializing in $skillsPart";
     }
-    summary += ". Delivered ${widget.taughtWorkshops.length} workshops with an average rating of ${widget.averageRating.toStringAsFixed(1)}/5.";
+    summary +=
+        ". Delivered ${widget.taughtWorkshops.length} workshops with an average rating of ${widget.averageRating.toStringAsFixed(1)}/5.";
     return summary;
   }
-
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
     final name = widget.userProfile['name'] as String? ?? "Your Name";
     final phone = widget.userProfile['phone'] as String?;
-    final email = widget.userProfile['email'] as String? ?? "your.email@example.com";
+    final email =
+        widget.userProfile['email'] as String? ?? "your.email@example.com";
     final location = widget.userProfile['location'] as String?;
     final website = widget.userProfile['website'] as String?;
 
@@ -2005,7 +2124,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           children: [
             if (phone != null) _buildContactItem(Icons.phone, phone),
             _buildContactItem(Icons.email, email),
-            if (location != null) _buildContactItem(Icons.location_on, location),
+            if (location != null)
+              _buildContactItem(Icons.location_on, location),
             if (website != null) _buildContactItem(Icons.language, website),
           ],
         ),
@@ -2056,10 +2176,14 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     Theme.of(context);
 
     // Group skills by level
-    final expertSkills = widget.skills.where((s) => s['level'] == 'Expert').toList();
-    final advancedSkills = widget.skills.where((s) => s['level'] == 'Advanced').toList();
-    final intermediateSkills = widget.skills.where((s) => s['level'] == 'Intermediate').toList();
-    final beginnerSkills = widget.skills.where((s) => s['level'] == 'Beginner').toList();
+    final expertSkills =
+        widget.skills.where((s) => s['level'] == 'Expert').toList();
+    final advancedSkills =
+        widget.skills.where((s) => s['level'] == 'Advanced').toList();
+    final intermediateSkills =
+        widget.skills.where((s) => s['level'] == 'Intermediate').toList();
+    final beginnerSkills =
+        widget.skills.where((s) => s['level'] == 'Beginner').toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2083,7 +2207,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     );
   }
 
-  Widget _buildSkillCategory(String level, List<Map<String, dynamic>> skillList) {
+  Widget _buildSkillCategory(
+      String level, List<Map<String, dynamic>> skillList) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2106,7 +2231,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 style: const TextStyle(fontSize: 12),
               ),
               // CHANGED: Use theme chip color with fallback
-              backgroundColor: theme.chipTheme.backgroundColor ?? Colors.grey[200],
+              backgroundColor:
+                  theme.chipTheme.backgroundColor ?? Colors.grey[200],
             );
           }).toList(),
         ),
@@ -2118,7 +2244,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
     final theme = Theme.of(context);
 
     // Sort workshops by date (most recent first)
-    final sortedWorkshops = List<Map<String, dynamic>>.from(widget.taughtWorkshops);
+    final sortedWorkshops =
+        List<Map<String, dynamic>>.from(widget.taughtWorkshops);
     sortedWorkshops.sort((a, b) {
       if (a['date'] == null && b['date'] == null) return 0;
       if (a['date'] == null) return 1;
@@ -2210,7 +2337,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                   ),
                   ...List.generate(
                     5,
-                        (i) => Icon(
+                    (i) => Icon(
                       Icons.star,
                       size: 14,
                       color: i < rating ? Colors.amber : Colors.grey[300],
@@ -2370,7 +2497,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                 const SizedBox(width: 8),
                 ...List.generate(
                   5,
-                      (i) => Icon(
+                  (i) => Icon(
                     Icons.star,
                     size: 14,
                     color: i < rating ? Colors.amber : Colors.grey[300],

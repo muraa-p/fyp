@@ -29,7 +29,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       // and then applies the search filter to the remaining users.
       final data = await Supabase.instance.client
           .from('users')
-          .select('id, name, email, avatar_url') // Select avatar_url for better UI
+          .select(
+              'id, name, email, avatar_url') // Select avatar_url for better UI
           .neq('id', currentUserId) // Exclude the current user FIRST
           .or('name.ilike.%$query%,email.ilike.%$query%') // Then search
           .order('name');
@@ -114,7 +115,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
                   final users = snapshot.data!;
                   return ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(), // Ensures refresh works even on short lists
+                    physics:
+                        const AlwaysScrollableScrollPhysics(), // Ensures refresh works even on short lists
                     itemCount: users.length,
                     itemBuilder: (context, i) {
                       final user = users[i];
@@ -125,8 +127,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                               : null,
                           child: user['avatar_url'] == null
                               ? Text(user["name"]?.isNotEmpty == true
-                              ? user["name"][0].toUpperCase()
-                              : 'U')
+                                  ? user["name"][0].toUpperCase()
+                                  : 'U')
                               : null,
                         ),
                         title: Text(user["name"] ?? 'No Name'),

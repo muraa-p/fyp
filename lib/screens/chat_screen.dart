@@ -15,7 +15,8 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateMixin {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   String searchQuery = "";
   Map<String, dynamic>? activeChat;
   RealtimeChannel? _currentChatChannel;
@@ -84,26 +85,26 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     _conversationsChannel = supabase
         .channel('conv_participants')
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'conversation_participants',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'user_id',
-        value: currentUser!.id,
-      ),
-      callback: (_) => _fetchConversations(),
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: currentUser!.id,
+          ),
+          callback: (_) => _fetchConversations(),
+        )
         .subscribe();
 
     _requestsChannel = supabase
         .channel('workshop_requests')
         .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'workshop_requests',
-      callback: (_) => _fetchWorkshopRequests(),
-    )
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workshop_requests',
+          callback: (_) => _fetchWorkshopRequests(),
+        )
         .subscribe();
   }
 
@@ -121,73 +122,76 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     _unsubscribeFromCurrentChat();
     if (activeChat == null) return;
 
-    _currentChatChannel = supabase.channel('messages_${activeChat!['id']}').onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'messages',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'conversation_id',
-        value: activeChat!['id'],
-      ),
-      callback: (payload) {
-        final newMsg = payload.newRecord;
-        final senderId = newMsg['sender_id'] as String;
+    _currentChatChannel = supabase
+        .channel('messages_${activeChat!['id']}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: activeChat!['id'],
+          ),
+          callback: (payload) {
+            final newMsg = payload.newRecord;
+            final senderId = newMsg['sender_id'] as String;
 
-        // Check if this is a message sent by the current user
-        final isMyMessage = senderId == currentUser!.id;
+            // Check if this is a message sent by the current user
+            final isMyMessage = senderId == currentUser!.id;
 
-        // If it's my message, check if we already have a message with the same content sent recently
-        if (isMyMessage) {
-          final hasSimilarMessage = messages.any((msg) =>
-          msg['content'] == newMsg['content'] &&
-              msg['sender_id'] == senderId &&
-              DateTime.parse(msg['created_at']).isAfter(DateTime.now().subtract(const Duration(seconds: 5)))
-          );
+            // If it's my message, check if we already have a message with the same content sent recently
+            if (isMyMessage) {
+              final hasSimilarMessage = messages.any((msg) =>
+                  msg['content'] == newMsg['content'] &&
+                  msg['sender_id'] == senderId &&
+                  DateTime.parse(msg['created_at']).isAfter(
+                      DateTime.now().subtract(const Duration(seconds: 5))));
 
-          if (hasSimilarMessage) {
-            // Find the temporary message and replace it with the server message
-            setState(() {
-              final index = messages.indexWhere((msg) =>
-              msg['content'] == newMsg['content'] &&
-                  msg['sender_id'] == senderId
-              );
-              if (index != -1) {
-                messages[index] = {
-                  ...newMsg,
-                  'sender': {
-                    'id': senderId,
-                    'name': myName,
-                    'avatar_url': currentUser!.userMetadata?['avatar_url'],
-                  },
-                };
+              if (hasSimilarMessage) {
+                // Find the temporary message and replace it with the server message
+                setState(() {
+                  final index = messages.indexWhere((msg) =>
+                      msg['content'] == newMsg['content'] &&
+                      msg['sender_id'] == senderId);
+                  if (index != -1) {
+                    messages[index] = {
+                      ...newMsg,
+                      'sender': {
+                        'id': senderId,
+                        'name': myName,
+                        'avatar_url': currentUser!.userMetadata?['avatar_url'],
+                      },
+                    };
+                  }
+                });
+                return;
               }
+            }
+
+            // If it's not my message or we don't have a similar message, add it normally
+            setState(() {
+              messages.add({
+                ...newMsg,
+                'sender': {
+                  'id': senderId,
+                  'name': senderId == currentUser!.id ? myName : 'Other User',
+                  'avatar_url': null,
+                },
+              });
+              Future.delayed(
+                  const Duration(milliseconds: 100), () => _scrollToBottom());
             });
-            return;
-          }
-        }
 
-        // If it's not my message or we don't have a similar message, add it normally
-        setState(() {
-          messages.add({
-            ...newMsg,
-            'sender': {
-              'id': senderId,
-              'name': senderId == currentUser!.id ? myName : 'Other User',
-              'avatar_url': null,
-            },
-          });
-          Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
-        });
-
-        if (senderId != currentUser!.id) {
-          supabase
-              .from('messages')
-              .update({'read_at': DateTime.now().toIso8601String()})
-              .eq('id', newMsg['id']);
-        }
-      },
-    ).subscribe();
+            if (senderId != currentUser!.id) {
+              supabase
+                  .from('messages')
+                  .update({'read_at': DateTime.now().toIso8601String()}).eq(
+                      'id', newMsg['id']);
+            }
+          },
+        )
+        .subscribe();
   }
 
   void _unsubscribeFromCurrentChat() {
@@ -208,12 +212,14 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   // --- NEW: File Upload Logic ---
   Future<String?> _uploadFile(File file) async {
     try {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
       final path = '${currentUser!.id}/$fileName';
 
       await supabase.storage.from('chat-files').upload(path, file);
 
-      final urlResponse = supabase.storage.from('chat-files').getPublicUrl(path);
+      final urlResponse =
+          supabase.storage.from('chat-files').getPublicUrl(path);
       return urlResponse;
     } catch (e) {
       print('Error uploading file: $e');
@@ -223,7 +229,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
   // --- NEW: Handle Attachment Press ---
   Future<void> _handleAttachmentPress() async {
-    final XFile? file = await _picker.pickMedia(); // Allows images + videos + some files
+    final XFile? file =
+        await _picker.pickMedia(); // Allows images + videos + some files
 
     if (file == null) return;
 
@@ -253,7 +260,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       String friendly = '';
       if (type == 'pdf') {
         friendly = '📄 Shared a PDF';
-      } else if (type == 'document') friendly = '📎 Shared a document';
+      } else if (type == 'document')
+        friendly = '📎 Shared a document';
       else if (type == 'image') friendly = '🖼️ Shared a photo';
 
       if (friendly.isNotEmpty) {
@@ -265,8 +273,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   Future<void> _fetchConversations() async {
     if (currentUser == null) return;
     try {
-      final response = await supabase
-          .rpc('get_user_conversations', params: {'current_user_id': currentUser!.id});
+      final response = await supabase.rpc('get_user_conversations',
+          params: {'current_user_id': currentUser!.id});
       setState(() {
         conversations = List<Map<String, dynamic>>.from(response);
       });
@@ -319,7 +327,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       setState(() {
         messages = response;
-        Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+        Future.delayed(
+            const Duration(milliseconds: 100), () => _scrollToBottom());
       });
 
       await supabase
@@ -336,7 +345,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   }
 
   // --- UPDATED: sendMessage now handles types ---
-  Future<void> sendMessage({required String content, String type = 'text'}) async {
+  Future<void> sendMessage(
+      {required String content, String type = 'text'}) async {
     if (activeChat == null) return;
 
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
@@ -356,7 +366,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
     setState(() {
       messages.add(tempMsg);
-      Future.delayed(const Duration(milliseconds: 100), () => _scrollToBottom());
+      Future.delayed(
+          const Duration(milliseconds: 100), () => _scrollToBottom());
     });
     if (type == 'text') _msgController.clear();
 
@@ -364,21 +375,18 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       final data = await supabase
           .from('messages')
           .insert({
-        'conversation_id': activeChat!['id'],
-        'sender_id': currentUser!.id,
-        'content': content,
-        'message_type': type, // Insert type into DB
-      })
+            'conversation_id': activeChat!['id'],
+            'sender_id': currentUser!.id,
+            'content': content,
+            'message_type': type, // Insert type into DB
+          })
           .select()
           .single();
 
-      await supabase
-          .from('conversations')
-          .update({
+      await supabase.from('conversations').update({
         'updated_at': DateTime.now().toIso8601String(),
         'last_message_id': data['id'],
-      })
-          .eq('id', activeChat!['id']);
+      }).eq('id', activeChat!['id']);
 
       setState(() {
         final i = messages.indexWhere((m) => m['id'] == tempId);
@@ -388,7 +396,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       _fetchConversations();
     } catch (e) {
       print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to send')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Failed to send')));
       setState(() => messages.removeWhere((m) => m['id'] == tempId));
     }
   }
@@ -405,8 +414,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       // Update the request status first
       await supabase
           .from('workshop_requests')
-          .update({'status': 'accepted'})
-          .eq('id', request['id']);
+          .update({'status': 'accepted'}).eq('id', request['id']);
 
       // Check if this is a Teach4Learn workshop or a regular workshop
       final isTeach4Learn = workshopData['type'] == 'Teach4Learn';
@@ -421,7 +429,10 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
         await supabase.from('conversation_participants').insert([
           {'conversation_id': newConv['id'], 'user_id': currentUser!.id},
-          {'conversation_id': newConv['id'], 'user_id': request['requester_id']},
+          {
+            'conversation_id': newConv['id'],
+            'user_id': request['requester_id']
+          },
         ]);
 
         await supabase.from('messages').insert({
@@ -460,14 +471,15 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           // Add the user to the workshop group chat
           await supabase.rpc('add_user_to_workshop_chat', params: {
             'workshop_id': request['workshop_id'],
-            'participant_id': request['requester_id'],  // Using participant_id
+            'participant_id': request['requester_id'], // Using participant_id
           });
 
           // Send a notification message to the group chat
           await supabase.from('messages').insert({
             'conversation_id': workshopData['conversation_id'],
             'sender_id': currentUser!.id,
-            'content': "${request['requester']['name']} has joined the workshop!",
+            'content':
+                "${request['requester']['name']} has joined the workshop!",
           });
 
           // Open the workshop group chat
@@ -479,7 +491,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           });
         } else {
           // If no conversation exists, create one
-          final conversationId = await supabase.rpc('create_workshop_group_chat', params: {
+          final conversationId =
+              await supabase.rpc('create_workshop_group_chat', params: {
             'workshop_id': workshopData['id'],
             'workshop_title': workshopData['title'],
             'creator_id': currentUser!.id,
@@ -502,7 +515,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           await supabase.from('messages').insert({
             'conversation_id': conversationId,
             'sender_id': currentUser!.id,
-            'content': "${request['requester']['name']} has joined the workshop!",
+            'content':
+                "${request['requester']['name']} has joined the workshop!",
           });
 
           // Open the workshop group chat
@@ -519,7 +533,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       _fetchWorkshopRequests();
     } catch (e) {
       print('Error accepting request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept: ${e.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to accept: ${e.toString()}')));
     }
   }
 
@@ -527,12 +542,12 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     try {
       await supabase
           .from('workshop_requests')
-          .update({'status': 'declined'})
-          .eq('id', request['id']);
+          .update({'status': 'declined'}).eq('id', request['id']);
       _fetchWorkshopRequests();
     } catch (e) {
       print('Error declining request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to decline')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Failed to decline')));
     }
   }
 
@@ -541,14 +556,16 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       // Verify user is authenticated
       if (currentUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You must be logged in to start a conversation')),
+          const SnackBar(
+              content: Text('You must be logged in to start a conversation')),
         );
         return;
       }
 
       final response = await supabase
           .from('follows')
-          .select('following_id:users!follows_following_id_fkey(id, name, avatar_url)')
+          .select(
+              'following_id:users!follows_following_id_fkey(id, name, avatar_url)')
           .eq('follower_id', currentUser!.id);
 
       final usersFollowed = response
@@ -578,7 +595,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                     backgroundImage: user['avatar_url'] != null
                         ? NetworkImage(user['avatar_url'])
                         : null,
-                    child: user['avatar_url'] == null ? const Icon(Icons.person) : null,
+                    child: user['avatar_url'] == null
+                        ? const Icon(Icons.person)
+                        : null,
                   ),
                   title: Text(user['name'] ?? 'User'),
                   onTap: () => Navigator.of(context).pop(user),
@@ -614,9 +633,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       final newConv = await supabase
           .from('conversations')
           .insert({
-        'is_group': false,
-        'created_by': currentUser!.id,
-      })
+            'is_group': false,
+            'created_by': currentUser!.id,
+          })
           .select()
           .single();
 
@@ -644,7 +663,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       });
 
       _fetchConversations();
-
     } catch (e) {
       print('Error starting new conversation: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -652,7 +670,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       );
     }
   }
-
 
   // New: Fetch group members when needed
   Future<void> _fetchGroupMembers(String conversationId) async {
@@ -664,7 +681,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     try {
       final response = await supabase
           .from('conversation_participants')
-          .select('is_admin, user:users(id, name, avatar_url, university, bio, xp)')
+          .select(
+              'is_admin, user:users(id, name, avatar_url, university, bio, xp)')
           .eq('conversation_id', conversationId)
           .not('user', 'is', null);
 
@@ -738,7 +756,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                 if (member == null) return false;
 
                 final name = (member['name'] ?? '').toString().toLowerCase();
-                final university = (member['university'] ?? '').toString().toLowerCase();
+                final university =
+                    (member['university'] ?? '').toString().toLowerCase();
                 final query = memberSearchQuery.toLowerCase();
 
                 return name.contains(query) || university.contains(query);
@@ -769,7 +788,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12),
                           ),
                         ),
                       ),
@@ -777,66 +797,92 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                         child: isLoadingMembers
                             ? const Center(child: CircularProgressIndicator())
                             : filteredMembers.isEmpty
-                            ? const Center(child: Text("No members found"))
-                            : ListView.separated(
-                          itemCount: filteredMembers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final participant = filteredMembers[index];
-                            final member = participant['user'] as Map<String, dynamic>?;
+                                ? const Center(child: Text("No members found"))
+                                : ListView.separated(
+                                    itemCount: filteredMembers.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1),
+                                    itemBuilder: (context, index) {
+                                      final participant =
+                                          filteredMembers[index];
+                                      final member = participant['user']
+                                          as Map<String, dynamic>?;
 
-                            if (member == null) {
-                              return const ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Colors.grey,
-                                  child: Icon(Icons.person_off, color: Colors.white70),
-                                ),
-                                title: Text('Deleted User'),
-                                subtitle: Text('This account no longer exists'),
-                                enabled: false,
-                              );
-                            }
+                                      if (member == null) {
+                                        return const ListTile(
+                                          leading: CircleAvatar(
+                                            backgroundColor: Colors.grey,
+                                            child: Icon(Icons.person_off,
+                                                color: Colors.white70),
+                                          ),
+                                          title: Text('Deleted User'),
+                                          subtitle: Text(
+                                              'This account no longer exists'),
+                                          enabled: false,
+                                        );
+                                      }
 
-                            final bool isAdmin = participant['is_admin'] == true;
+                                      final bool isAdmin =
+                                          participant['is_admin'] == true;
 
-                            return ListTile(
-                              onTap: () {
-                                Navigator.pop(context); // Close dialog
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => UserProfileScreen(user: member),
+                                      return ListTile(
+                                        onTap: () {
+                                          Navigator.pop(
+                                              context); // Close dialog
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => UserProfileScreen(
+                                                  user: member),
+                                            ),
+                                          );
+                                        },
+                                        leading: CircleAvatar(
+                                          backgroundImage: member['avatar_url']
+                                                      ?.isNotEmpty ==
+                                                  true
+                                              ? NetworkImage(
+                                                  member['avatar_url']
+                                                      as String)
+                                              : null,
+                                          child: member['avatar_url']
+                                                      ?.isNotEmpty !=
+                                                  true
+                                              ? Text(
+                                                  (member['name'] as String?)
+                                                              ?.isNotEmpty ==
+                                                          true
+                                                      ? (member['name']
+                                                              as String)
+                                                          .substring(0, 1)
+                                                          .toUpperCase()
+                                                      : 'U',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                )
+                                              : null,
+                                        ),
+                                        title: Text(
+                                            member['name'] ?? 'Unknown User'),
+                                        subtitle: Text(
+                                            member['university'] ?? 'Member'),
+                                        trailing: isAdmin
+                                            ? const Chip(
+                                                label: Text(
+                                                  'Admin',
+                                                  style: TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.white),
+                                                ),
+                                                backgroundColor: Colors.blue,
+                                                padding: EdgeInsets.symmetric(
+                                                    horizontal: 6),
+                                              )
+                                            : null,
+                                      );
+                                    },
                                   ),
-                                );
-                              },
-                              leading: CircleAvatar(
-                                backgroundImage: member['avatar_url']?.isNotEmpty == true
-                                    ? NetworkImage(member['avatar_url'] as String)
-                                    : null,
-                                child: member['avatar_url']?.isNotEmpty != true
-                                    ? Text(
-                                  (member['name'] as String?)?.isNotEmpty == true
-                                      ? (member['name'] as String).substring(0, 1).toUpperCase()
-                                      : 'U',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                )
-                                    : null,
-                              ),
-                              title: Text(member['name'] ?? 'Unknown User'),
-                              subtitle: Text(member['university'] ?? 'Member'),
-                              trailing: isAdmin
-                                  ? const Chip(
-                                label: Text(
-                                  'Admin',
-                                  style: TextStyle(fontSize: 10, color: Colors.white),
-                                ),
-                                backgroundColor: Colors.blue,
-                                padding: EdgeInsets.symmetric(horizontal: 6),
-                              )
-                                  : null,
-                            );
-                          },
-                        ),
                       ),
                     ],
                   ),
@@ -873,8 +919,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               url,
               fit: BoxFit.cover,
               loadingBuilder: (context, child, progress) =>
-              progress == null ? child : const CircularProgressIndicator(),
-              errorBuilder: (context, error, stack) => const Text('Failed to load image'),
+                  progress == null ? child : const CircularProgressIndicator(),
+              errorBuilder: (context, error, stack) =>
+                  const Text('Failed to load image'),
             ),
           ),
         ),
@@ -882,13 +929,17 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
     }
 
     // Handle PDF / Document / Generic File
-    if ((messageType == 'pdf' || messageType == 'document' || messageType == 'file') && url != null) {
-      final fileName = url.split('/').last.split('?').first; // Extract filename from URL
+    if ((messageType == 'pdf' ||
+            messageType == 'document' ||
+            messageType == 'file') &&
+        url != null) {
+      final fileName =
+          url.split('/').last.split('?').first; // Extract filename from URL
       final icon = messageType == 'pdf'
           ? Icons.picture_as_pdf
           : messageType == 'document'
-          ? Icons.description
-          : Icons.insert_drive_file;
+              ? Icons.description
+              : Icons.insert_drive_file;
 
       return Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -901,7 +952,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
             margin: const EdgeInsets.symmetric(vertical: 4),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: isMe
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(18),
             ),
             constraints: const BoxConstraints(maxWidth: 280),
@@ -917,7 +970,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Icon(Icons.download, color: isMe ? Colors.white : null, size: 18),
+                Icon(Icons.download,
+                    color: isMe ? Colors.white : null, size: 18),
               ],
             ),
           ),
@@ -932,7 +986,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isMe
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
         ),
         constraints: const BoxConstraints(maxWidth: 280),
@@ -952,10 +1008,12 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       final isWorkshopChat = activeChat!['workshop_id'] != null;
       final displayName = isGroup
           ? (activeChat!['name'] ?? 'Group Chat')
-          : (activeChat!['other_user'] as Map<String, dynamic>?)!['name'] ?? 'User';
+          : (activeChat!['other_user'] as Map<String, dynamic>?)!['name'] ??
+              'User';
       final avatarUrl = isGroup
           ? activeChat!['avatar_url'] as String?
-          : (activeChat!['other_user'] as Map<String, dynamic>?)!['avatar_url'] as String?;
+          : (activeChat!['other_user'] as Map<String, dynamic>?)!['avatar_url']
+              as String?;
 
       return Scaffold(
         appBar: AppBar(
@@ -975,8 +1033,12 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                 child: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: CircleAvatar(
-                    backgroundImage: avatarUrl?.isNotEmpty == true ? NetworkImage(avatarUrl!) : null,
-                    child: avatarUrl?.isNotEmpty != true ? const Icon(Icons.person) : null,
+                    backgroundImage: avatarUrl?.isNotEmpty == true
+                        ? NetworkImage(avatarUrl!)
+                        : null,
+                    child: avatarUrl?.isNotEmpty != true
+                        ? const Icon(Icons.person)
+                        : null,
                   ),
                 ),
               ),
@@ -985,13 +1047,17 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(displayName,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                     if (isWorkshopChat)
                       Text(
                         'Workshop Group Chat',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.7),
                         ),
                       ),
                   ],
@@ -1001,63 +1067,73 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           ),
           actions: isWorkshopChat
               ? [
-            IconButton(
-              icon: const Icon(Icons.upload_file),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Share Materials'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.slideshow),
-                          title: const Text('Share Slides'),
-                          onTap: () async {
-                            Navigator.of(context).pop();
-                            final XFile? file = await _picker.pickMedia();
-                            if (file != null) {
-                              final url = await _uploadFile(File(file.path));
-                              if (url != null) {
-                                final type = getMessageType(file.path);
-                                await sendMessage(content: url, type: type);
-                                await sendMessage(content: 'New slides have been uploaded!', type: 'text');
-                              }
-                            }
-                          },
+                  IconButton(
+                    icon: const Icon(Icons.upload_file),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Share Materials'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.slideshow),
+                                title: const Text('Share Slides'),
+                                onTap: () async {
+                                  Navigator.of(context).pop();
+                                  final XFile? file = await _picker.pickMedia();
+                                  if (file != null) {
+                                    final url =
+                                        await _uploadFile(File(file.path));
+                                    if (url != null) {
+                                      final type = getMessageType(file.path);
+                                      await sendMessage(
+                                          content: url, type: type);
+                                      await sendMessage(
+                                          content:
+                                              'New slides have been uploaded!',
+                                          type: 'text');
+                                    }
+                                  }
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.assignment),
+                                title: const Text('Share Assignment'),
+                                onTap: () async {
+                                  Navigator.of(context).pop();
+                                  final XFile? file = await _picker.pickMedia();
+                                  if (file != null) {
+                                    final url =
+                                        await _uploadFile(File(file.path));
+                                    if (url != null) {
+                                      final type = getMessageType(file.path);
+                                      await sendMessage(
+                                          content: url, type: type);
+                                      await sendMessage(
+                                          content:
+                                              'A new assignment has been posted!',
+                                          type: 'text');
+                                    }
+                                  }
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.announcement),
+                                title: const Text('Make Announcement'),
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  _showAnnouncementDialog();
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                        ListTile(
-                          leading: const Icon(Icons.assignment),
-                          title: const Text('Share Assignment'),
-                          onTap: () async {
-                            Navigator.of(context).pop();
-                            final XFile? file = await _picker.pickMedia();
-                            if (file != null) {
-                              final url = await _uploadFile(File(file.path));
-                              if (url != null) {
-                                final type = getMessageType(file.path);
-                                await sendMessage(content: url, type: type);
-                                await sendMessage(content: 'A new assignment has been posted!', type: 'text');
-                              }
-                            }
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.announcement),
-                          title: const Text('Make Announcement'),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            _showAnnouncementDialog();
-                          },
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          ]
+                ]
               : null,
         ),
         body: RefreshIndicator(
@@ -1077,19 +1153,31 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               ),
               // Input bar (unchanged)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                    border: Border(
+                        top:
+                            BorderSide(color: Theme.of(context).dividerColor))),
                 child: Row(
                   children: [
-                    IconButton(icon: const Icon(Icons.attach_file), onPressed: _handleAttachmentPress),
+                    IconButton(
+                        icon: const Icon(Icons.attach_file),
+                        onPressed: _handleAttachmentPress),
                     Expanded(
                       child: TextField(
                         controller: _msgController,
-                        decoration: const InputDecoration(hintText: "Type a message...", border: InputBorder.none),
-                        onSubmitted: (_) => sendMessage(content: _msgController.text.trim()),
+                        decoration: const InputDecoration(
+                            hintText: "Type a message...",
+                            border: InputBorder.none),
+                        onSubmitted: (_) =>
+                            sendMessage(content: _msgController.text.trim()),
                       ),
                     ),
-                    IconButton(icon: const Icon(Icons.send), onPressed: () => sendMessage(content: _msgController.text.trim())),
+                    IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed: () =>
+                            sendMessage(content: _msgController.text.trim())),
                   ],
                 ),
               ),
@@ -1105,7 +1193,10 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
       if (c['is_group'] == true) {
         return (c['name'] ?? '').toString().toLowerCase().contains(q);
       }
-      final name = (c['other_user'] as Map<String, dynamic>?)?['name']?.toString().toLowerCase() ?? '';
+      final name = (c['other_user'] as Map<String, dynamic>?)?['name']
+              ?.toString()
+              .toLowerCase() ??
+          '';
       return name.contains(q);
     }).toList();
 
@@ -1115,10 +1206,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
         if (didPop) return;
         final now = DateTime.now();
         const interval = Duration(seconds: 2);
-        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > interval) {
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > interval) {
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Press back again to exit"), duration: Duration(seconds: 2)),
+            const SnackBar(
+                content: Text("Press back again to exit"),
+                duration: Duration(seconds: 2)),
           );
         } else {
           SystemNavigator.pop();
@@ -1159,7 +1253,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                         Padding(
                           padding: const EdgeInsets.all(12),
                           child: TextField(
-                            decoration: const InputDecoration(hintText: "Search...", prefixIcon: Icon(Icons.search)),
+                            decoration: const InputDecoration(
+                                hintText: "Search...",
+                                prefixIcon: Icon(Icons.search)),
                             onChanged: (v) => setState(() => searchQuery = v),
                           ),
                         ),
@@ -1167,48 +1263,93 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                           child: isLoading
                               ? const Center(child: CircularProgressIndicator())
                               : filtered.isEmpty
-                              ? const Center(child: Text("No conversations"))
-                              : ListView.builder(
-                            itemCount: filtered.length,
-                            itemBuilder: (_, i) {
-                              final c = filtered[i];
-                              final isGroup = c['is_group'] == true;
-                              final isWorkshopChat = c['workshop_id'] != null;
-                              final name = isGroup ? (c['name'] ?? 'Group') : (c['other_user'] as Map)['name'];
-                              final avatar = isGroup ? c['avatar_url'] : (c['other_user'] as Map)['avatar_url'];
-                              final lastMsg = c['last_message_content'] ?? 'No messages';
-                              final time = c['last_message_time'];
-                              final unread = (c['unread_count'] as num?)?.toInt() ?? 0;
+                                  ? const Center(
+                                      child: Text("No conversations"))
+                                  : ListView.builder(
+                                      itemCount: filtered.length,
+                                      itemBuilder: (_, i) {
+                                        final c = filtered[i];
+                                        final isGroup = c['is_group'] == true;
+                                        final isWorkshopChat =
+                                            c['workshop_id'] != null;
+                                        final name = isGroup
+                                            ? (c['name'] ?? 'Group')
+                                            : (c['other_user'] as Map)['name'];
+                                        final avatar = isGroup
+                                            ? c['avatar_url']
+                                            : (c['other_user']
+                                                as Map)['avatar_url'];
+                                        final lastMsg =
+                                            c['last_message_content'] ??
+                                                'No messages';
+                                        final time = c['last_message_time'];
+                                        final unread =
+                                            (c['unread_count'] as num?)
+                                                    ?.toInt() ??
+                                                0;
 
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage: avatar?.isNotEmpty == true ? NetworkImage(avatar) : null,
-                                  child: avatar?.isNotEmpty != true ? const Icon(Icons.person) : null,
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                    if (isWorkshopChat)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                                        child: const Text('Workshop', style: TextStyle(fontSize: 10, color: Colors.blue)),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    if (time != null) Text(_formatTime(time), style: const TextStyle(fontSize: 11)),
-                                    if (unread > 0)
-                                      CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Text('$unread', style: const TextStyle(fontSize: 10, color: Colors.white))),
-                                  ],
-                                ),
-                                onTap: () => _openChat(c),
-                              );
-                            },
-                          ),
+                                        return ListTile(
+                                          leading: CircleAvatar(
+                                            backgroundImage:
+                                                avatar?.isNotEmpty == true
+                                                    ? NetworkImage(avatar)
+                                                    : null,
+                                            child: avatar?.isNotEmpty != true
+                                                ? const Icon(Icons.person)
+                                                : null,
+                                          ),
+                                          title: Row(
+                                            children: [
+                                              Expanded(
+                                                  child: Text(name,
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight
+                                                              .w500))),
+                                              if (isWorkshopChat)
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                      color: Colors.blue
+                                                          .withOpacity(0.2),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10)),
+                                                  child: const Text('Workshop',
+                                                      style: TextStyle(
+                                                          fontSize: 10,
+                                                          color: Colors.blue)),
+                                                ),
+                                            ],
+                                          ),
+                                          subtitle: Text(lastMsg,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis),
+                                          trailing: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              if (time != null)
+                                                Text(_formatTime(time),
+                                                    style: const TextStyle(
+                                                        fontSize: 11)),
+                                              if (unread > 0)
+                                                CircleAvatar(
+                                                    radius: 10,
+                                                    backgroundColor: Colors.red,
+                                                    child: Text('$unread',
+                                                        style: const TextStyle(
+                                                            fontSize: 10,
+                                                            color:
+                                                                Colors.white))),
+                                            ],
+                                          ),
+                                          onTap: () => _openChat(c),
+                                        );
+                                      },
+                                    ),
                         ),
                       ],
                     ),
@@ -1216,47 +1357,69 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                     isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : workshopRequests.isEmpty
-                        ? const Center(child: Text("No pending requests"))
-                        : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: workshopRequests.length,
-                      itemBuilder: (_, i) {
-                        final r = workshopRequests[i];
-                        final req = r['requester'] as Map<String, dynamic>;
-                        final ws = r['workshop'] as Map<String, dynamic>;
+                            ? const Center(child: Text("No pending requests"))
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: workshopRequests.length,
+                                itemBuilder: (_, i) {
+                                  final r = workshopRequests[i];
+                                  final req =
+                                      r['requester'] as Map<String, dynamic>;
+                                  final ws =
+                                      r['workshop'] as Map<String, dynamic>;
 
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(backgroundImage: NetworkImage(req['avatar_url'] ?? '')),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: Text("${req['name']} wants to join", style: const TextStyle(fontWeight: FontWeight.bold))),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(ws['title'] ?? 'Workshop'),
-                                if (ws['skill_requested'] != null) Text("Learn: ${ws['skill_requested']}"),
-                                if (ws['skill_offered'] != null) Text("Offers: ${ws['skill_offered']}"),
-                                if (r['message']?.isNotEmpty == true) Text("Message: ${r['message']}"),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
-                                    ElevatedButton(onPressed: () => acceptRequest(r), child: const Text("Accept")),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                                  return Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              CircleAvatar(
+                                                  backgroundImage: NetworkImage(
+                                                      req['avatar_url'] ?? '')),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                  child: Text(
+                                                      "${req['name']} wants to join",
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight
+                                                              .bold))),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(ws['title'] ?? 'Workshop'),
+                                          if (ws['skill_requested'] != null)
+                                            Text(
+                                                "Learn: ${ws['skill_requested']}"),
+                                          if (ws['skill_offered'] != null)
+                                            Text(
+                                                "Offers: ${ws['skill_offered']}"),
+                                          if (r['message']?.isNotEmpty == true)
+                                            Text("Message: ${r['message']}"),
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              TextButton(
+                                                  onPressed: () =>
+                                                      declineRequest(r),
+                                                  child: const Text("Decline")),
+                                              ElevatedButton(
+                                                  onPressed: () =>
+                                                      acceptRequest(r),
+                                                  child: const Text("Accept")),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                   ],
                 ),
               ),
@@ -1277,7 +1440,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   }
 
   void _showAnnouncementDialog() {
-    final TextEditingController announcementController = TextEditingController();
+    final TextEditingController announcementController =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -1299,7 +1463,8 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
           ElevatedButton(
             onPressed: () {
               if (announcementController.text.trim().isNotEmpty) {
-                _sendWorkshopMessage('📢 Announcement: ${announcementController.text.trim()}');
+                _sendWorkshopMessage(
+                    '📢 Announcement: ${announcementController.text.trim()}');
                 Navigator.of(context).pop();
               }
             },
@@ -1321,8 +1486,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   }
 }
 
-
-
 // Add this helper to get mime type or extension-based type
 String getMessageType(String filePath) {
   final extension = filePath.split('.').last.toLowerCase();
@@ -1338,9 +1501,12 @@ String getMessageType(String filePath) {
 
 // Extensions for Supabase filters
 extension on PostgrestFilterBuilder {
-  PostgrestFilterBuilder is_(String column, dynamic value) => filter(column, 'is', value);
+  PostgrestFilterBuilder is_(String column, dynamic value) =>
+      filter(column, 'is', value);
 }
 
 extension on PostgrestFilterBuilder<PostgrestList> {
-  PostgrestFilterBuilder<PostgrestList> in_(String column, List<dynamic> values) => filter(column, 'in', values);
+  PostgrestFilterBuilder<PostgrestList> in_(
+          String column, List<dynamic> values) =>
+      filter(column, 'in', values);
 }

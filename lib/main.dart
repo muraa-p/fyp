@@ -26,7 +26,8 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://glvavlqdtxcpfurkpemq.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdmF2bHFkdHhjcGZ1cmtwZW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MTMwNzksImV4cCI6MjA4MTI4OTA3OX0.ndV5qGlTrJeBsl95TVzxCy8PZyYZbIP6RPZAeR_L-2k',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsdmF2bHFkdHhjcGZ1cmtwZW1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MTMwNzksImV4cCI6MjA4MTI4OTA3OX0.ndV5qGlTrJeBsl95TVzxCy8PZyYZbIP6RPZAeR_L-2k',
     realtimeClientOptions: const RealtimeClientOptions(
       eventsPerSecond: 2,
     ),
@@ -149,7 +150,6 @@ class _SkillXAppState extends State<SkillXApp> {
     _workshopListener = WorkshopListenerService();
     _notificationService = NotificationService(); // Initialize once
 
-
     // Add this to ensure deep link is handled after auth restore
     supabase.auth.onAuthStateChange.listen((data) {
       // Re-check for pending deep link after auth is loaded
@@ -166,12 +166,12 @@ class _SkillXAppState extends State<SkillXApp> {
 
       if (event == AuthChangeEvent.signedIn ||
           event == AuthChangeEvent.tokenRefreshed) {
-
         if (session?.user != null) {
           // === NEW: Load user profile when session is restored ===
           try {
             final profileService = ProfileService();
-            final profileData = await profileService.getUserProfile(session!.user.id);
+            final profileData =
+                await profileService.getUserProfile(session!.user.id);
             appState.setUser(UserModel.fromJson(profileData));
           } catch (e) {
             print('Failed to load profile on app start: $e');
@@ -187,71 +187,84 @@ class _SkillXAppState extends State<SkillXApp> {
 
           final userId = session!.user.id;
 
-
           supabase
               .from('notifications')
               .stream(primaryKey: ['id'])
               .eq('user_id', userId)
               .order('created_at', ascending: false)
               .listen((List<Map<String, dynamic>> events) async {
-            for (final event in events) {
-              if (event['__op'] == 'INSERT' && event['read'] == false) {
-                final String title = event['title'] ?? 'New Notification';
-                final String? type = event['type'];
-                final String body = event['body'] ?? 'You have a new notification!';
+                for (final event in events) {
+                  if (event['__op'] == 'INSERT' && event['read'] == false) {
+                    final String title = event['title'] ?? 'New Notification';
+                    final String? type = event['type'];
+                    final String body =
+                        event['body'] ?? 'You have a new notification!';
 
-                // Use the pre-initialized service
-                await _notificationService.showGeneralNotification(
-                  id: event['id'].hashCode,
-                  title: title,
-                  body: body,
-                  payload: event['data']?.toString(),
-                  type: type,
-                );
+                    // Use the pre-initialized service
+                    await _notificationService.showGeneralNotification(
+                      id: event['id'].hashCode,
+                      title: title,
+                      body: body,
+                      payload: event['data']?.toString(),
+                      type: type,
+                    );
 
-                // === ALSO show in-app SnackBar if app is open ===
-                if (navigatorKey.currentContext != null) {
-                  ScaffoldMessenger.of(navigatorKey.currentContext!).hideCurrentSnackBar();
+                    // === ALSO show in-app SnackBar if app is open ===
+                    if (navigatorKey.currentContext != null) {
+                      ScaffoldMessenger.of(navigatorKey.currentContext!)
+                          .hideCurrentSnackBar();
 
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    if (navigatorKey.currentContext != null && navigatorKey.currentContext!.mounted) {
-                      ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-                        SnackBar(
-                          content: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          duration: const Duration(seconds: 6),
-                          backgroundColor: Theme.of(navigatorKey.currentContext!).colorScheme.surfaceContainerHighest,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          margin: const EdgeInsets.all(16),
-                          action: SnackBarAction(
-                            label: 'View',
-                            textColor: Theme.of(navigatorKey.currentContext!).colorScheme.primary,
-                            onPressed: () {
-                              navigatorKey.currentState?.push(
-                                MaterialPageRoute(
-                                  builder: (context) => GamificationScreen(
-                                    onNavigate: (_) {},
-                                    initialTab: type == 'badge' ? 1 : 0,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      );
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        if (navigatorKey.currentContext != null &&
+                            navigatorKey.currentContext!.mounted) {
+                          ScaffoldMessenger.of(navigatorKey.currentContext!)
+                              .showSnackBar(
+                            SnackBar(
+                              content: Text(title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              duration: const Duration(seconds: 6),
+                              backgroundColor:
+                                  Theme.of(navigatorKey.currentContext!)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              margin: const EdgeInsets.all(16),
+                              action: SnackBarAction(
+                                label: 'View',
+                                textColor:
+                                    Theme.of(navigatorKey.currentContext!)
+                                        .colorScheme
+                                        .primary,
+                                onPressed: () {
+                                  navigatorKey.currentState?.push(
+                                    MaterialPageRoute(
+                                      builder: (context) => GamificationScreen(
+                                        onNavigate: (_) {},
+                                        initialTab: type == 'badge' ? 1 : 0,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        }
+                      });
                     }
-                  });
-                }
 
-                // Mark as read
-                supabase
-                    .from('notifications')
-                    .update({'read': true})
-                    .eq('id', event['id'])
-                    .catchError((error) => print('Failed to mark read: $error'));
-              }
-            }
-          });
+                    // Mark as read
+                    supabase
+                        .from('notifications')
+                        .update({'read': true})
+                        .eq('id', event['id'])
+                        .catchError(
+                            (error) => print('Failed to mark read: $error'));
+                  }
+                }
+              });
         }
       } else if (event == AuthChangeEvent.signedOut) {
         appState.setUser(null); // Clear user on logout
@@ -260,7 +273,6 @@ class _SkillXAppState extends State<SkillXApp> {
     });
   }
 
-
   void _handleDeletionLink(Uri uri) {
     if (uri.path == '/delete-account') {
       final token = uri.queryParameters['token'];
@@ -268,7 +280,8 @@ class _SkillXAppState extends State<SkillXApp> {
         // Wait for the first frame to ensure context is ready
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final context = navigatorKey.currentContext;
-          if (context != null && Navigator.canPop(context) || ModalRoute.of(context!)?.isFirst == true) {
+          if (context != null && Navigator.canPop(context) ||
+              ModalRoute.of(context!)?.isFirst == true) {
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const DeleteAccountScreen(),
@@ -290,7 +303,6 @@ class _SkillXAppState extends State<SkillXApp> {
 
   @override
   Widget build(BuildContext context) {
-
     return MaterialApp(
       title: 'SkillX',
       navigatorKey: navigatorKey,
@@ -350,7 +362,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
         // Still waiting for auth state
-        if (snapshot.connectionState == ConnectionState.waiting || _isLoadingProfile) {
+        if (snapshot.connectionState == ConnectionState.waiting ||
+            _isLoadingProfile) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );

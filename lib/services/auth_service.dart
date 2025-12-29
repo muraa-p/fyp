@@ -7,7 +7,8 @@ class AuthService {
   // ------------------------------
   // SIGN UP — with email verification
   // ------------------------------
-  Future<AuthResponse> signUp(String email, String password, {String? name}) async {
+  Future<AuthResponse> signUp(String email, String password,
+      {String? name}) async {
     return await _client.auth.signUp(
       email: email,
       password: password,
@@ -31,7 +32,8 @@ class AuthService {
   // ------------------------------
   // UPDATE PASSWORD
   // ------------------------------
-  Future<void> updatePassword(String currentPassword, String newPassword) async {
+  Future<void> updatePassword(
+      String currentPassword, String newPassword) async {
     try {
       final currentUser = _client.auth.currentUser;
       if (currentUser == null || currentUser.email == null) {
@@ -71,7 +73,8 @@ class AuthService {
   // --- Deletion Flow Methods ---
 
   String _generateToken() {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final rnd = Random.secure();
     return String.fromCharCodes(Iterable.generate(
         32, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
@@ -145,15 +148,12 @@ class AuthService {
       print('Password re-auth successful. Now calling delete function...');
 
       // Call the secure Edge Function to perform the final deletion
-      await _deleteUserAccount();  // Only call once, here
-
+      await _deleteUserAccount(); // Only call once, here
     } catch (e) {
       print('Deletion flow error: $e');
       throw Exception('Failed to delete account: ${e.toString()}');
     }
   }
-
-
 
   // Delete user account by calling a secure Edge Function
   Future<void> _deleteUserAccount() async {
@@ -170,7 +170,8 @@ class AuthService {
       print('=== Attempting to delete account ===');
       print('User ID: ${session.user.id}');
       print('User email: ${session.user.email}');
-      print('Access token starts with: ${session.accessToken.substring(0, 30)}...');
+      print(
+          'Access token starts with: ${session.accessToken.substring(0, 30)}...');
       print('Token length: ${session.accessToken.length}');
 
       final response = await _client.functions.invoke(
@@ -178,9 +179,9 @@ class AuthService {
         method: HttpMethod.post,
         headers: {
           'Authorization': 'Bearer ${session.accessToken}',
-          'Content-Type': 'application/json',  // Add this too
+          'Content-Type': 'application/json', // Add this too
         },
-        body: {},  // Empty body is fine
+        body: {}, // Empty body is fine
       );
 
       print('✅ Invoke SUCCESS');
@@ -189,7 +190,7 @@ class AuthService {
     } on FunctionException catch (e) {
       print('❌ FunctionException caught');
       print('Status: ${e.status}');
-      print('Details: ${e.details}');  // This already covers the error message
+      print('Details: ${e.details}'); // This already covers the error message
       rethrow;
     } catch (e, stackTrace) {
       print('❌ Unexpected error during invoke: $e');

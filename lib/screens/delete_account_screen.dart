@@ -23,7 +23,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     _token = args?['token'];
 
     if (_token == null) {
@@ -52,7 +53,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         context.read<AppState>().setUser(null);
         Navigator.of(context).pushNamedAndRemoveUntil(
           '/',
-              (Route<dynamic> route) => false,
+          (Route<dynamic> route) => false,
         );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Account deleted successfully")),

@@ -18,13 +18,17 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400));
 
     _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _scaleIn = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.4, 1.0, curve: Curves.elasticOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.4, 1.0, curve: Curves.elasticOut)),
     );
-    _slideUp = Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(
+    _slideUp =
+        Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
 
@@ -54,13 +58,19 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           child: FadeTransition(
             opacity: _fadeIn,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40),
               child: Column(
                 children: [
                   // Animated header
                   SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, -0.5), end: Offset.zero).animate(
-                      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)),
+                    position: Tween<Offset>(
+                            begin: const Offset(0, -0.5), end: Offset.zero)
+                        .animate(
+                      CurvedAnimation(
+                          parent: _controller,
+                          curve:
+                              const Interval(0.0, 0.5, curve: Curves.easeOut)),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -72,7 +82,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             letterSpacing: 2,
-                            shadows: [Shadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 4))],
+                            shadows: [
+                              Shadow(
+                                  color: Colors.black38,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4))
+                            ],
                           ),
                         ),
                         // Removed theme toggle since we're dark-only now
@@ -92,7 +107,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(36),
-                          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1.5),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.15),
+                              width: 1.5),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.blue.withOpacity(0.2),
@@ -111,7 +128,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               curve: Curves.easeInOut,
                               builder: (_, val, __) => Transform.scale(
                                 scale: val,
-                                child: const Icon(Icons.school_rounded, size: 110, color: Colors.white),
+                                child: const Icon(Icons.school_rounded,
+                                    size: 110, color: Colors.white),
                               ),
                             ),
                             const SizedBox(height: 36),
@@ -123,7 +141,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 height: 1.3,
-                                shadows: [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 4))],
+                                shadows: [
+                                  Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 4))
+                                ],
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -146,20 +169,27 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                   // Buttons with entrance animation
                   SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
-                      CurvedAnimation(parent: _controller, curve: const Interval(0.7, 1.0, curve: Curves.easeOut)),
+                    position: Tween<Offset>(
+                            begin: const Offset(0, 0.5), end: Offset.zero)
+                        .animate(
+                      CurvedAnimation(
+                          parent: _controller,
+                          curve:
+                              const Interval(0.7, 1.0, curve: Curves.easeOut)),
                     ),
                     child: Column(
                       children: [
                         CustomButton(
                           label: 'Get Started',
-                          onPressed: () => Navigator.pushNamed(context, '/onboarding'),
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/onboarding'),
                         ),
                         const SizedBox(height: 16),
                         CustomButton(
                           label: 'Sign in',
                           isPrimary: false,
-                          onPressed: () => Navigator.pushNamed(context, '/auth'),
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/auth'),
                         ),
                       ],
                     ),

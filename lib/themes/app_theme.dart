@@ -20,7 +20,8 @@ class AppTheme {
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
-      cardTheme: CardThemeData( // ← Fixed: CardThemeData, not CardTheme
+      cardTheme: CardThemeData(
+        // ← Fixed: CardThemeData, not CardTheme
         color: const Color(0xFF1E293B).withOpacity(0.9),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         elevation: 0,
@@ -32,7 +33,8 @@ class AppTheme {
         selectedColor: const Color(0xFF60A5FA).withOpacity(0.3),
         secondarySelectedColor: const Color(0xFF60A5FA).withOpacity(0.4),
         labelStyle: const TextStyle(color: Colors.white, fontSize: 14),
-        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        secondaryLabelStyle:
+            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -41,7 +43,8 @@ class AppTheme {
         brightness: Brightness.dark,
       ),
       textTheme: const TextTheme(
-        displayLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        displayLarge:
+            TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         displayMedium: TextStyle(color: Colors.white),
         bodyLarge: TextStyle(color: Colors.white),
         bodyMedium: TextStyle(color: Colors.white70),
@@ -66,14 +69,16 @@ class AppTheme {
           borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(color: Color(0xFF60A5FA), width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF60A5FA),
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),

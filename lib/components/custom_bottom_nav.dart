@@ -18,9 +18,24 @@ class CustomBottomNav extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final navItems = [
-      {"id": "home", "icon": Icons.home_outlined, "filled": Icons.home, "label": "Home"},
-      {"id": "search", "icon": Icons.search_outlined, "filled": Icons.search, "label": "Explore"},
-      {"id": "create", "icon": Icons.add_circle_outline, "filled": Icons.add_circle, "label": "Create"},
+      {
+        "id": "home",
+        "icon": Icons.home_outlined,
+        "filled": Icons.home,
+        "label": "Home"
+      },
+      {
+        "id": "search",
+        "icon": Icons.search_outlined,
+        "filled": Icons.search,
+        "label": "Explore"
+      },
+      {
+        "id": "create",
+        "icon": Icons.add_circle_outline,
+        "filled": Icons.add_circle,
+        "label": "Create"
+      },
       {
         "id": "chat",
         "icon": Icons.chat_bubble_outline,
@@ -28,10 +43,16 @@ class CustomBottomNav extends StatelessWidget {
         "label": "Chat",
         "badge": 2
       },
-      {"id": "profile", "icon": Icons.person_outline, "filled": Icons.person, "label": "Profile"},
+      {
+        "id": "profile",
+        "icon": Icons.person_outline,
+        "filled": Icons.person,
+        "label": "Profile"
+      },
     ];
 
-    final int currentIndex = navItems.indexWhere((item) => item["id"] == currentScreen);
+    final int currentIndex =
+        navItems.indexWhere((item) => item["id"] == currentScreen);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -74,7 +95,8 @@ class CustomBottomNav extends StatelessWidget {
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeOutBack,
-                                transform: Matrix4.translationValues(0, isActive ? -4 : 0, 0),
+                                transform: Matrix4.translationValues(
+                                    0, isActive ? -4 : 0, 0),
                                 child: Icon(
                                   isActive
                                       ? item["filled"] as IconData
@@ -118,7 +140,8 @@ class CustomBottomNav extends StatelessWidget {
                             item["label"] as String,
                             style: TextStyle(
                               fontSize: 11.5,
-                              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight:
+                                  isActive ? FontWeight.w700 : FontWeight.w500,
                               color: isActive
                                   ? theme.colorScheme.primary
                                   : Colors.grey.shade500,

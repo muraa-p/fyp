@@ -20,8 +20,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
       // Cleaned values (null if empty)
       "phone": phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-      "university":
-      universityCtrl.text.trim().isEmpty ? null : universityCtrl.text.trim(),
+      "university": universityCtrl.text.trim().isEmpty
+          ? null
+          : universityCtrl.text.trim(),
       "major": majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim(),
       "year": academicYear.isEmpty ? null : academicYear,
 
@@ -33,7 +34,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     Navigator.pop(context, updated);
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +52,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 20),
-
             TextField(
               controller: phoneCtrl,
               keyboardType: TextInputType.phone,
@@ -62,7 +61,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             TextField(
               controller: universityCtrl,
               decoration: const InputDecoration(
@@ -71,7 +69,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             TextField(
               controller: majorCtrl,
               decoration: const InputDecoration(
@@ -80,7 +77,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             DropdownButtonFormField<String>(
               initialValue: academicYear.isEmpty ? null : academicYear,
               decoration: const InputDecoration(
@@ -94,13 +90,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 "Senior",
                 "Graduate",
                 "PhD"
-              ]
-                  .map((y) => DropdownMenuItem(value: y, child: Text(y)))
-                  .toList(),
+              ].map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
               onChanged: (val) => setState(() => academicYear = val ?? ""),
             ),
             const SizedBox(height: 24),
-
             ElevatedButton.icon(
               icon: const Icon(Icons.check_circle_outline),
               label: const Text("Finish Setup"),

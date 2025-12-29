@@ -15,7 +15,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
   String? selectedSkill;
   final TextEditingController endorsementText = TextEditingController();
   final TextEditingController userSearchController = TextEditingController();
-  final TextEditingController workshopSearchController = TextEditingController();
+  final TextEditingController workshopSearchController =
+      TextEditingController();
   final TextEditingController skillSearchController = TextEditingController();
 
   bool isLoading = true;
@@ -76,21 +77,24 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
       // Load endorsements received with explicit relationship names
       final receivedResponse = await Supabase.instance.client
           .from('endorsements')
-          .select('*, endorsed_by:users!endorsements_endorsed_by_fkey(name, avatar_url)')
+          .select(
+              '*, endorsed_by:users!endorsements_endorsed_by_fkey(name, avatar_url)')
           .eq('endorsed_user', user.id)
           .order('created_at', ascending: false);
 
       // Load endorsements given with explicit relationship names
       final givenResponse = await Supabase.instance.client
           .from('endorsements')
-          .select('*, endorsed_user:users!endorsements_endorsed_user_fkey(name, avatar_url), workshops(title)')
+          .select(
+              '*, endorsed_user:users!endorsements_endorsed_user_fkey(name, avatar_url), workshops(title)')
           .eq('endorsed_by', user.id)
           .order('created_at', ascending: false);
 
       // Load pending endorsements (workshop requests)
       final pendingResponse = await Supabase.instance.client
           .from('workshop_requests')
-          .select('*, requester:users(name, avatar_url), workshops!inner(title, skills, creator_id)')
+          .select(
+              '*, requester:users(name, avatar_url), workshops!inner(title, skills, creator_id)')
           .eq('workshops.creator_id', user.id)
           .eq('status', 'pending');
 
@@ -117,9 +121,11 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
       if (mounted) {
         setState(() {
           mySkills = formattedSkills;
-          endorsementsReceived = List<Map<String, dynamic>>.from(receivedResponse);
+          endorsementsReceived =
+              List<Map<String, dynamic>>.from(receivedResponse);
           endorsementsGiven = List<Map<String, dynamic>>.from(givenResponse);
-          pendingEndorsements = List<Map<String, dynamic>>.from(pendingResponse);
+          pendingEndorsements =
+              List<Map<String, dynamic>>.from(pendingResponse);
           isLoading = false;
         });
       }
@@ -176,14 +182,16 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
 
   void _onWorkshopSearchChanged(String query) {
     _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
+    _searchTimer = Timer(const Duration(milliseconds: 200), () {
+      // Reduced from 300ms
       _searchWorkshops(query);
     });
   }
 
   void _onSkillSearchChanged(String query) {
     _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
+    _searchTimer = Timer(const Duration(milliseconds: 200), () {
+      // Reduced from 300ms
       _searchSkills(query);
     });
   }
@@ -332,7 +340,9 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    if (selectedUser == null || selectedSkillForEndorsement == null || endorsementText.text.trim().isEmpty) {
+    if (selectedUser == null ||
+        selectedSkillForEndorsement == null ||
+        endorsementText.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all required fields")),
       );
@@ -381,7 +391,6 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
 
       // Refresh all data
       await _loadData();
-
     } catch (error) {
       setState(() {
         isSendingEndorsement = false;
@@ -413,12 +422,12 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
     try {
       await Supabase.instance.client
           .from('workshop_requests')
-          .update({'status': approve ? 'approved' : 'declined'})
-          .eq('id', id);
+          .update({'status': approve ? 'approved' : 'declined'}).eq('id', id);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(approve ? "Endorsement approved!" : "Endorsement declined."),
+          content:
+              Text(approve ? "Endorsement approved!" : "Endorsement declined."),
         ),
       );
 
@@ -480,226 +489,341 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : DefaultTabController(
-                length: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      tabs: [
-                        Tab(icon: Icon(Icons.thumb_up_alt_outlined), text: "Received"),
-                        Tab(icon: Icon(Icons.person_outline), text: "Given"),
-                      ],
-                    ),
-                    Expanded(
-                      child: TabBarView(
+                      length: 2,
+                      child: Column(
                         children: [
-                          // --- TAB 1: Received ---
-                          ListView(
-                            padding: const EdgeInsets.all(16),
-                            children: [
-                              if (pendingEndorsements.isNotEmpty)
-                                Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Row(
-                                          children: [
-                                            Icon(Icons.workspace_premium, color: Colors.amber),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              "Pending Requests",
-                                              style: TextStyle(fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        ...pendingEndorsements.map((req) => Container(
-                                          margin: const EdgeInsets.only(bottom: 12),
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.amber.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const TabBar(
+                            tabs: [
+                              Tab(
+                                  icon: Icon(Icons.thumb_up_alt_outlined),
+                                  text: "Received"),
+                              Tab(
+                                  icon: Icon(Icons.person_outline),
+                                  text: "Given"),
+                            ],
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              children: [
+                                // --- TAB 1: Received ---
+                                ListView(
+                                  padding: const EdgeInsets.all(16),
+                                  children: [
+                                    if (pendingEndorsements.isNotEmpty)
+                                      Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              CircleAvatar(
-                                                backgroundImage: NetworkImage(req['requester']['avatar_url'] ?? ''),
-                                                child: req['requester']['avatar_url'] == null
-                                                    ? Text(req['requester']['name'][0])
-                                                    : null,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(req['requester']['name'],
-                                                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                                                    Text("Requesting endorsement for ${req['workshop']['skills']}"),
-                                                    Text(
-                                                      "Workshop: ${req['workshop']['title']}",
-                                                      style: theme.textTheme.bodySmall,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Column(
+                                              const Row(
                                                 children: [
-                                                  ElevatedButton(
-                                                    onPressed: () => respondToEndorsement(req['id'], true),
-                                                    child: const Text("Approve"),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () => respondToEndorsement(req['id'], false),
-                                                    child: const Text("Decline"),
+                                                  Icon(Icons.workspace_premium,
+                                                      color: Colors.amber),
+                                                  SizedBox(width: 8),
+                                                  Text(
+                                                    "Pending Requests",
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold),
                                                   ),
                                                 ],
                                               ),
+                                              const SizedBox(height: 12),
+                                              ...pendingEndorsements
+                                                  .map((req) => Container(
+                                                        margin: const EdgeInsets
+                                                            .only(bottom: 12),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(12),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.amber
+                                                              .withOpacity(0.1),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(12),
+                                                        ),
+                                                        child: Row(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            CircleAvatar(
+                                                              backgroundImage:
+                                                                  NetworkImage(
+                                                                      req['requester']
+                                                                              [
+                                                                              'avatar_url'] ??
+                                                                          ''),
+                                                              child: req['requester']
+                                                                          [
+                                                                          'avatar_url'] ==
+                                                                      null
+                                                                  ? Text(req[
+                                                                          'requester']
+                                                                      [
+                                                                      'name'][0])
+                                                                  : null,
+                                                            ),
+                                                            const SizedBox(
+                                                                width: 8),
+                                                            Expanded(
+                                                              child: Column(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                children: [
+                                                                  Text(
+                                                                      req['requester']
+                                                                          [
+                                                                          'name'],
+                                                                      style: const TextStyle(
+                                                                          fontWeight:
+                                                                              FontWeight.bold)),
+                                                                  Text(
+                                                                      "Requesting endorsement for ${req['workshop']['skills']}"),
+                                                                  Text(
+                                                                    "Workshop: ${req['workshop']['title']}",
+                                                                    style: theme
+                                                                        .textTheme
+                                                                        .bodySmall,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            Column(
+                                                              children: [
+                                                                ElevatedButton(
+                                                                  onPressed: () =>
+                                                                      respondToEndorsement(
+                                                                          req['id'],
+                                                                          true),
+                                                                  child: const Text(
+                                                                      "Approve"),
+                                                                ),
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      respondToEndorsement(
+                                                                          req['id'],
+                                                                          false),
+                                                                  child: const Text(
+                                                                      "Decline"),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      )),
                                             ],
                                           ),
-                                        )),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 16),
+                                        ),
+                                      ),
+                                    const SizedBox(height: 16),
 
-                              // My Skills
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text("My Skills & Endorsements",
-                                          style: TextStyle(fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 12),
-                                      ...mySkills.map((s) => Card(
-                                        margin: const EdgeInsets.only(bottom: 12),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Row(
+                                    // My Skills
+                                    Card(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                                "My Skills & Endorsements",
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 12),
+                                            ...mySkills.map((s) => Card(
+                                                  margin: const EdgeInsets.only(
+                                                      bottom: 12),
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            12),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .spaceBetween,
+                                                          children: [
+                                                            Row(
+                                                              children: [
+                                                                Text(s['name'],
+                                                                    style: const TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight.bold)),
+                                                                const SizedBox(
+                                                                    width: 8),
+                                                                Chip(
+                                                                  label: Text(s[
+                                                                      'level']),
+                                                                  backgroundColor:
+                                                                      getLevelColor(
+                                                                          s['level']),
+                                                                  labelStyle:
+                                                                      const TextStyle(
+                                                                          color:
+                                                                              Colors.white),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            Row(
+                                                              children: [
+                                                                const Icon(
+                                                                    Icons
+                                                                        .thumb_up,
+                                                                    color: Colors
+                                                                        .blue,
+                                                                    size: 18),
+                                                                const SizedBox(
+                                                                    width: 4),
+                                                                Text(
+                                                                    "${s['endorsements']}"),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 8),
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              requestEndorsement(
+                                                                  s['name']),
+                                                          child: const Text(
+                                                              "Request More"),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                )),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    // Endorsements Received
+                                    Card(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                                "Recent Endorsements Received",
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 12),
+                                            ...endorsementsReceived.map((e) =>
+                                                ListTile(
+                                                  leading: CircleAvatar(
+                                                    backgroundImage: NetworkImage(
+                                                        e['endorsed_by'][
+                                                                'avatar_url'] ??
+                                                            ''),
+                                                    child: e['endorsed_by'][
+                                                                'avatar_url'] ==
+                                                            null
+                                                        ? Text(e['endorsed_by']
+                                                            ['name'][0])
+                                                        : null,
+                                                  ),
+                                                  title: Text(
+                                                      "${e['endorsed_by']['name']} endorsed you for ${e['skill']}"),
+                                                  subtitle: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
-                                                      Text(s['name'],
-                                                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                                                      const SizedBox(width: 8),
-                                                      Chip(
-                                                        label: Text(s['level']),
-                                                        backgroundColor: getLevelColor(s['level']),
-                                                        labelStyle: const TextStyle(color: Colors.white),
+                                                      if (e['text'] != null)
+                                                        Text("\"${e['text']}\"",
+                                                            style: const TextStyle(
+                                                                fontStyle:
+                                                                    FontStyle
+                                                                        .italic)),
+                                                      Text(
+                                                        DateTime.parse(
+                                                                e['created_at'])
+                                                            .toString()
+                                                            .substring(0, 10),
+                                                        style: theme.textTheme
+                                                            .bodySmall,
                                                       ),
                                                     ],
                                                   ),
-                                                  Row(
-                                                    children: [
-                                                      const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
-                                                      const SizedBox(width: 4),
-                                                      Text("${s['endorsements']}"),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              TextButton(
-                                                onPressed: () => requestEndorsement(s['name']),
-                                                child: const Text("Request More"),
-                                              ),
-                                            ],
-                                          ),
+                                                )),
+                                          ],
                                         ),
-                                      )),
-                                    ],
-                                  ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
 
-                              const SizedBox(height: 16),
-
-                              // Endorsements Received
-                              Card(
-                                child: Padding(
+                                // --- TAB 2: Given ---
+                                ListView(
                                   padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text("Recent Endorsements Received",
-                                          style: TextStyle(fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 12),
-                                      ...endorsementsReceived.map((e) => ListTile(
+                                  children: endorsementsGiven.map((e) {
+                                    return Card(
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      child: ListTile(
                                         leading: CircleAvatar(
-                                          backgroundImage: NetworkImage(e['endorsed_by']['avatar_url'] ?? ''),
-                                          child: e['endorsed_by']['avatar_url'] == null
-                                              ? Text(e['endorsed_by']['name'][0])
+                                          backgroundImage: NetworkImage(
+                                              e['endorsed_user']
+                                                      ['avatar_url'] ??
+                                                  ''),
+                                          child: e['endorsed_user']
+                                                      ['avatar_url'] ==
+                                                  null
+                                              ? Text(
+                                                  e['endorsed_user']['name'][0])
                                               : null,
                                         ),
-                                        title: Text("${e['endorsed_by']['name']} endorsed you for ${e['skill']}"),
+                                        title: Text(
+                                            "You endorsed ${e['endorsed_user']['name']} for ${e['skill']}"),
                                         subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
+                                            if (e['workshops'] != null)
+                                              Text(
+                                                  "Workshop: ${e['workshops']['title']}",
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
                                             if (e['text'] != null)
                                               Text("\"${e['text']}\"",
-                                                  style: const TextStyle(fontStyle: FontStyle.italic)),
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic)),
                                             Text(
-                                              DateTime.parse(e['created_at']).toString().substring(0, 10),
+                                              DateTime.parse(e['created_at'])
+                                                  .toString()
+                                                  .substring(0, 10),
                                               style: theme.textTheme.bodySmall,
                                             ),
                                           ],
                                         ),
-                                      )),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // --- TAB 2: Given ---
-                          ListView(
-                            padding: const EdgeInsets.all(16),
-                            children: endorsementsGiven.map((e) {
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundImage: NetworkImage(e['endorsed_user']['avatar_url'] ?? ''),
-                                    child: e['endorsed_user']['avatar_url'] == null
-                                        ? Text(e['endorsed_user']['name'][0])
-                                        : null,
-                                  ),
-                                  title: Text("You endorsed ${e['endorsed_user']['name']} for ${e['skill']}"),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (e['workshops'] != null)
-                                        Text("Workshop: ${e['workshops']['title']}",
-                                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      if (e['text'] != null)
-                                        Text("\"${e['text']}\"",
-                                            style: const TextStyle(fontStyle: FontStyle.italic)),
-                                      Text(
-                                        DateTime.parse(e['created_at']).toString().substring(0, 10),
-                                        style: theme.textTheme.bodySmall,
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  }).toList(),
                                 ),
-                              );
-                            }).toList(),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -724,7 +848,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User search
-                  const Text("Select User", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Select User",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: userSearchController,
@@ -734,20 +859,22 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       prefixIcon: const Icon(Icons.person_search),
                       suffixIcon: userSearchController.text.isNotEmpty
                           ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          userSearchController.clear();
-                          setDialogState(() {
-                            searchResults = List.from(allUsers); // Reset to all users
-                          });
-                        },
-                      )
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                userSearchController.clear();
+                                setDialogState(() {
+                                  searchResults =
+                                      List.from(allUsers); // Reset to all users
+                                });
+                              },
+                            )
                           : null,
                     ),
                     onChanged: (value) {
                       // Real-time filtering logic inside the dialog
                       _searchTimer?.cancel();
-                      _searchTimer = Timer(const Duration(milliseconds: 200), () {
+                      _searchTimer =
+                          Timer(const Duration(milliseconds: 200), () {
                         if (value.isEmpty) {
                           setDialogState(() {
                             searchResults = List.from(allUsers);
@@ -756,7 +883,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                         }
 
                         final filteredUsers = allUsers.where((user) {
-                          final name = user['name']?.toString().toLowerCase() ?? '';
+                          final name =
+                              user['name']?.toString().toLowerCase() ?? '';
                           final searchLower = value.toLowerCase();
                           return name.contains(searchLower);
                         }).toList();
@@ -798,14 +926,17 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           final user = searchResults[index];
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundImage: NetworkImage(user['avatar_url'] ?? ''),
+                              backgroundImage:
+                                  NetworkImage(user['avatar_url'] ?? ''),
                               child: user['avatar_url'] == null
                                   ? Text(user['name'][0])
                                   : null,
                             ),
                             title: Text(user['name']),
-                            subtitle: user['skills_to_teach'] != null && user['skills_to_teach'].isNotEmpty
-                                ? Text("Teaches: ${user['skills_to_teach'].join(', ')}")
+                            subtitle: user['skills_to_teach'] != null &&
+                                    user['skills_to_teach'].isNotEmpty
+                                ? Text(
+                                    "Teaches: ${user['skills_to_teach'].join(', ')}")
                                 : null,
                             onTap: () async {
                               setDialogState(() {
@@ -819,7 +950,7 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                               await _loadUserDetails(user['id']);
 
                               // Force rebuild to show loaded details
-                              if(mounted) {
+                              if (mounted) {
                                 setDialogState(() {
                                   isLoadingUserDetails = false;
                                 });
@@ -849,7 +980,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           child: Row(
                             children: [
                               CircleAvatar(
-                                backgroundImage: NetworkImage(selectedUser!['avatar_url'] ?? ''),
+                                backgroundImage: NetworkImage(
+                                    selectedUser!['avatar_url'] ?? ''),
                                 child: selectedUser!['avatar_url'] == null
                                     ? Text(selectedUser!['name'][0])
                                     : null,
@@ -858,7 +990,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                               Expanded(
                                 child: Text(
                                   "Selected: ${selectedUser!['name']}",
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                               IconButton(
@@ -877,10 +1010,14 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           ),
                         ),
                         if (isLoadingUserDetails)
-                          const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
+                          const Center(
+                              child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: CircularProgressIndicator()))
                         else ...[
                           if (userWorkshops.isNotEmpty) ...[
-                            const Text("Workshops Conducted", style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text("Workshops Conducted",
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
                             SizedBox(
                               height: 80,
@@ -898,13 +1035,31 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(workshop['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                        Text(workshop['title'],
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis),
                                         if (workshop['skills'] != null)
                                           Wrap(
                                             spacing: 4,
-                                            children: (workshop['skills'] as List).take(2).map((skill) => Chip(label: Text(skill, style: const TextStyle(fontSize: 10)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact)).toList(),
+                                            children: (workshop['skills']
+                                                    as List)
+                                                .take(2)
+                                                .map((skill) => Chip(
+                                                    label: Text(skill,
+                                                        style: const TextStyle(
+                                                            fontSize: 10)),
+                                                    materialTapTargetSize:
+                                                        MaterialTapTargetSize
+                                                            .shrinkWrap,
+                                                    visualDensity:
+                                                        VisualDensity.compact))
+                                                .toList(),
                                           ),
                                       ],
                                     ),
@@ -915,11 +1070,17 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           ],
                           if (userSkills.isNotEmpty) ...[
                             const SizedBox(height: 12),
-                            const Text("Skills They Teach", style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text("Skills They Teach",
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
                             Wrap(
                               spacing: 8,
-                              children: userSkills.map((skill) => Chip(label: Text(skill), backgroundColor: Colors.green.withOpacity(0.1))).toList(),
+                              children: userSkills
+                                  .map((skill) => Chip(
+                                      label: Text(skill),
+                                      backgroundColor:
+                                          Colors.green.withOpacity(0.1)))
+                                  .toList(),
                             ),
                           ],
                         ],
@@ -928,7 +1089,8 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                   const SizedBox(height: 16),
 
                   // Workshop Search (Similar pattern for search results)
-                  const Text("Search Workshop (Optional)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Search Workshop (Optional)",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: workshopSearchController,
@@ -938,10 +1100,14 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: workshopSearchController.text.isNotEmpty
-                          ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                        workshopSearchController.clear();
-                        setDialogState(() { workshopSearchResults = []; });
-                      })
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                workshopSearchController.clear();
+                                setDialogState(() {
+                                  workshopSearchResults = [];
+                                });
+                              })
                           : null,
                     ),
                     onChanged: (value) {
@@ -964,11 +1130,13 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                           final workshop = workshopSearchResults[index];
                           return ListTile(
                             title: Text(workshop['title']),
-                            subtitle: Text("By: ${workshop['creator']['name']}"),
+                            subtitle:
+                                Text("By: ${workshop['creator']['name']}"),
                             onTap: () {
                               setDialogState(() {
                                 selectedWorkshop = workshop;
-                                workshopSearchController.text = workshop['title'];
+                                workshopSearchController.text =
+                                    workshop['title'];
                                 workshopSearchResults = [];
                               });
                             },
@@ -984,20 +1152,27 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                         children: [
                           const Icon(Icons.workspaces, color: Colors.blue),
                           const SizedBox(width: 8),
-                          Expanded(child: Text("Selected: ${selectedWorkshop!['title']}", style: const TextStyle(fontWeight: FontWeight.bold))),
-                          IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                            setDialogState(() {
-                              selectedWorkshop = null;
-                              workshopSearchController.clear();
-                            });
-                          }),
+                          Expanded(
+                              child: Text(
+                                  "Selected: ${selectedWorkshop!['title']}",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedWorkshop = null;
+                                  workshopSearchController.clear();
+                                });
+                              }),
                         ],
                       ),
                     ),
                   const SizedBox(height: 16),
 
                   // Skill Search
-                  const Text("Search Skill", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Search Skill",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: skillSearchController,
@@ -1007,10 +1182,14 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.psychology),
                       suffixIcon: skillSearchController.text.isNotEmpty
-                          ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                        skillSearchController.clear();
-                        setDialogState(() { skillSearchResults = []; });
-                      })
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                skillSearchController.clear();
+                                setDialogState(() {
+                                  skillSearchResults = [];
+                                });
+                              })
                           : null,
                     ),
                     onChanged: (value) {
@@ -1050,20 +1229,27 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
                         children: [
                           const Icon(Icons.psychology, color: Colors.green),
                           const SizedBox(width: 8),
-                          Expanded(child: Text("Selected: $selectedSkillForEndorsement", style: const TextStyle(fontWeight: FontWeight.bold))),
-                          IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                            setDialogState(() {
-                              selectedSkillForEndorsement = null;
-                              skillSearchController.clear();
-                            });
-                          }),
+                          Expanded(
+                              child: Text(
+                                  "Selected: $selectedSkillForEndorsement",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedSkillForEndorsement = null;
+                                  skillSearchController.clear();
+                                });
+                              }),
                         ],
                       ),
                     ),
                   const SizedBox(height: 16),
 
                   // Endorsement text
-                  const Text("Endorsement Message", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Endorsement Message",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: endorsementText,
@@ -1086,7 +1272,10 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
             ElevatedButton(
               onPressed: isSendingEndorsement ? null : sendEndorsement,
               child: isSendingEndorsement
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text("Send"),
             ),
           ],

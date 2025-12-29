@@ -1,4 +1,3 @@
-
 class UserModel {
   final String id;
   final String name;
@@ -58,12 +57,13 @@ class UserModel {
       skillsToLearn: List<String>.from(json['skills_to_learn'] ?? []),
 
       // Ensure social always has default values
-      social: Map<String, String>.from(json['social'] ?? {
-        "instagram": "",
-        "twitter": "",
-        "linkedin": "",
-        "github": "",
-      }),
+      social: Map<String, String>.from(json['social'] ??
+          {
+            "instagram": "",
+            "twitter": "",
+            "linkedin": "",
+            "github": "",
+          }),
     );
   }
 

@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 
 class HuggingFaceService {
   static const String _apiKey = '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';
-  static const String _baseUrl = 'https://router.huggingface.co/v1/chat/completions';
+  static const String _baseUrl =
+      'https://router.huggingface.co/v1/chat/completions';
 
   static const List<String> _models = [
     'meta-llama/Llama-3.1-8B-Instruct',
@@ -59,8 +60,9 @@ $name is an accomplished workshop facilitator specializing in ${skills.take(3).j
   }) async {
     debugPrint('Starting AI skills section generation');
 
-    final skillsText = skillsData.map((s) =>
-    '${s['name']} (${s['level']}, ${s['endorsements']} endorsements, ${s['workshops'].length} workshops)')
+    final skillsText = skillsData
+        .map((s) =>
+            '${s['name']} (${s['level']}, ${s['endorsements']} endorsements, ${s['workshops'].length} workshops)')
         .join('\n');
 
     for (String model in _models) {
@@ -94,8 +96,9 @@ Make descriptions concise, professional, and evidence-based. Use strong verbs.
   }) async {
     debugPrint('Starting AI experience section generation');
 
-    final workshopsText = taughtWorkshops.map((w) =>
-    'Title: ${w['title']}\nDate: ${w['date']}\nCategory: ${w['category'] ?? 'General'}\nDuration: ${w['duration'] ?? 'N/A'}\nDescription: ${w['description'] ?? ''}\nSkills: ${(w['skills'] as List?)?.join(', ') ?? ''}\nRating: ${w['rating'] ?? 0}')
+    final workshopsText = taughtWorkshops
+        .map((w) =>
+            'Title: ${w['title']}\nDate: ${w['date']}\nCategory: ${w['category'] ?? 'General'}\nDuration: ${w['duration'] ?? 'N/A'}\nDescription: ${w['description'] ?? ''}\nSkills: ${(w['skills'] as List?)?.join(', ') ?? ''}\nRating: ${w['rating'] ?? 0}')
         .join('\n\n');
 
     for (String model in _models) {
@@ -121,8 +124,9 @@ For each workshop, create 2-4 strong, quantifiable bullet points highlighting te
       if (result != null && result.trim().isNotEmpty) return result.trim();
     }
 
-    return taughtWorkshops.map((w) =>
-    '${w['title']} | ${_formatDate(w['date'])}\nWorkshop Instructor\n• Delivered interactive workshop on ${(w['skills'] as List?)?.join(', ') ?? 'relevant skills'}')
+    return taughtWorkshops
+        .map((w) =>
+            '${w['title']} | ${_formatDate(w['date'])}\nWorkshop Instructor\n• Delivered interactive workshop on ${(w['skills'] as List?)?.join(', ') ?? 'relevant skills'}')
         .join('\n\n');
   }
 
@@ -229,7 +233,8 @@ Example:
 ''';
 
     for (String model in _models) {
-      String? result = await _tryGenerateWithModel(model: model, prompt: prompt);
+      String? result =
+          await _tryGenerateWithModel(model: model, prompt: prompt);
       if (result != null && result.trim().isNotEmpty) {
         return _cleanGeneratedText(result);
       }
@@ -248,21 +253,25 @@ Example:
       try {
         debugPrint('Attempt ${attempt + 1} with model: $model');
 
-        final response = await http.post(
-          Uri.parse(_baseUrl),
-          headers: {
-            'Authorization': 'Bearer $_apiKey',
-            'Content-Type': 'application/json',
-            'User-Agent': 'SkillX-App/1.0',
-          },
-          body: jsonEncode({
-            'model': model,
-            'messages': [{'role': 'user', 'content': prompt}],
-            'max_tokens': 400,
-            'temperature': 0.7,
-            'top_p': 0.9,
-          }),
-        ).timeout(_requestTimeout);
+        final response = await http
+            .post(
+              Uri.parse(_baseUrl),
+              headers: {
+                'Authorization': 'Bearer $_apiKey',
+                'Content-Type': 'application/json',
+                'User-Agent': 'SkillX-App/1.0',
+              },
+              body: jsonEncode({
+                'model': model,
+                'messages': [
+                  {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': 400,
+                'temperature': 0.7,
+                'top_p': 0.9,
+              }),
+            )
+            .timeout(_requestTimeout);
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -273,7 +282,8 @@ Example:
             if (text.length > 10) return text;
           }
         } else if ([429, 503].contains(response.statusCode)) {
-          await Future.delayed(Duration(seconds: response.statusCode == 429 ? 5 : 8));
+          await Future.delayed(
+              Duration(seconds: response.statusCode == 429 ? 5 : 8));
           continue;
         }
       } catch (e) {
@@ -312,7 +322,8 @@ Example:
     return text.trim();
   }
 
-  static String _generateTemplateSummary(String name, List<String> skills, int workshopCount, String rating) {
+  static String _generateTemplateSummary(
+      String name, List<String> skills, int workshopCount, String rating) {
     return "$name is a skilled workshop facilitator with expertise in ${skills.join(', ')}. Conducted $workshopCount workshops with an average rating of $rating/5.";
   }
 

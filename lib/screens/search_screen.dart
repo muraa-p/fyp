@@ -57,8 +57,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
       if (mounted) {
         setState(() {
-          _userSkillsToLearn = List<String>.from(response['skills_to_learn'] ?? []);
-          _userSkillsToTeach = List<String>.from(response['skills_to_teach'] ?? []);
+          _userSkillsToLearn =
+              List<String>.from(response['skills_to_learn'] ?? []);
+          _userSkillsToTeach =
+              List<String>.from(response['skills_to_teach'] ?? []);
         });
       }
     } catch (e) {
@@ -74,15 +76,12 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _fetchWorkshops() async {
     setState(() => _isLoading = true);
     try {
-      final data = await Supabase.instance.client
-          .from('workshops')
-          .select('''
+      final data = await Supabase.instance.client.from('workshops').select('''
           *,
           users!workshops_creator_id_fkey (
             name
           )
-        ''')
-          .order('created_at', ascending: false);
+        ''').order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> processedWorkshops = [];
 
@@ -135,9 +134,12 @@ class _SearchScreenState extends State<SearchScreen> {
     final String difficulty = workshop['difficulty'] ?? 'Beginner';
     final List<String> tags = List<String>.from(workshop['tags'] ?? []);
     final List<String> outcomes = List<String>.from(workshop['outcomes'] ?? []);
-    final List<String> prerequisites = List<String>.from(workshop['prerequisites'] ?? []);
-    final String skillRequested = (workshop['skill_requested'] ?? '').toString().toLowerCase();
-    final String skillOffered = (workshop['skill_offered'] ?? '').toString().toLowerCase();
+    final List<String> prerequisites =
+        List<String>.from(workshop['prerequisites'] ?? []);
+    final String skillRequested =
+        (workshop['skill_requested'] ?? '').toString().toLowerCase();
+    final String skillOffered =
+        (workshop['skill_offered'] ?? '').toString().toLowerCase();
     final String type = workshop['type'] ?? 'Free Workshop';
 
     int overlapCount(List<String> userList, List<String> workshopList) {
@@ -150,7 +152,7 @@ class _SearchScreenState extends State<SearchScreen> {
     bool userCanTeachRequested() {
       if (skillRequested.isEmpty) return false;
       return _userSkillsToTeach.any((s) =>
-      s.toLowerCase().contains(skillRequested) ||
+          s.toLowerCase().contains(skillRequested) ||
           skillRequested.contains(s.toLowerCase()));
     }
 
@@ -166,9 +168,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
     final learnMatchesTags = overlapCount(_userSkillsToLearn, tags);
     final learnMatchesOutcomes = overlapCount(_userSkillsToLearn, outcomes);
-    final learnsOfferedSkill = _userSkillsToLearn.any((s) => skillOffered.contains(s.toLowerCase()));
+    final learnsOfferedSkill =
+        _userSkillsToLearn.any((s) => skillOffered.contains(s.toLowerCase()));
 
-    if (learnMatchesTags > 0 || learnMatchesOutcomes > 0 || learnsOfferedSkill) {
+    if (learnMatchesTags > 0 ||
+        learnMatchesOutcomes > 0 ||
+        learnsOfferedSkill) {
       score += 25;
     }
 
@@ -197,8 +202,10 @@ class _SearchScreenState extends State<SearchScreen> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       _filteredWorkshops = _allWorkshops.where((ws) {
-        final matchesSearch = ws["title"].toString().toLowerCase().contains(query);
-        final matchesCategory = _selectedCategory == "All" || ws["category"] == _selectedCategory;
+        final matchesSearch =
+            ws["title"].toString().toLowerCase().contains(query);
+        final matchesCategory =
+            _selectedCategory == "All" || ws["category"] == _selectedCategory;
         return matchesSearch && matchesCategory;
       }).toList();
 
@@ -257,7 +264,8 @@ class _SearchScreenState extends State<SearchScreen> {
             onRefresh: _fetchWorkshops,
             color: Theme.of(context).colorScheme.primary,
             child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when list is short/empty
+              physics:
+                  const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when list is short/empty
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
@@ -286,9 +294,12 @@ class _SearchScreenState extends State<SearchScreen> {
                         return ChoiceChip(
                           label: Text(category),
                           selected: selected,
-                          selectedColor: theme.colorScheme.primary.withOpacity(0.2),
+                          selectedColor:
+                              theme.colorScheme.primary.withOpacity(0.2),
                           labelStyle: TextStyle(
-                            color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                            color: selected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface,
                           ),
                           onSelected: (_) {
                             setState(() {
@@ -307,28 +318,30 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _filteredWorkshops.isEmpty
-                      ? Center(
-                    child: Text(
-                      "No workshops found",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                  )
-                      : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _filteredWorkshops.length,
-                    itemBuilder: (context, index) {
-                      final ws = _filteredWorkshops[index];
-                      return _WorkshopCard(workshop: ws, currentUserId: currentUserId);
-                    },
-                  ),
+                          ? Center(
+                              child: Text(
+                                "No workshops found",
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.7),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _filteredWorkshops.length,
+                              itemBuilder: (context, index) {
+                                final ws = _filteredWorkshops[index];
+                                return _WorkshopCard(
+                                    workshop: ws, currentUserId: currentUserId);
+                              },
+                            ),
                 ),
               ],
             ),
           ),
-    )
-    );
+        ));
   }
 }
 
@@ -345,23 +358,34 @@ class _WorkshopCard extends StatelessWidget {
     final String difficulty = workshop['difficulty'] ?? 'Beginner';
     final List<String> tags = List<String>.from(workshop['tags'] ?? []);
     final List<String> outcomes = List<String>.from(workshop['outcomes'] ?? []);
-    final String skillRequested = (workshop['skill_requested'] ?? '').toString();
+    final String skillRequested =
+        (workshop['skill_requested'] ?? '').toString();
     (workshop['skill_offered'] ?? '').toString();
     final String type = workshop['type'] ?? 'Free Workshop';
 
     String selectedCategoryFromContext(BuildContext context) {
-      return context.findAncestorStateOfType<_SearchScreenState>()?._selectedCategory ?? "All";
+      return context
+              .findAncestorStateOfType<_SearchScreenState>()
+              ?._selectedCategory ??
+          "All";
     }
 
     List<String> userSkillsToLearnFromContext(BuildContext context) {
-      return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToLearn ?? [];
+      return context
+              .findAncestorStateOfType<_SearchScreenState>()
+              ?._userSkillsToLearn ??
+          [];
     }
 
     List<String> userSkillsToTeachFromContext(BuildContext context) {
-      return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToTeach ?? [];
+      return context
+              .findAncestorStateOfType<_SearchScreenState>()
+              ?._userSkillsToTeach ??
+          [];
     }
 
-    if (selectedCategoryFromContext(context) == "All" || category == selectedCategoryFromContext(context)) {
+    if (selectedCategoryFromContext(context) == "All" ||
+        category == selectedCategoryFromContext(context)) {
       reasons.add("✔ Matches your selected category ($category)");
     }
 
@@ -372,31 +396,36 @@ class _WorkshopCard extends StatelessWidget {
     }
 
     if (tags.isNotEmpty) {
-      final tagMatches = tags.where((t) =>
-          userSkillsToLearnFromContext(context).any((s) => s.toLowerCase().contains(t.toLowerCase()) || t.toLowerCase().contains(s.toLowerCase()))
-      );
+      final tagMatches = tags.where((t) => userSkillsToLearnFromContext(context)
+          .any((s) =>
+              s.toLowerCase().contains(t.toLowerCase()) ||
+              t.toLowerCase().contains(s.toLowerCase())));
       if (tagMatches.isNotEmpty) {
-        reasons.add("✔ Tags match your interests: ${tagMatches.take(3).join(", ")}${tagMatches.length > 3 ? "..." : ""}");
+        reasons.add(
+            "✔ Tags match your interests: ${tagMatches.take(3).join(", ")}${tagMatches.length > 3 ? "..." : ""}");
       }
     }
 
     if (outcomes.isNotEmpty) {
       final outcomeMatches = outcomes.where((o) =>
-          userSkillsToLearnFromContext(context).any((s) => o.toLowerCase().contains(s.toLowerCase()))
-      );
+          userSkillsToLearnFromContext(context)
+              .any((s) => o.toLowerCase().contains(s.toLowerCase())));
       if (outcomeMatches.isNotEmpty) {
-        reasons.add("✔ You'll learn skills you want: ${outcomeMatches.take(2).join(", ")}${outcomeMatches.length > 2 ? "..." : ""}");
+        reasons.add(
+            "✔ You'll learn skills you want: ${outcomeMatches.take(2).join(", ")}${outcomeMatches.length > 2 ? "..." : ""}");
       }
     }
 
     if (type == 'Teach4Learn') {
       if (skillRequested.isNotEmpty &&
           userSkillsToTeachFromContext(context).any((s) =>
-          s.toLowerCase().contains(skillRequested.toLowerCase()) ||
+              s.toLowerCase().contains(skillRequested.toLowerCase()) ||
               skillRequested.toLowerCase().contains(s.toLowerCase()))) {
-        reasons.add("✔ You can teach the skill they're looking for: $skillRequested");
+        reasons.add(
+            "✔ You can teach the skill they're looking for: $skillRequested");
       } else {
-        reasons.add("ℹ Teach4Learn swap – check if you can offer $skillRequested");
+        reasons
+            .add("ℹ Teach4Learn swap – check if you can offer $skillRequested");
       }
     }
 
@@ -422,17 +451,18 @@ class _WorkshopCard extends StatelessWidget {
           ],
         ),
         content: reasons.isEmpty
-            ? const Text("No specific matches detected yet. Add skills to your profile for better recommendations!")
+            ? const Text(
+                "No specific matches detected yet. Add skills to your profile for better recommendations!")
             : Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: reasons
-              .map((r) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(r, style: const TextStyle(fontSize: 15)),
-          ))
-              .toList(),
-        ),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: reasons
+                    .map((r) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(r, style: const TextStyle(fontSize: 15)),
+                        ))
+                    .toList(),
+              ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -452,7 +482,8 @@ class _WorkshopCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => WorkshopDetailScreen(workshop: workshop)),
+          MaterialPageRoute(
+              builder: (_) => WorkshopDetailScreen(workshop: workshop)),
         );
       },
       child: Card(
@@ -472,7 +503,8 @@ class _WorkshopCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                      child: const Center(
+                          child: Icon(Icons.broken_image, size: 40)),
                     ),
                   ),
                 ),
@@ -483,14 +515,18 @@ class _WorkshopCard extends StatelessWidget {
                     top: 12,
                     left: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.amber.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
                         "Your Workshop",
-                        style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 12),
+                        style: TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12),
                       ),
                     ),
                   ),
@@ -502,21 +538,24 @@ class _WorkshopCard extends StatelessWidget {
                   child: Chip(
                     label: Text(workshop["category"] ?? "General"),
                     backgroundColor: theme.colorScheme.primary.withOpacity(0.8),
-                    labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                    labelStyle:
+                        const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
 
                 // Match Badge — NOW HIDDEN FOR CREATOR'S OWN WORKSHOPS
                 if (matchPercentage != null &&
                     matchPercentage > 20 &&
-                    workshop['creator_id'] != currentUserId)  // ← THIS IS THE FIX
+                    workshop['creator_id'] !=
+                        currentUserId) // ← THIS IS THE FIX
                   Positioned(
                     bottom: 12,
                     left: 12,
                     child: GestureDetector(
                       onTap: () => _showMatchDetails(context, matchPercentage),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.purple.withOpacity(0.95),
                           borderRadius: BorderRadius.circular(24),
@@ -531,7 +570,8 @@ class _WorkshopCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                            const Icon(Icons.auto_awesome,
+                                color: Colors.white, size: 18),
                             const SizedBox(width: 6),
                             Text(
                               "Match: ${matchPercentage.toStringAsFixed(0)}%",
@@ -542,7 +582,8 @@ class _WorkshopCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.info_outline, color: Colors.white, size: 16),
+                            const Icon(Icons.info_outline,
+                                color: Colors.white, size: 16),
                           ],
                         ),
                       ),
@@ -559,38 +600,43 @@ class _WorkshopCard extends StatelessWidget {
                 children: [
                   Text(
                     workshop["title"],
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 16),
                       const SizedBox(width: 4),
-                      Text("${workshop["rating"] ?? 0.0}", style: theme.textTheme.bodySmall),
+                      Text("${workshop["rating"] ?? 0.0}",
+                          style: theme.textTheme.bodySmall),
                       const SizedBox(width: 12),
                       const Icon(Icons.group, size: 16),
                       const SizedBox(width: 4),
-                      Text("${workshop["participants"]}", style: theme.textTheme.bodySmall),
+                      Text("${workshop["participants"]}",
+                          style: theme.textTheme.bodySmall),
                       const SizedBox(width: 12),
                       const Icon(Icons.access_time, size: 16),
                       const SizedBox(width: 4),
-                      Text("${workshop["duration"]}", style: theme.textTheme.bodySmall),
+                      Text("${workshop["duration"]}",
+                          style: theme.textTheme.bodySmall),
                     ],
                   ),
-
                   const SizedBox(height: 12),
-
                   Row(
                     children: [
                       CircleAvatar(
                         radius: 14,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                        backgroundColor:
+                            theme.colorScheme.primary.withOpacity(0.2),
                         child: Text(
                           workshop["instructor"]?.isNotEmpty == true
                               ? workshop["instructor"][0].toUpperCase()
                               : 'U',
-                          style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12),
+                          style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
                         ),
                       ),
                       const SizedBox(width: 8),

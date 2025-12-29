@@ -44,14 +44,19 @@ class _AuthScreenState extends State<AuthScreen>
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _animationController,
+          curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
     );
 
     _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: const Interval(0.4, 1.0, curve: Curves.elasticOut)),
+      CurvedAnimation(
+          parent: _animationController,
+          curve: const Interval(0.4, 1.0, curve: Curves.elasticOut)),
     );
 
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
@@ -68,12 +73,12 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildTextField(
-      TextEditingController controller,
-      String label,
-      IconData icon, {
-        bool isPassword = false,
-        String? Function(String?)? validator,
-      }) {
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscure : false,
@@ -86,9 +91,10 @@ class _AuthScreenState extends State<AuthScreen>
         prefixIcon: Icon(icon, color: Colors.white70),
         suffixIcon: isPassword
             ? IconButton(
-          icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
-          onPressed: () => setState(() => _obscure = !_obscure),
-        )
+                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.white70),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              )
             : null,
         filled: true,
         fillColor: Colors.white.withOpacity(0.1),
@@ -100,7 +106,8 @@ class _AuthScreenState extends State<AuthScreen>
           borderRadius: BorderRadius.circular(24),
           borderSide: const BorderSide(color: Color(0xFF60A5FA), width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       ),
     );
   }
@@ -115,12 +122,15 @@ class _AuthScreenState extends State<AuthScreen>
       AuthResponse response;
 
       if (_isLogin) {
-        response = await _authService.signIn(_email.text.trim(), _password.text.trim());
-        if (response.user == null) throw Exception("Invalid email or password.");
+        response = await _authService.signIn(
+            _email.text.trim(), _password.text.trim());
+        if (response.user == null)
+          throw Exception("Invalid email or password.");
         if (response.user!.emailConfirmedAt == null) {
           await Supabase.instance.client.auth.signOut();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Please verify your email before logging in.")),
+            const SnackBar(
+                content: Text("Please verify your email before logging in.")),
           );
           return;
         }
@@ -144,17 +154,19 @@ class _AuthScreenState extends State<AuthScreen>
         barrierDismissible: false,
         builder: (_) => StatefulBuilder(
           builder: (context, setState) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: const Text("Verify Your Email"),
             content: const Text(
               "We’ve sent a verification link to your email.\n\n"
-                  "After clicking it, tap the button below.",
+              "After clicking it, tap the button below.",
             ),
             actions: [
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    final login = await Supabase.instance.client.auth.signInWithPassword(
+                    final login =
+                        await Supabase.instance.client.auth.signInWithPassword(
                       email: _email.text.trim(),
                       password: _password.text.trim(),
                     );
@@ -163,12 +175,15 @@ class _AuthScreenState extends State<AuthScreen>
                       Navigator.pop(context);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Email not verified yet. Check your inbox.")),
+                        const SnackBar(
+                            content: Text(
+                                "Email not verified yet. Check your inbox.")),
                       );
                     }
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Verification pending. Try again.")),
+                      const SnackBar(
+                          content: Text("Verification pending. Try again.")),
                     );
                   }
                 },
@@ -200,7 +215,8 @@ class _AuthScreenState extends State<AuthScreen>
 
       final updatedUser = await Navigator.push<Map<String, dynamic>>(
         context,
-        MaterialPageRoute(builder: (_) => ProfileSetupScreen(baseUser: baseUser)),
+        MaterialPageRoute(
+            builder: (_) => ProfileSetupScreen(baseUser: baseUser)),
       );
 
       if (updatedUser != null) {
@@ -214,29 +230,37 @@ class _AuthScreenState extends State<AuthScreen>
     } catch (error) {
       String errorMessage = error.toString();
 
-if (errorMessage.contains('Only university emails')) {
-  errorMessage = 'Only APU university emails (@mail.apu.edu.my) are allowed to sign up.';
-} else if (errorMessage.contains('Invalid email or password')) {
-  errorMessage = 'Invalid email or password. Please try again.';
-} else if (errorMessage.contains('Email not confirmed')) {
-  errorMessage = 'Please verify your email first.';
-}
+      if (errorMessage.contains('Only university emails')) {
+        errorMessage =
+            'Only APU university emails (@mail.apu.edu.my) are allowed to sign up.';
+      } else if (errorMessage.contains('Invalid email or password')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (errorMessage.contains('Email not confirmed')) {
+        errorMessage = 'Please verify your email first.';
+      }
 
-ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text(errorMessage),
-    backgroundColor: Colors.red.shade700,
-    behavior: SnackBarBehavior.floating,
-  ),
-);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  String? _validateEmail(String? v) => v?.isEmpty ?? true ? 'Email required' : (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!) ? 'Invalid email' : null);
-  String? _validatePassword(String? v) => v?.isEmpty ?? true ? 'Password required' : (v!.length < 6 ? 'Min 6 characters' : null);
-  String? _validateName(String? v) => !_isLogin && (v?.trim().isEmpty ?? true) ? 'Name required' : null;
+  String? _validateEmail(String? v) => v?.isEmpty ?? true
+      ? 'Email required'
+      : (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)
+          ? 'Invalid email'
+          : null);
+  String? _validatePassword(String? v) => v?.isEmpty ?? true
+      ? 'Password required'
+      : (v!.length < 6 ? 'Min 6 characters' : null);
+  String? _validateName(String? v) =>
+      !_isLogin && (v?.trim().isEmpty ?? true) ? 'Name required' : null;
 
   @override
   Widget build(BuildContext context) {
@@ -267,7 +291,8 @@ ScaffoldMessenger.of(context).showSnackBar(
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(36),
-                        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1.5),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.15), width: 1.5),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.blue.withOpacity(0.3),
@@ -289,7 +314,8 @@ ScaffoldMessenger.of(context).showSnackBar(
                               curve: Curves.easeInOut,
                               builder: (_, val, __) => Transform.scale(
                                 scale: val,
-                                child: const Icon(Icons.auto_awesome_rounded, size: 90, color: Color(0xFF60A5FA)),
+                                child: const Icon(Icons.auto_awesome_rounded,
+                                    size: 90, color: Color(0xFF60A5FA)),
                               ),
                             ),
                             const SizedBox(height: 32),
@@ -305,21 +331,30 @@ ScaffoldMessenger.of(context).showSnackBar(
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              _isLogin ? "Continue your learning journey" : "Let's get you started!",
+                              _isLogin
+                                  ? "Continue your learning journey"
+                                  : "Let's get you started!",
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.85)),
+                              style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white.withOpacity(0.85)),
                             ),
                             const SizedBox(height: 48),
 
                             if (!_isLogin) ...[
-                              _buildTextField(_name, "Full Name", Icons.person_outline, validator: _validateName),
+                              _buildTextField(
+                                  _name, "Full Name", Icons.person_outline,
+                                  validator: _validateName),
                               const SizedBox(height: 20),
                             ],
-                            _buildTextField(_email, "Email", Icons.email_outlined, validator: _validateEmail),
+                            _buildTextField(
+                                _email, "Email", Icons.email_outlined,
+                                validator: _validateEmail),
                             if (!_isLogin) ...[
                               const SizedBox(height: 8),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
                                 child: Text(
                                   "currently Only APU emails (tpxxxxx@mail.apu.edu.my) are allowed",
                                   style: TextStyle(
@@ -332,23 +367,29 @@ ScaffoldMessenger.of(context).showSnackBar(
                               ),
                             ],
                             const SizedBox(height: 20),
-                            _buildTextField(_password, "Password", Icons.lock_outline,
+                            _buildTextField(
+                                _password, "Password", Icons.lock_outline,
                                 isPassword: true, validator: _validatePassword),
 
                             const SizedBox(height: 48),
 
                             _loading
-                                ? const CircularProgressIndicator(color: Color(0xFF60A5FA))
+                                ? const CircularProgressIndicator(
+                                    color: Color(0xFF60A5FA))
                                 : CustomButton(
-                              label: _isLogin ? "Sign In" : "Create Account",
-                              onPressed: () => _authenticate(context),
-                            ),
+                                    label:
+                                        _isLogin ? "Sign In" : "Create Account",
+                                    onPressed: () => _authenticate(context),
+                                  ),
 
                             const SizedBox(height: 24),
                             TextButton(
-                              onPressed: () => setState(() => _isLogin = !_isLogin),
+                              onPressed: () =>
+                                  setState(() => _isLogin = !_isLogin),
                               child: Text(
-                                _isLogin ? "New here? Create an account" : "Already have an account? Sign in",
+                                _isLogin
+                                    ? "New here? Create an account"
+                                    : "Already have an account? Sign in",
                                 style: const TextStyle(
                                   color: Color(0xFF60A5FA),
                                   fontWeight: FontWeight.bold,

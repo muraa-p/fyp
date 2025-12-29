@@ -38,7 +38,6 @@ class _GamificationScreenState extends State<GamificationScreen>
     _loadGamificationData();
   }
 
-
   @override
   void dispose() {
     _tabController.dispose();
@@ -56,7 +55,8 @@ class _GamificationScreenState extends State<GamificationScreen>
     }
 
     try {
-      final response = await supabase.rpc('get_user_gamification_data', params: {
+      final response =
+          await supabase.rpc('get_user_gamification_data', params: {
         'current_user_id': userId,
       });
 
@@ -117,7 +117,8 @@ class _GamificationScreenState extends State<GamificationScreen>
     if (_isLoading) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        body: Center(child: CircularProgressIndicator(color: theme.colorScheme.primary)),
+        body: Center(
+            child: CircularProgressIndicator(color: theme.colorScheme.primary)),
       );
     }
 
@@ -136,7 +137,10 @@ class _GamificationScreenState extends State<GamificationScreen>
       );
     }
 
-    if (_userStats == null || _leaderboard == null || _badges == null || _achievements == null) {
+    if (_userStats == null ||
+        _leaderboard == null ||
+        _badges == null ||
+        _achievements == null) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
@@ -146,7 +150,8 @@ class _GamificationScreenState extends State<GamificationScreen>
           elevation: 0,
         ),
         body: Center(
-          child: Text("Could not load gamification data.", style: theme.textTheme.bodyLarge),
+          child: Text("Could not load gamification data.",
+              style: theme.textTheme.bodyLarge),
         ),
       );
     }
@@ -200,15 +205,19 @@ class _GamificationScreenState extends State<GamificationScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Level ${_userStats!["level"]}", style: theme.textTheme.titleMedium),
+                      Text("Level ${_userStats!["level"]}",
+                          style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
-                      Text("${_userStats!["totalXP"]} / ${_userStats!["nextLevelXP"]} XP",
+                      Text(
+                          "${_userStats!["totalXP"]} / ${_userStats!["nextLevelXP"]} XP",
                           style: theme.textTheme.bodyMedium),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: (_userStats!["totalXP"]! / _userStats!["nextLevelXP"]!),
+                        value: (_userStats!["totalXP"]! /
+                            _userStats!["nextLevelXP"]!),
                         backgroundColor: theme.colorScheme.surface,
-                        valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            theme.colorScheme.primary),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -226,10 +235,14 @@ class _GamificationScreenState extends State<GamificationScreen>
                 crossAxisCount: 2,
                 childAspectRatio: 1.8,
                 children: [
-                  _StatCard("🎓", "Workshops Attended", "${_userStats!["workshopsAttended"]}", theme),
-                  _StatCard("👨‍🏫", "Workshops Taught", "${_userStats!["workshopsTaught"]}", theme),
-                  _StatCard("🏆", "Badges Earned", "${_userStats!["badgesEarned"]}", theme),
-                  _StatCard("👍", "Endorsements", "${_userStats!["endorsements"]}", theme),
+                  _StatCard("🎓", "Workshops Attended",
+                      "${_userStats!["workshopsAttended"]}", theme),
+                  _StatCard("👨‍🏫", "Workshops Taught",
+                      "${_userStats!["workshopsTaught"]}", theme),
+                  _StatCard("🏆", "Badges Earned",
+                      "${_userStats!["badgesEarned"]}", theme),
+                  _StatCard("👍", "Endorsements",
+                      "${_userStats!["endorsements"]}", theme),
                 ],
               ),
               const SizedBox(height: 16),
@@ -242,21 +255,27 @@ class _GamificationScreenState extends State<GamificationScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Recent Achievements", style: theme.textTheme.titleMedium),
+                      Text("Recent Achievements",
+                          style: theme.textTheme.titleMedium),
                       const SizedBox(height: 12),
                       ...(_badges!
                           .where((b) => b["earned"] == true)
                           .take(3)
                           .map((b) => ListTile(
-                        leading: Text(b["icon"] as String, style: const TextStyle(fontSize: 24)),
-                        title: Text(b["name"] as String, style: theme.textTheme.titleSmall),
-                        subtitle: Text(b["description"] as String, style: theme.textTheme.bodySmall),
-                        trailing: Chip(
-                          label: Text(b["rarity"] as String),
-                          backgroundColor: rarityColor(b["rarity"] as String, theme),
-                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ))),
+                                leading: Text(b["icon"] as String,
+                                    style: const TextStyle(fontSize: 24)),
+                                title: Text(b["name"] as String,
+                                    style: theme.textTheme.titleSmall),
+                                subtitle: Text(b["description"] as String,
+                                    style: theme.textTheme.bodySmall),
+                                trailing: Chip(
+                                  label: Text(b["rarity"] as String),
+                                  backgroundColor:
+                                      rarityColor(b["rarity"] as String, theme),
+                                  labelStyle: const TextStyle(
+                                      color: Colors.white, fontSize: 12),
+                                ),
+                              ))),
                     ],
                   ),
                 ),
@@ -269,11 +288,14 @@ class _GamificationScreenState extends State<GamificationScreen>
             padding: const EdgeInsets.all(16),
             children: _badges!.map((b) {
               final bool earned = b["earned"] == true;
-              final double progress = (b["progress"] as int? ?? 0) / (b["max"] as int? ?? 1);
+              final double progress =
+                  (b["progress"] as int? ?? 0) / (b["max"] as int? ?? 1);
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                color: earned ? theme.cardTheme.color : theme.cardTheme.color?.withOpacity(0.5),
+                color: earned
+                    ? theme.cardTheme.color
+                    : theme.cardTheme.color?.withOpacity(0.5),
                 shape: theme.cardTheme.shape,
                 elevation: theme.cardTheme.elevation,
                 child: Padding(
@@ -281,7 +303,8 @@ class _GamificationScreenState extends State<GamificationScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(b["icon"] as String, style: const TextStyle(fontSize: 28)),
+                      Text(b["icon"] as String,
+                          style: const TextStyle(fontSize: 28)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -289,24 +312,30 @@ class _GamificationScreenState extends State<GamificationScreen>
                           children: [
                             Row(
                               children: [
-                                Text(b["name"] as String, style: theme.textTheme.titleSmall),
+                                Text(b["name"] as String,
+                                    style: theme.textTheme.titleSmall),
                                 const SizedBox(width: 8),
                                 Chip(
                                   label: Text(b["rarity"] as String),
-                                  backgroundColor: rarityColor(b["rarity"] as String, theme),
-                                  labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                                  backgroundColor:
+                                      rarityColor(b["rarity"] as String, theme),
+                                  labelStyle: const TextStyle(
+                                      color: Colors.white, fontSize: 12),
                                 ),
                               ],
                             ),
-                            Text(b["description"] as String, style: theme.textTheme.bodySmall),
+                            Text(b["description"] as String,
+                                style: theme.textTheme.bodySmall),
                             if (!earned) ...[
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: progress,
                                 backgroundColor: theme.colorScheme.surface,
-                                valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    theme.colorScheme.primary),
                               ),
-                              Text("${b["progress"]}/${b["max"]}", style: theme.textTheme.bodySmall),
+                              Text("${b["progress"]}/${b["max"]}",
+                                  style: theme.textTheme.bodySmall),
                             ],
                           ],
                         ),
@@ -324,7 +353,9 @@ class _GamificationScreenState extends State<GamificationScreen>
             children: _leaderboard!.map((u) {
               final bool isMe = u["id"] == supabase.auth.currentUser?.id;
               return Card(
-                color: isMe ? theme.colorScheme.primary.withOpacity(0.1) : theme.cardTheme.color,
+                color: isMe
+                    ? theme.colorScheme.primary.withOpacity(0.1)
+                    : theme.cardTheme.color,
                 shape: theme.cardTheme.shape,
                 elevation: theme.cardTheme.elevation,
                 child: ListTile(
@@ -360,7 +391,8 @@ class _GamificationScreenState extends State<GamificationScreen>
           ListView(
             padding: const EdgeInsets.all(16),
             children: _achievements!.map((a) {
-              final progress = (a["progress"] as int? ?? 0) / (a["max"] as int? ?? 1);
+              final progress =
+                  (a["progress"] as int? ?? 0) / (a["max"] as int? ?? 1);
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 color: theme.cardTheme.color,
@@ -371,7 +403,8 @@ class _GamificationScreenState extends State<GamificationScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(a["icon"] as String, style: const TextStyle(fontSize: 28)),
+                      Text(a["icon"] as String,
+                          style: const TextStyle(fontSize: 28)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -380,10 +413,12 @@ class _GamificationScreenState extends State<GamificationScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(a["title"] as String, style: theme.textTheme.titleSmall),
+                                Text(a["title"] as String,
+                                    style: theme.textTheme.titleSmall),
                                 Chip(
                                   label: Text(a["reward"] as String),
-                                  backgroundColor: theme.colorScheme.secondary.withOpacity(0.2),
+                                  backgroundColor: theme.colorScheme.secondary
+                                      .withOpacity(0.2),
                                   labelStyle: TextStyle(
                                     color: theme.colorScheme.secondary,
                                     fontSize: 12,
@@ -391,14 +426,17 @@ class _GamificationScreenState extends State<GamificationScreen>
                                 ),
                               ],
                             ),
-                            Text(a["description"] as String, style: theme.textTheme.bodySmall),
+                            Text(a["description"] as String,
+                                style: theme.textTheme.bodySmall),
                             const SizedBox(height: 8),
                             LinearProgressIndicator(
                               value: progress,
                               backgroundColor: theme.colorScheme.surface,
-                              valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.secondary),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  theme.colorScheme.secondary),
                             ),
-                            Text("${a["progress"]}/${a["max"]}", style: theme.textTheme.bodySmall),
+                            Text("${a["progress"]}/${a["max"]}",
+                                style: theme.textTheme.bodySmall),
                           ],
                         ),
                       ),
@@ -436,7 +474,8 @@ class _StatCard extends StatelessWidget {
             Text(icon, style: const TextStyle(fontSize: 22)),
             Text(
               value,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             Text(
               title,

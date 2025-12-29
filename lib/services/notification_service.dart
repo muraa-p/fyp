@@ -33,7 +33,7 @@ class NotificationService {
   NotificationService._internal();
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-  FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
   bool _workshopRemindersEnabled = true;
@@ -51,18 +51,18 @@ class NotificationService {
 
     // Android initialization settings
     const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     // iOS initialization settings
     const DarwinInitializationSettings initializationSettingsIOS =
-    DarwinInitializationSettings(
+        DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
     const InitializationSettings initializationSettings =
-    InitializationSettings(
+        InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -73,7 +73,8 @@ class NotificationService {
     );
 
     // Create notification channel for workshop reminders
-    const AndroidNotificationChannel workshopChannel = AndroidNotificationChannel(
+    const AndroidNotificationChannel workshopChannel =
+        AndroidNotificationChannel(
       'workshop_reminders',
       'Workshop Reminders',
       description: 'Notifications for upcoming workshops',
@@ -82,11 +83,12 @@ class NotificationService {
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(workshopChannel);
 
     // Create notification channel for new workshop alerts
-    const AndroidNotificationChannel newWorkshopChannel = AndroidNotificationChannel(
+    const AndroidNotificationChannel newWorkshopChannel =
+        AndroidNotificationChannel(
       'new_workshop_alerts',
       'New Workshop Alerts',
       description: 'Notifications for new workshops',
@@ -95,7 +97,7 @@ class NotificationService {
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(newWorkshopChannel);
 
     _isInitialized = true;
@@ -147,7 +149,8 @@ class NotificationService {
 
         navigatorKey.currentState?.push(
           MaterialPageRoute(
-            builder: (context) => ChatScreen(initialConversation: {'id': convId}),
+            builder: (context) =>
+                ChatScreen(initialConversation: {'id': convId}),
           ),
         );
         return;
@@ -179,8 +182,8 @@ class NotificationService {
   }
 
   // Schedule a workshop reminder
-  Future<void> scheduleWorkshopReminder(
-      String workshopId, String workshopTitle, DateTime workshopDateTime) async {
+  Future<void> scheduleWorkshopReminder(String workshopId, String workshopTitle,
+      DateTime workshopDateTime) async {
     if (!_workshopRemindersEnabled) return;
 
     // Calculate reminder time (15 minutes before workshop)
@@ -288,9 +291,10 @@ class NotificationService {
   // Check if notification permissions are granted
   Future<bool> hasPermission() async {
     final result = await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-        ?.areNotificationsEnabled() ?? false;
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.areNotificationsEnabled() ??
+        false;
 
     return result;
   }
@@ -305,7 +309,8 @@ class NotificationService {
       }
     } else if (Platform.isIOS) {
       // Open app settings on iOS
-      if (await canLaunchUrl(Uri.parse('app-settings:'))) {  // Fixed: removed extra closing parenthesis
+      if (await canLaunchUrl(Uri.parse('app-settings:'))) {
+        // Fixed: removed extra closing parenthesis
         await launchUrl(Uri.parse('app-settings:'));
       }
     }
@@ -342,7 +347,6 @@ class NotificationService {
     );
   }
 
-
   // Add this new method
   Future<void> showGeneralNotification({
     required int id,
@@ -359,12 +363,14 @@ class NotificationService {
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'general_notifications',
         'General Notifications',
-        description: 'Notifications for badges, achievements, and chat messages',
+        description:
+            'Notifications for badges, achievements, and chat messages',
         importance: Importance.high,
       );
 
       await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
     }
 

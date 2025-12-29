@@ -33,8 +33,19 @@ class ScheduleScreen extends StatelessWidget {
 
   String _monthName(int month) {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return months[month];
   }
@@ -51,65 +62,68 @@ class ScheduleScreen extends StatelessWidget {
       ),
       body: allEmpty
           ? Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 60),
-          child: Column(
-            children: [
-              Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey[400]),
-              const SizedBox(height: 20),
-              Text(
-                "No scheduled workshops",
-                style: theme.textTheme.titleLarge?.copyWith(color: Colors.grey[700]),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 60),
+                child: Column(
+                  children: [
+                    Icon(Icons.calendar_today_outlined,
+                        size: 80, color: Colors.grey[400]),
+                    const SizedBox(height: 20),
+                    Text(
+                      "No scheduled workshops",
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Join or create workshops to see them here",
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                "Join or create workshops to see them here",
-                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      )
+            )
           : ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Teaching Workshops (your own)
-          if (teachingWorkshops.isNotEmpty) ...[
-            Text(
-              "Workshops You're Teaching",
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...teachingWorkshops.map((ws) => _WorkshopCard(
-              workshop: ws,
-              context: context,
-              isTeaching: true,
-            )),
-            const SizedBox(height: 24),
-          ],
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Teaching Workshops (your own)
+                if (teachingWorkshops.isNotEmpty) ...[
+                  Text(
+                    "Workshops You're Teaching",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...teachingWorkshops.map((ws) => _WorkshopCard(
+                        workshop: ws,
+                        context: context,
+                        isTeaching: true,
+                      )),
+                  const SizedBox(height: 24),
+                ],
 
-          // Attending Workshops (enrolled in others)
-          if (upcomingWorkshops.isNotEmpty) ...[
-            Text(
-              "Workshops You're Attending",
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.secondary,
-              ),
+                // Attending Workshops (enrolled in others)
+                if (upcomingWorkshops.isNotEmpty) ...[
+                  Text(
+                    "Workshops You're Attending",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...upcomingWorkshops.map((ws) => _WorkshopCard(
+                        workshop: ws,
+                        context: context,
+                        isTeaching: false,
+                      )),
+                ],
+              ],
             ),
-            const SizedBox(height: 12),
-            ...upcomingWorkshops.map((ws) => _WorkshopCard(
-              workshop: ws,
-              context: context,
-              isTeaching: false,
-            )),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -124,7 +138,9 @@ Widget _WorkshopCard({
   final title = workshop['title']?.toString() ?? 'Untitled Workshop';
   final dateStr = workshop['date']?.toString();
   final time = workshop['time']?.toString();
-  final formattedDate = const ScheduleScreen(upcomingWorkshops: [], teachingWorkshops: [])._formatDate(dateStr);
+  final formattedDate =
+      const ScheduleScreen(upcomingWorkshops: [], teachingWorkshops: [])
+          ._formatDate(dateStr);
 
   // Get creator name safely (from joined users table)
   final creatorMap = workshop['users'] as Map<String, dynamic>?;
@@ -189,7 +205,9 @@ Widget _WorkshopCard({
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: isTeaching ? theme.colorScheme.primary : theme.colorScheme.secondary,
+            color: isTeaching
+                ? theme.colorScheme.primary
+                : theme.colorScheme.secondary,
           ),
         ),
       ),

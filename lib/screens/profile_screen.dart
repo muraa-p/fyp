@@ -65,7 +65,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               'To receive workshop reminders, please enable notifications in your device settings.',
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel')),
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
@@ -116,7 +118,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<Map<String, dynamic>?> _fetchGamificationData(String? userId) async {
     if (userId == null || userId.isEmpty) return null;
     try {
-      final response = await Supabase.instance.client.rpc('get_user_gamification_data',
+      final response = await Supabase.instance.client.rpc(
+          'get_user_gamification_data',
           params: {'current_user_id': userId});
       final data = response is List ? response.first : response;
       return data;
@@ -160,8 +163,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "Current Password",
                   suffixIcon: IconButton(
-                    icon: Icon(obscureCurrentPassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => obscureCurrentPassword = !obscureCurrentPassword),
+                    icon: Icon(obscureCurrentPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility),
+                    onPressed: () => setState(
+                        () => obscureCurrentPassword = !obscureCurrentPassword),
                   ),
                 ),
               ),
@@ -172,8 +178,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "New Password",
                   suffixIcon: IconButton(
-                    icon: Icon(obscureNewPassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => obscureNewPassword = !obscureNewPassword),
+                    icon: Icon(obscureNewPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility),
+                    onPressed: () => setState(
+                        () => obscureNewPassword = !obscureNewPassword),
                   ),
                 ),
               ),
@@ -184,52 +193,61 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: "Confirm New Password",
                   suffixIcon: IconButton(
-                    icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
+                    icon: Icon(obscureConfirmPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility),
+                    onPressed: () => setState(
+                        () => obscureConfirmPassword = !obscureConfirmPassword),
                   ),
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: isLoading ? null : () => Navigator.pop(context), child: const Text("Cancel")),
+            TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: const Text("Cancel")),
             TextButton(
               onPressed: isLoading
                   ? null
                   : () async {
-                if (currentPasswordController.text.isEmpty ||
-                    newPasswordController.text.isEmpty ||
-                    confirmPasswordController.text.isEmpty) {
-                  _showSnack("Please fill in all fields");
-                  return;
-                }
-                if (newPasswordController.text != confirmPasswordController.text) {
-                  _showSnack("New passwords don't match");
-                  return;
-                }
-                if (newPasswordController.text.length < 6) {
-                  _showSnack("Password must be at least 6 characters");
-                  return;
-                }
-                setState(() => isLoading = true);
-                try {
-                  final authService = AuthService();
-                  await authService.updatePassword(
-                    currentPasswordController.text,
-                    newPasswordController.text,
-                  );
-                  if (mounted) {
-                    Navigator.pop(context);
-                    _showSnack("Password updated successfully");
-                  }
-                } catch (e) {
-                  if (mounted) _showSnack(e.toString());
-                } finally {
-                  if (mounted) setState(() => isLoading = false);
-                }
-              },
+                      if (currentPasswordController.text.isEmpty ||
+                          newPasswordController.text.isEmpty ||
+                          confirmPasswordController.text.isEmpty) {
+                        _showSnack("Please fill in all fields");
+                        return;
+                      }
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
+                        _showSnack("New passwords don't match");
+                        return;
+                      }
+                      if (newPasswordController.text.length < 6) {
+                        _showSnack("Password must be at least 6 characters");
+                        return;
+                      }
+                      setState(() => isLoading = true);
+                      try {
+                        final authService = AuthService();
+                        await authService.updatePassword(
+                          currentPasswordController.text,
+                          newPasswordController.text,
+                        );
+                        if (mounted) {
+                          Navigator.pop(context);
+                          _showSnack("Password updated successfully");
+                        }
+                      } catch (e) {
+                        if (mounted) _showSnack(e.toString());
+                      } finally {
+                        if (mounted) setState(() => isLoading = false);
+                      }
+                    },
               child: isLoading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.0))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2.0))
                   : const Text("Update"),
             ),
           ],
@@ -255,14 +273,36 @@ class _ProfileScreenState extends State<ProfileScreen>
     final workshopsTaught = _gamificationData?['workshops_taught'] ?? 0;
     final badgesEarned = _gamificationData?['badges_earned'] ?? 0;
 
-    final userBadges = _gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
-    final userAchievements = _gamificationData?['user_achievements_data'] as List<dynamic>? ?? [];
+    final userBadges =
+        _gamificationData?['user_badges_data'] as List<dynamic>? ?? [];
+    final userAchievements =
+        _gamificationData?['user_achievements_data'] as List<dynamic>? ?? [];
 
     final stats = [
-      {"label": "Workshops Taught", "value": workshopsTaught, "icon": Icons.book_outlined, "color": theme.colorScheme.primary},
-      {"label": "Workshops Attended", "value": workshopsAttended, "icon": Icons.school_outlined, "color": theme.colorScheme.secondary},
-      {"label": "Total XP", "value": userXP, "icon": Icons.flash_on, "color": Colors.amber},
-      {"label": "Badges Earned", "value": badgesEarned, "icon": Icons.emoji_events_outlined, "color": Colors.purple},
+      {
+        "label": "Workshops Taught",
+        "value": workshopsTaught,
+        "icon": Icons.book_outlined,
+        "color": theme.colorScheme.primary
+      },
+      {
+        "label": "Workshops Attended",
+        "value": workshopsAttended,
+        "icon": Icons.school_outlined,
+        "color": theme.colorScheme.secondary
+      },
+      {
+        "label": "Total XP",
+        "value": userXP,
+        "icon": Icons.flash_on,
+        "color": Colors.amber
+      },
+      {
+        "label": "Badges Earned",
+        "value": badgesEarned,
+        "icon": Icons.emoji_events_outlined,
+        "color": Colors.purple
+      },
     ];
 
     return PopScope(
@@ -271,10 +311,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (didPop) return;
         final now = DateTime.now();
         const interval = Duration(seconds: 2);
-        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > interval) {
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > interval) {
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Press back again to exit"), duration: Duration(seconds: 2)),
+            const SnackBar(
+                content: Text("Press back again to exit"),
+                duration: Duration(seconds: 2)),
           );
         } else {
           SystemNavigator.pop();
@@ -302,7 +345,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   TabBar(
                     controller: _tabController,
                     labelColor: theme.colorScheme.primary,
-                    unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.6),
+                    unselectedLabelColor:
+                        theme.colorScheme.onSurface.withOpacity(0.6),
                     tabs: const [
                       Tab(text: "About"),
                       Tab(text: "Workshops"),
@@ -323,7 +367,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     controller: _tabController,
                     children: [
                       _buildAboutTab(theme, userBadges, userAchievements),
-                      _buildWorkshopsTab(theme, _createdWorkshops ?? [], _enrolledWorkshops ?? []),
+                      _buildWorkshopsTab(theme, _createdWorkshops ?? [],
+                          _enrolledWorkshops ?? []),
                       _buildSkillsTab(theme, _skills ?? []),
                       _buildReviewsTab(theme, _reviews ?? []),
                       _buildSettingsTab(theme),
@@ -347,12 +392,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.primary.withOpacity(0.8)
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: SafeArea( // Only apply SafeArea inside the header
+      child: SafeArea(
+        // Only apply SafeArea inside the header
         top: true,
         left: false,
         right: false,
@@ -366,13 +415,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.2),
-                    backgroundImage: userAvatarUrl != null ? NetworkImage(userAvatarUrl) : null,
+                    backgroundColor:
+                        theme.colorScheme.onPrimary.withOpacity(0.2),
+                    backgroundImage: userAvatarUrl != null
+                        ? NetworkImage(userAvatarUrl)
+                        : null,
                     child: userAvatarUrl == null
                         ? Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : "U",
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimary),
-                    )
+                            userName.isNotEmpty
+                                ? userName[0].toUpperCase()
+                                : "U",
+                            style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onPrimary),
+                          )
                         : null,
                   ),
                   const SizedBox(width: 16),
@@ -382,25 +439,40 @@ class _ProfileScreenState extends State<ProfileScreen>
                       children: [
                         Row(
                           children: [
-                            Text(userName, style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text(userName,
+                                style: TextStyle(
+                                    color: theme.colorScheme.onPrimary,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold)),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                                color: theme.colorScheme.onPrimary
+                                    .withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 "Level $userLevel",
-                                style: TextStyle(color: theme.colorScheme.onPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                    color: theme.colorScheme.onPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(userUniversity, style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.7))),
+                        Text(userUniversity,
+                            style: TextStyle(
+                                color: theme.colorScheme.onPrimary
+                                    .withOpacity(0.7))),
                         const SizedBox(height: 4),
-                        Text("$userXP XP", style: TextStyle(color: theme.colorScheme.onPrimary.withOpacity(0.9))),
+                        Text("$userXP XP",
+                            style: TextStyle(
+                                color: theme.colorScheme.onPrimary
+                                    .withOpacity(0.9))),
                       ],
                     ),
                   ),
@@ -459,7 +531,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 children: [
                   Icon(s["icon"], color: s["color"], size: 28),
                   const SizedBox(height: 8),
-                  Text("${s["value"]}", style: theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.bold)),
+                  Text("${s["value"]}",
+                      style: theme.textTheme.titleLarge!
+                          .copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(s["label"], textAlign: TextAlign.center),
                 ],
@@ -471,7 +545,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildAboutTab(ThemeData theme, List<dynamic> badges, List<dynamic> achievements) {
+  Widget _buildAboutTab(
+      ThemeData theme, List<dynamic> badges, List<dynamic> achievements) {
     final userBio = _profileData?['bio'] ?? 'No bio available.';
     final userName = _profileData?['name'] ?? 'User';
 
@@ -499,15 +574,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(badge["icon"] ?? "🏆", style: const TextStyle(fontSize: 22)),
+                      Text(badge["icon"] ?? "🏆",
+                          style: const TextStyle(fontSize: 22)),
                       const SizedBox(height: 4),
-                      Text(badge["name"] ?? "Badge", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
-                      Text(badge["description"] ?? "No description", style: theme.textTheme.bodySmall),
+                      Text(badge["name"] ?? "Badge",
+                          style: theme.textTheme.bodyMedium!
+                              .copyWith(fontWeight: FontWeight.bold)),
+                      Text(badge["description"] ?? "No description",
+                          style: theme.textTheme.bodySmall),
                       const SizedBox(height: 4),
                       Chip(
                         label: Text(badge["rarity"] ?? "Common"),
-                        backgroundColor: _getRarityColor(badge["rarity"] ?? "Common"),
-                        labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                        backgroundColor:
+                            _getRarityColor(badge["rarity"] ?? "Common"),
+                        labelStyle:
+                            const TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ],
                   ),
@@ -528,7 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             spacing: 12,
             runSpacing: 12,
             children: achievements.map((achievement) {
-              final progress = (achievement["progress"] as int? ?? 0) / (achievement["max"] as int? ?? 1);
+              final progress = (achievement["progress"] as int? ?? 0) /
+                  (achievement["max"] as int? ?? 1);
               final isCompleted = progress >= 1.0;
 
               return Card(
@@ -537,10 +619,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(achievement["icon"] ?? "🎯", style: const TextStyle(fontSize: 22)),
+                      Text(achievement["icon"] ?? "🎯",
+                          style: const TextStyle(fontSize: 22)),
                       const SizedBox(height: 4),
-                      Text(achievement["title"] ?? "Achievement", style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.bold)),
-                      Text(achievement["description"] ?? "No description", style: theme.textTheme.bodySmall),
+                      Text(achievement["title"] ?? "Achievement",
+                          style: theme.textTheme.bodyMedium!
+                              .copyWith(fontWeight: FontWeight.bold)),
+                      Text(achievement["description"] ?? "No description",
+                          style: theme.textTheme.bodySmall),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: progress.clamp(0.0, 1.0),
@@ -549,15 +635,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                         backgroundColor: Colors.grey[800],
                         color: isCompleted
                             ? Colors.green
-                            : theme.colorScheme.primary.withOpacity(0.6), // Blue-ish when incomplete
+                            : theme.colorScheme.primary
+                                .withOpacity(0.6), // Blue-ish when incomplete
                       ),
                       const SizedBox(height: 4),
-                      Text("${achievement["progress"]}/${achievement["max"]}", style: theme.textTheme.bodySmall),
+                      Text("${achievement["progress"]}/${achievement["max"]}",
+                          style: theme.textTheme.bodySmall),
                       if (isCompleted)
                         const Chip(
                           label: Text("Completed"),
                           backgroundColor: Colors.green,
-                          labelStyle: TextStyle(color: Colors.white, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white, fontSize: 12),
                         ),
                     ],
                   ),
@@ -593,21 +682,27 @@ class _ProfileScreenState extends State<ProfileScreen>
         Text("Workshops Conducted", style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (created.isEmpty)
-          const Text("No workshops created yet.", style: TextStyle(color: Colors.grey))
+          const Text("No workshops created yet.",
+              style: TextStyle(color: Colors.grey))
         else
-          ...created.map((ws) => Card(child: ListTile(title: Text(ws["title"]), subtitle: Text("${ws["participants"]} participants")))),
+          ...created.map((ws) => Card(
+              child: ListTile(
+                  title: Text(ws["title"]),
+                  subtitle: Text("${ws["participants"]} participants")))),
         const SizedBox(height: 20),
         Text("Workshops Enrolled In", style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (enrolled.isEmpty)
-          const Text("No enrolled workshops.", style: TextStyle(color: Colors.grey))
+          const Text("No enrolled workshops.",
+              style: TextStyle(color: Colors.grey))
         else
           ...enrolled.map((ws) => Card(
-            child: ListTile(
-              title: Text(ws['title'] ?? "Untitled Workshop"),
-              subtitle: Text("by ${ws['users']['name'] ?? 'Unknown Creator'}"),
-            ),
-          )),
+                child: ListTile(
+                  title: Text(ws['title'] ?? "Untitled Workshop"),
+                  subtitle:
+                      Text("by ${ws['users']['name'] ?? 'Unknown Creator'}"),
+                ),
+              )),
       ],
     );
   }
@@ -618,7 +713,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.auto_awesome_outlined, size: 64, color: Colors.grey[400]),
+            Icon(Icons.auto_awesome_outlined,
+                size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               "No skills listed yet",
@@ -640,13 +736,15 @@ class _ProfileScreenState extends State<ProfileScreen>
       itemBuilder: (_, i) {
         final s = skills[i];
         final int endorsements = s['endorsements'] ?? 0;
-        final double progress = (endorsements / 50).clamp(0.0, 1.0); // Full mastery at 50 endorsements
+        final double progress = (endorsements / 50)
+            .clamp(0.0, 1.0); // Full mastery at 50 endorsements
 
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           elevation: 3,
           shadowColor: Colors.black.withOpacity(0.08),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -688,11 +786,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.thumb_up_outlined, size: 16, color: Colors.grey[700]),
+                        Icon(Icons.thumb_up_outlined,
+                            size: 16, color: Colors.grey[700]),
                         const SizedBox(width: 6),
                         Text(
                           "$endorsements endorsements",
-                          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                          style:
+                              TextStyle(fontSize: 14, color: Colors.grey[700]),
                         ),
                       ],
                     ),
@@ -701,7 +801,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: progress >= 1.0 ? Colors.green : theme.colorScheme.primary,
+                        color: progress >= 1.0
+                            ? Colors.green
+                            : theme.colorScheme.primary,
                       ),
                     ),
                   ],
@@ -720,25 +822,33 @@ class _ProfileScreenState extends State<ProfileScreen>
       children: reviews.isEmpty
           ? [const Text("No reviews yet.")]
           : reviews.map((r) {
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            title: Text(r['users']['name'] ?? "Anonymous"),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("${r['workshops']['title']} • ${_formatDate(r['created_at'])}", style: theme.textTheme.bodySmall),
-                const SizedBox(height: 4),
-                Text(r['review'] ?? "No comment."),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(5, (i) => Icon(Icons.star, size: 16, color: i < r["rating"] ? Colors.amber : theme.disabledColor)),
-            ),
-          ),
-        );
-      }).toList(),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  title: Text(r['users']['name'] ?? "Anonymous"),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          "${r['workshops']['title']} • ${_formatDate(r['created_at'])}",
+                          style: theme.textTheme.bodySmall),
+                      const SizedBox(height: 4),
+                      Text(r['review'] ?? "No comment."),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                        5,
+                        (i) => Icon(Icons.star,
+                            size: 16,
+                            color: i < r["rating"]
+                                ? Colors.amber
+                                : theme.disabledColor)),
+                  ),
+                ),
+              );
+            }).toList(),
     );
   }
 
@@ -748,9 +858,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       final date = DateTime.parse(dateString);
       final now = DateTime.now();
       final difference = now.difference(date);
-      if (difference.inDays > 0) return "${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago";
-      if (difference.inHours > 0) return "${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago";
-      if (difference.inMinutes > 0) return "${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago";
+      if (difference.inDays > 0)
+        return "${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago";
+      if (difference.inHours > 0)
+        return "${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago";
+      if (difference.inMinutes > 0)
+        return "${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago";
       return "Just now";
     } catch (e) {
       return dateString;
@@ -778,14 +891,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                     children: [
                       Icon(Icons.language_outlined),
                       SizedBox(width: 12),
-                      Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text("English",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                      color:
+                          theme.colorScheme.primaryContainer.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -798,7 +913,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             "Currently only English is supported. More languages coming soon!",
                             style: TextStyle(
                               fontSize: 14,
-                              color: theme.colorScheme.onSurface.withOpacity(0.8),
+                              color:
+                                  theme.colorScheme.onSurface.withOpacity(0.8),
                             ),
                           ),
                         ),
@@ -819,7 +935,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 8),
           SwitchListTile(
             title: const Text("Workshop Reminders"),
-            subtitle: const Text("Get notified 15 minutes before workshops start"),
+            subtitle:
+                const Text("Get notified 15 minutes before workshops start"),
             value: _workshopRemindersEnabled,
             onChanged: (value) {
               setState(() {
@@ -910,44 +1027,44 @@ class _ProfileScreenState extends State<ProfileScreen>
           ListTile(
             leading: _isLoggingOut
                 ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                color: Colors.red,
-                strokeWidth: 2.0,
-              ),
-            )
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.red,
+                      strokeWidth: 2.0,
+                    ),
+                  )
                 : const Icon(Icons.logout, color: Colors.red),
             title: Text(_isLoggingOut ? "Logging Out..." : "Log Out"),
             onTap: _isLoggingOut
                 ? null
                 : () async {
-              setState(() {
-                _isLoggingOut = true;
-              });
+                    setState(() {
+                      _isLoggingOut = true;
+                    });
 
-              try {
-                await Supabase.instance.client.auth.signOut();
+                    try {
+                      await Supabase.instance.client.auth.signOut();
 
-                if (mounted) {
-                  context.read<AppState>().setUser(null);
-                }
+                      if (mounted) {
+                        context.read<AppState>().setUser(null);
+                      }
 
-                if (mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/',
-                        (Route<dynamic> route) => false,
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  _showSnack("Error logging out: ${e.toString()}");
-                  setState(() {
-                    _isLoggingOut = false;
-                  });
-                }
-              }
-            },
+                      if (mounted) {
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                          '/',
+                          (Route<dynamic> route) => false,
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        _showSnack("Error logging out: ${e.toString()}");
+                        setState(() {
+                          _isLoggingOut = false;
+                        });
+                      }
+                    }
+                  },
           ),
 
           const Divider(height: 32),
@@ -971,9 +1088,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
-
 }
-
 
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
@@ -987,9 +1102,11 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => tabBar.preferredSize.height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: Theme.of(context).colorScheme.surface, // Matches your dark background
+      color:
+          Theme.of(context).colorScheme.surface, // Matches your dark background
       child: tabBar,
     );
   }

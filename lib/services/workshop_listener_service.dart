@@ -2,7 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notification_service.dart';
 
 class WorkshopListenerService {
-  static final WorkshopListenerService _instance = WorkshopListenerService._internal();
+  static final WorkshopListenerService _instance =
+      WorkshopListenerService._internal();
   factory WorkshopListenerService() => _instance;
   WorkshopListenerService._internal();
 
@@ -20,7 +21,8 @@ class WorkshopListenerService {
     // Optional: change channel name to something simple
     _workshopChannel = Supabase.instance.client.channel('new-workshops-alerts');
 
-    _workshopChannel!.onPostgresChanges(
+    _workshopChannel!
+        .onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'workshops',
@@ -42,7 +44,8 @@ class WorkshopListenerService {
           print('Error handling new workshop: $e');
         }
       },
-    ).subscribe((status, [error]) {
+    )
+        .subscribe((status, [error]) {
       if (status == 'SUBSCRIBED') {
         print('Successfully subscribed to new workshops');
       } else if (status == 'CLOSED' || status == 'CHANNEL_ERROR') {
