@@ -24,7 +24,7 @@
 
   [Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Contributing](#-contributing)
 </div>
----
+
 
 
 ## 📖 Overview
@@ -334,9 +334,9 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 👥 Team
 
 **SkillX Development Team**
-- Lead Developer: [Your Name](https://github.com/yourusername)
-- UI/UX Designer: [Designer Name]
-- Backend Engineer: [Backend Name]
+- Lead Developer: [Yasir Mohamed Abdinur](https://github.com/yourusername](https://github.com/muraa-p))
+- UI/UX Designer: [Yasir Mohamed Abdinur]
+- Backend Engineer: [Yasir Mohamed Abdinur]
 
 ---
 
@@ -352,7 +352,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 ## 📞 Support
 
-- **Email**: support@skillx.app
+- **Email**: yasirmhaji@gmail.com
 - **Discord**: [Join our community](https://discord.gg/skillx)
 - **Documentation**: [docs.skillx.app](https://docs.skillx.app)
 - **Twitter**: [@SkillXApp](https://twitter.com/skillxapp)
