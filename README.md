@@ -1,24 +1,28 @@
 # SkillX - Peer-to-Peer Skill Exchange Platform
 <div align="center">
-![SkillX Logo](https://img.shields.io/badge/SkillX-Learn%20%7C%20Teach%20%7C%20Connect-60A5FA?style=for-the-badge)
-[![Flutter](https://img.shields.io/badge/Flutter-3.0+-02569B?logo=flutter)](https://flutter.dev)
-[![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?logo=supabase)](https://supabase.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+  <img src="assets/logo.png" alt="SkillX Logo" width="400"/>  
+  <!-- Adjust width as needed (e.g., 300–600) -->
 
-**A modern mobile platform connecting students and educators through skill-sharing workshops**
+  <br/><br/>
 
-<br/>
+  [![Flutter](https://img.shields.io/badge/Flutter-3.0+-02569B?logo=flutter)](https://flutter.dev)
+  [![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?logo=supabase)](https://supabase.com)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-<!-- Hero Screenshots -->
-<img src="screenshots/explore.png" width="200" alt="Explore Screen"/>
-<img src="screenshots/workshop_detail.png" width="200" alt="Workshop Detail"/>
-<img src="screenshots/chat.png" width="200" alt="Chat"/>
-<img src="screenshots/gamification.png" width="200" alt="Gamification"/>
-<img src="screenshots/cv_builder.png" width="200" alt="CV Builder"/>
+  <h3>A modern mobile platform connecting students and educators through skill-sharing workshops</h3>
 
-<br/><br/>
+  <br/>
 
-[Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Contributing](#-contributing)
+  <!-- Optional: Add hero screenshots below the logo -->
+  <img src="screenshots/explore.png" width="200" alt="Explore"/>
+  <img src="screenshots/workshop_detail.png" width="200" alt="Workshop Detail"/>
+  <img src="screenshots/chat.png" width="200" alt="Chat"/>
+  <img src="screenshots/gamification.png" width="200" alt="Gamification"/>
+  <img src="screenshots/cv_builder.png" width="200" alt="CV Builder"/>
+
+  <br/><br/>
+
+  [Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Contributing](#-contributing)
 </div>
 ---
 
