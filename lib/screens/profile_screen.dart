@@ -774,11 +774,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     children: [
-                      const Icon(Icons.language_outlined),
-                      const SizedBox(width: 12),
-                      const Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
+                      Icon(Icons.language_outlined),
+                      SizedBox(width: 12),
+                      Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 12),

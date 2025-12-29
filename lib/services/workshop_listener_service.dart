@@ -26,7 +26,7 @@ class WorkshopListenerService {
       table: 'workshops',
       callback: (payload) async {
         try {
-          final newRecord = payload.newRecord as Map<String, dynamic>;
+          final newRecord = payload.newRecord;
           final workshopId = newRecord['id'] as String;
 
           final workshopData = await Supabase.instance.client

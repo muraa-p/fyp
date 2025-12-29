@@ -10,11 +10,9 @@ class AppTheme {
         primary: Color(0xFF60A5FA),
         secondary: Color(0xFF34D399),
         surface: Color(0xFF1E293B),
-        background: Color(0xFF0F172A),
         onPrimary: Colors.black,
         onSecondary: Colors.black,
         onSurface: Colors.white,
-        onBackground: Colors.white,
       ),
       appBarTheme: const AppBarTheme(
         elevation: 0,

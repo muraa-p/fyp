@@ -186,7 +186,7 @@ class _SkillXAppState extends State<SkillXApp> {
           }
 
           final userId = session!.user.id;
-          final notificationService = NotificationService(); // Get instance
+
 
           supabase
               .from('notifications')
@@ -219,7 +219,7 @@ class _SkillXAppState extends State<SkillXApp> {
                         SnackBar(
                           content: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
                           duration: const Duration(seconds: 6),
-                          backgroundColor: Theme.of(navigatorKey.currentContext!).colorScheme.surfaceVariant,
+                          backgroundColor: Theme.of(navigatorKey.currentContext!).colorScheme.surfaceContainerHighest,
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           margin: const EdgeInsets.all(16),
@@ -260,20 +260,6 @@ class _SkillXAppState extends State<SkillXApp> {
     });
   }
 
-  void _handleDeepLinks() async {
-    final uri = await _appLinks.getInitialLink();
-    if (uri != null) {
-      _handleDeletionLink(uri);
-    }
-
-    _sub = _appLinks.uriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        _handleDeletionLink(uri);
-      }
-    }, onError: (err) {
-      print('Error receiving app link: $err');
-    });
-  }
 
   void _handleDeletionLink(Uri uri) {
     if (uri.path == '/delete-account') {
@@ -304,7 +290,6 @@ class _SkillXAppState extends State<SkillXApp> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.watch<AppState>().isDarkMode;
 
     return MaterialApp(
       title: 'SkillX',
@@ -317,7 +302,7 @@ class _SkillXAppState extends State<SkillXApp> {
         '/home': (context) => const HomeScreen(),
         '/delete-account': (context) => const DeleteAccountScreen(),
       },
-      home: AuthWrapper(), // ← This replaces initialRoute
+      home: const AuthWrapper(), // ← This replaces initialRoute
     );
   }
 }
@@ -337,8 +322,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
     super.initState();
     // Load profile immediately if already logged in on app start
     final session = supabase.auth.currentSession;
-    if (session != null && session.user != null) {
-      _loadUserProfile(session.user!.id);
+    if (session != null) {
+      _loadUserProfile(session.user.id);
     }
   }
 
@@ -373,7 +358,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         final session = snapshot.data?.session;
 
-        if (session != null && session.user != null) {
+        if (session != null) {
           // Session exists → go to Home
           // Profile should already be loaded from initState or listener
           return const HomeScreen();

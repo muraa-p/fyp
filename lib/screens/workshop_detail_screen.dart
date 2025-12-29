@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/create_workshop_screen.dart';
 import 'package:skillx/screens/user_profile_screen.dart';
-import 'package:skillx/screens/chat_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../services/hugging_face_service.dart'; // Ensure this path is correct
@@ -147,7 +146,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
       if (mounted) {
         setState(() {
           widget.workshop['participants'] =
-          '${countRes.count ?? 0}/${widget.workshop['max_participants'] ?? 0}';
+          '${countRes.count}/${widget.workshop['max_participants'] ?? 0}';
         });
       }
     } catch (e) {
@@ -199,7 +198,7 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             'participant_id': currentUser.id,
           });
 
-          final conversation = await Supabase.instance.client
+          await Supabase.instance.client
               .from('conversations')
               .select('id, name, avatar_url')
               .eq('id', conversationData['conversation_id'])
@@ -1126,10 +1125,10 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
                         if (currentChild != null) currentChild,
                       ],
                     ),
+                    key: ValueKey<int>(_currentReviewIndex),
                     child: _InstructorReviewItem(
                       review: instructorReviews[_currentReviewIndex % instructorReviews.length],
                     ),
-                    key: ValueKey<int>(_currentReviewIndex),
                   ),
                 );
               },
@@ -1374,14 +1373,14 @@ class _WorkshopDetailScreenState extends State<WorkshopDetailScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.green),
           ),
-          child: Row(
+          child: const Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green, size: 28),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded( // ← This allows text to wrap safely
                 child: Text(
                   "You're enrolled! Check the Messages tab for the group chat",
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,

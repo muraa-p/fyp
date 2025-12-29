@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,13 +6,12 @@ import '../components/custom_button.dart';
 import '../main.dart';
 // Import your existing HuggingFaceService
 import '../services/hugging_face_service.dart'; // Adjust the path as needed
-import 'dart:io'; // Added
+// Added
 import 'package:pdf/pdf.dart'; // Added
 import 'package:pdf/widgets.dart' as pw; // Added
 import 'package:printing/printing.dart'; // Added
 import 'package:signin_with_linkedin/signin_with_linkedin.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert'; // For jsonEncode
+// For jsonEncode
 import 'dart:developer' as developer;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -648,7 +646,7 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final appState = context.watch<AppState>();
+    context.watch<AppState>();
 
     if (_isLoading) {
       return Scaffold(
@@ -1204,7 +1202,7 @@ Check out SkillX and level up too: https://your-skillx-app-link.com
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        final theme = Theme.of(context);
+        Theme.of(context);
 
         return StatefulBuilder(
           builder: (context, setState) {
@@ -1817,8 +1815,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
       debugPrint('AI generation error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("AI enhancement failed, using standard format"),
+          const SnackBar(
+            content: Text("AI enhancement failed, using standard format"),
             backgroundColor: Colors.orange,
           ),
         );
@@ -2055,7 +2053,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
   }
 
   Widget _buildSkillsSection(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
 
     // Group skills by level
     final expertSkills = widget.skills.where((s) => s['level'] == 'Expert').toList();

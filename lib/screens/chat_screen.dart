@@ -251,8 +251,9 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
 
       // Optional friendly message
       String friendly = '';
-      if (type == 'pdf') friendly = '📄 Shared a PDF';
-      else if (type == 'document') friendly = '📎 Shared a document';
+      if (type == 'pdf') {
+        friendly = '📄 Shared a PDF';
+      } else if (type == 'document') friendly = '📎 Shared a document';
       else if (type == 'image') friendly = '🖼️ Shared a photo';
 
       if (friendly.isNotEmpty) {
@@ -824,13 +825,13 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                               title: Text(member['name'] ?? 'Unknown User'),
                               subtitle: Text(member['university'] ?? 'Member'),
                               trailing: isAdmin
-                                  ? Chip(
-                                label: const Text(
+                                  ? const Chip(
+                                label: Text(
                                   'Admin',
                                   style: TextStyle(fontSize: 10, color: Colors.white),
                                 ),
                                 backgroundColor: Colors.blue,
-                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                                padding: EdgeInsets.symmetric(horizontal: 6),
                               )
                                   : null,
                             );

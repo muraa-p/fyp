@@ -38,13 +38,6 @@ class _GamificationScreenState extends State<GamificationScreen>
     _loadGamificationData();
   }
 
-  Future<void> _refreshGamificationData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    await _loadGamificationData();
-  }
 
   @override
   void dispose() {

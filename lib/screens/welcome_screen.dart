@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../components/custom_button.dart';
-import '../main.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -64,7 +62,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     position: Tween<Offset>(begin: const Offset(0, -0.5), end: Offset.zero).animate(
                       CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
@@ -74,7 +72,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             letterSpacing: 2,
-                            shadows: const [Shadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 4))],
+                            shadows: [Shadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 4))],
                           ),
                         ),
                         // Removed theme toggle since we're dark-only now
@@ -113,11 +111,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               curve: Curves.easeInOut,
                               builder: (_, val, __) => Transform.scale(
                                 scale: val,
-                                child: Icon(Icons.school_rounded, size: 110, color: Colors.white),
+                                child: const Icon(Icons.school_rounded, size: 110, color: Colors.white),
                               ),
                             ),
                             const SizedBox(height: 36),
-                            Text(
+                            const Text(
                               'Learn. Teach. Connect.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
@@ -125,7 +123,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 height: 1.3,
-                                shadows: const [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 4))],
+                                shadows: [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 4))],
                               ),
                             ),
                             const SizedBox(height: 20),

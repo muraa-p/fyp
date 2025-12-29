@@ -82,7 +82,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: academicYear.isEmpty ? null : academicYear,
+              initialValue: academicYear.isEmpty ? null : academicYear,
               decoration: const InputDecoration(
                 labelText: "Academic Year",
                 prefixIcon: Icon(Icons.calendar_today),

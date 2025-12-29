@@ -220,7 +220,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
     final user = context.watch<AppState>().user;
 
     return PopScope(
@@ -262,7 +262,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
               final workshopData = snapshot.data?[0] as Map<String, List<Map<String, dynamic>>>? ??
                   {'teaching': [], 'attending': []};
-              final gamificationData = snapshot.data?[1] as Map<String, dynamic>?;
+              final gamificationData = snapshot.data?[1];
 
 
           // Debug: Print the number of workshops
@@ -285,7 +285,6 @@ class _DashboardPageState extends State<DashboardPage> {
           final workshopsAttended = gamificationData?['workshops_attended'] ?? 0;
           final workshopsTaught = gamificationData?['workshops_taught'] ?? 0;
           final badgesEarned = gamificationData?['badges_earned'] ?? 0;
-          final endorsements = gamificationData?['endorsements_count'] ?? 0;
 
           // Calculate progress for next level
           final nextLevelXP = (userLevel + 1) * 500; // Based on your gamification system
@@ -328,9 +327,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      const Text(
                                         "Welcome back,",
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
@@ -484,7 +483,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ),
                                     ),
                                   ),
-                                  child: Text("View All", style: TextStyle(color: const Color(0xFF60A5FA), fontWeight: FontWeight.w600)),
+                                  child: const Text("View All", style: TextStyle(color: Color(0xFF60A5FA), fontWeight: FontWeight.w600)),
                                 ),
                               ],
                             ),
@@ -580,8 +579,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               childAspectRatio: 1.4,
                               children: recentBadges.isEmpty
                                   ? [
-                                _GlassAchievementCard("Keep learning!", "📚", false),
-                                _GlassAchievementCard("Your first badge awaits", "✨", false),
+                                const _GlassAchievementCard("Keep learning!", "📚", false),
+                                const _GlassAchievementCard("Your first badge awaits", "✨", false),
                               ]
                                   : recentBadges.map((b) => _GlassAchievementCard(b["name"], b["icon"], true)).toList(),
                             ),

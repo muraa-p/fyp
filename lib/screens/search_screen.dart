@@ -94,7 +94,7 @@ class _SearchScreenState extends State<SearchScreen> {
             .eq('workshop_id', workshop['id'])
             .count(CountOption.exact);
 
-        final int enrolledCount = countRes.count ?? 0;
+        final int enrolledCount = countRes.count;
 
         final matchPercentage = _calculateMatchPercentage(workshop);
 
@@ -220,7 +220,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
           // Handle back press
           final now = DateTime.now();
-          final backPressInterval = Duration(seconds: 2);
+          const backPressInterval = Duration(seconds: 2);
 
           if (_lastBackPressTime == null ||
               now.difference(_lastBackPressTime!) > backPressInterval) {
@@ -301,7 +301,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
                 SliverFillRemaining(
                   hasScrollBody: true,
                   child: _isLoading
@@ -346,22 +346,22 @@ class _WorkshopCard extends StatelessWidget {
     final List<String> tags = List<String>.from(workshop['tags'] ?? []);
     final List<String> outcomes = List<String>.from(workshop['outcomes'] ?? []);
     final String skillRequested = (workshop['skill_requested'] ?? '').toString();
-    final String skillOffered = (workshop['skill_offered'] ?? '').toString();
+    (workshop['skill_offered'] ?? '').toString();
     final String type = workshop['type'] ?? 'Free Workshop';
 
-    String _selectedCategoryFromContext(BuildContext context) {
+    String selectedCategoryFromContext(BuildContext context) {
       return context.findAncestorStateOfType<_SearchScreenState>()?._selectedCategory ?? "All";
     }
 
-    List<String> _userSkillsToLearnFromContext(BuildContext context) {
+    List<String> userSkillsToLearnFromContext(BuildContext context) {
       return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToLearn ?? [];
     }
 
-    List<String> _userSkillsToTeachFromContext(BuildContext context) {
+    List<String> userSkillsToTeachFromContext(BuildContext context) {
       return context.findAncestorStateOfType<_SearchScreenState>()?._userSkillsToTeach ?? [];
     }
 
-    if (_selectedCategoryFromContext(context) == "All" || category == _selectedCategoryFromContext(context)) {
+    if (selectedCategoryFromContext(context) == "All" || category == selectedCategoryFromContext(context)) {
       reasons.add("✔ Matches your selected category ($category)");
     }
 
@@ -373,7 +373,7 @@ class _WorkshopCard extends StatelessWidget {
 
     if (tags.isNotEmpty) {
       final tagMatches = tags.where((t) =>
-          _userSkillsToLearnFromContext(context).any((s) => s.toLowerCase().contains(t.toLowerCase()) || t.toLowerCase().contains(s.toLowerCase()))
+          userSkillsToLearnFromContext(context).any((s) => s.toLowerCase().contains(t.toLowerCase()) || t.toLowerCase().contains(s.toLowerCase()))
       );
       if (tagMatches.isNotEmpty) {
         reasons.add("✔ Tags match your interests: ${tagMatches.take(3).join(", ")}${tagMatches.length > 3 ? "..." : ""}");
@@ -382,7 +382,7 @@ class _WorkshopCard extends StatelessWidget {
 
     if (outcomes.isNotEmpty) {
       final outcomeMatches = outcomes.where((o) =>
-          _userSkillsToLearnFromContext(context).any((s) => o.toLowerCase().contains(s.toLowerCase()))
+          userSkillsToLearnFromContext(context).any((s) => o.toLowerCase().contains(s.toLowerCase()))
       );
       if (outcomeMatches.isNotEmpty) {
         reasons.add("✔ You'll learn skills you want: ${outcomeMatches.take(2).join(", ")}${outcomeMatches.length > 2 ? "..." : ""}");
@@ -391,7 +391,7 @@ class _WorkshopCard extends StatelessWidget {
 
     if (type == 'Teach4Learn') {
       if (skillRequested.isNotEmpty &&
-          _userSkillsToTeachFromContext(context).any((s) =>
+          userSkillsToTeachFromContext(context).any((s) =>
           s.toLowerCase().contains(skillRequested.toLowerCase()) ||
               skillRequested.toLowerCase().contains(s.toLowerCase()))) {
         reasons.add("✔ You can teach the skill they're looking for: $skillRequested");

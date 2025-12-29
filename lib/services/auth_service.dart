@@ -111,10 +111,6 @@ class AuthService {
           .eq('token', token)
           .single();
 
-      if (response == null) {
-        return null;
-      }
-
       final expiresAt = DateTime.parse(response['expires_at']);
       if (DateTime.now().isAfter(expiresAt)) {
         return null;
@@ -172,8 +168,8 @@ class AuthService {
       }
 
       print('=== Attempting to delete account ===');
-      print('User ID: ${session.user?.id}');
-      print('User email: ${session.user?.email}');
+      print('User ID: ${session.user.id}');
+      print('User email: ${session.user.email}');
       print('Access token starts with: ${session.accessToken.substring(0, 30)}...');
       print('Token length: ${session.accessToken.length}');
 

@@ -207,7 +207,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               TextField(controller: universityCtrl, decoration: const InputDecoration(labelText: "University")),
               TextField(controller: majorCtrl, decoration: const InputDecoration(labelText: "Major")),
               DropdownButtonFormField<String>(
-                value: academicYear.isEmpty ? null : academicYear,
+                initialValue: academicYear.isEmpty ? null : academicYear,
                 decoration: const InputDecoration(labelText: "Academic Year"),
                 items: ["Freshman", "Sophomore", "Junior", "Senior", "Graduate", "PhD"]
                     .map((y) => DropdownMenuItem(value: y, child: Text(y)))

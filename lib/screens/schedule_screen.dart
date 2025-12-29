@@ -124,7 +124,7 @@ Widget _WorkshopCard({
   final title = workshop['title']?.toString() ?? 'Untitled Workshop';
   final dateStr = workshop['date']?.toString();
   final time = workshop['time']?.toString();
-  final formattedDate = ScheduleScreen(upcomingWorkshops: [], teachingWorkshops: [])._formatDate(dateStr);
+  final formattedDate = const ScheduleScreen(upcomingWorkshops: [], teachingWorkshops: [])._formatDate(dateStr);
 
   // Get creator name safely (from joined users table)
   final creatorMap = workshop['users'] as Map<String, dynamic>?;

@@ -173,12 +173,6 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
   }
 
   // Reduce debounce time and improve search responsiveness
-  void _onUserSearchChanged(String query) {
-    _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 200), () { // Reduced from 300ms
-      _filterUsers(query);
-    });
-  }
 
   void _onWorkshopSearchChanged(String query) {
     _searchTimer?.cancel();
@@ -195,31 +189,6 @@ class _EndorsementsScreenState extends State<EndorsementsScreen> {
   }
 
   // Filter users from the already loaded list
-  void _filterUsers(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        searchResults = allUsers;
-        isSearchingUsers = false;
-      });
-      return;
-    }
-
-    setState(() {
-      isSearchingUsers = true;
-    });
-
-    // Filter the already loaded users
-    final filteredUsers = allUsers.where((user) {
-      final name = user['name']?.toString().toLowerCase() ?? '';
-      final searchLower = query.toLowerCase();
-      return name.contains(searchLower);
-    }).toList();
-
-    setState(() {
-      searchResults = filteredUsers;
-      isSearchingUsers = false;
-    });
-  }
 
   Future<void> _searchWorkshops(String query) async {
     if (query.isEmpty) {

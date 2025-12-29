@@ -1,5 +1,4 @@
 // ADD THESE IMPORTS AT THE TOP
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
@@ -280,7 +279,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedCategory,
+                initialValue: selectedCategory,
                 decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                 items: categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedCategory = v),
@@ -290,7 +289,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedDifficulty,
+                initialValue: selectedDifficulty,
                 decoration: const InputDecoration(labelText: 'Difficulty', border: OutlineInputBorder()),
                 items: difficulties.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedDifficulty = v),
@@ -305,7 +304,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedDuration,
+                initialValue: selectedDuration,
                 decoration: const InputDecoration(labelText: 'Duration', border: OutlineInputBorder()),
                 items: durations.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => selectedDuration = v),
@@ -816,27 +815,3 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
   }
 }
 
-class _ResourceButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _ResourceButton({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.grey.shade100,
-          foregroundColor: Colors.black87,
-          minimumSize: const Size(100, 80)),
-      onPressed: () {},
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 30),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 12)),
-        ],
-      ),
-    );
-  }
-}

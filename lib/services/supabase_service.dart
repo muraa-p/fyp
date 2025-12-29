@@ -65,10 +65,10 @@ class SupabaseService {
         .count(CountOption.exact);
 
     return {
-      "workshopsTaught": workshopsTaughtCount.count ?? 0,
-      "studentsTaught": studentsTaughtCount.count ?? 0,
+      "workshopsTaught": workshopsTaughtCount.count,
+      "studentsTaught": studentsTaughtCount.count,
       "totalXp": xpData?['xp'] ?? 0,
-      "badgesEarned": badgesEarnedCount.count ?? 0,
+      "badgesEarned": badgesEarnedCount.count,
     };
   }
 
