@@ -1,17 +1,24 @@
 # SkillX - Peer-to-Peer Skill Exchange Platform
-
 <div align="center">
-
 ![SkillX Logo](https://img.shields.io/badge/SkillX-Learn%20%7C%20Teach%20%7C%20Connect-60A5FA?style=for-the-badge)
-
 [![Flutter](https://img.shields.io/badge/Flutter-3.0+-02569B?logo=flutter)](https://flutter.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-Backend-3ECF8E?logo=supabase)](https://supabase.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **A modern mobile platform connecting students and educators through skill-sharing workshops**
 
-[Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Contributing](#-contributing)
+<br/>
 
+<!-- Hero Screenshots -->
+<img src="screenshots/explore.png" width="200" alt="Explore Screen"/>
+<img src="screenshots/workshop_detail.png" width="200" alt="Workshop Detail"/>
+<img src="screenshots/chat.png" width="200" alt="Chat"/>
+<img src="screenshots/gamification.png" width="200" alt="Gamification"/>
+<img src="screenshots/cv_builder.png" width="200" alt="CV Builder"/>
+
+<br/><br/>
+
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture) • [Contributing](#-contributing)
 </div>
 
 ---
