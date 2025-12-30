@@ -142,6 +142,7 @@ class _SkillXAppState extends State<SkillXApp> {
   late final AppLinks _appLinks;
   late final NotificationService _notificationService; // Add this
   StreamSubscription<Uri>? _sub;
+  bool _hasHandledRecovery = false;
 
   @override
   void initState() {
@@ -270,6 +271,24 @@ class _SkillXAppState extends State<SkillXApp> {
         appState.setUser(null); // Clear user on logout
         _workshopListener.stopListening();
       }
+      if (event == AuthChangeEvent.passwordRecovery) {
+        if (!_hasHandledRecovery) {
+          _hasHandledRecovery = true;
+          // Clear stack and go directly to reset screen
+          navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const ResetPasswordScreen()),
+                (route) => false,
+          );
+        }
+        return; // Stop further processing
+      }
+
+      else if (event == AuthChangeEvent.signedOut) {
+      appState.setUser(null);
+      _workshopListener.stopListening();
+      _hasHandledRecovery = false; // Reset for next recovery
+    }
+
     });
   }
 
@@ -380,6 +399,160 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // No session → Welcome screen
         return const WelcomeScreen();
       },
+    );
+  }
+}
+
+class ResetPasswordScreen extends StatefulWidget {
+  const ResetPasswordScreen({super.key});
+  @override State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+}
+
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  final _newPassword = TextEditingController();
+  final _confirmPassword = TextEditingController();
+  bool _loading = false;
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Set New Password"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            TextField(
+              controller: _newPassword,
+              obscureText: _obscure,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "New Password",
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.1),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.white70),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: Color(0xFF60A5FA), width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _confirmPassword,
+              obscureText: _obscure,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "Confirm Password",
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.1),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: Color(0xFF60A5FA), width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Also check your spam folder if you don't see the email.",
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF60A5FA),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                ),
+                onPressed: _loading ? null : () async {
+                  if (_newPassword.text.trim() != _confirmPassword.text.trim()) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Passwords do not match")),
+                    );
+                    return;
+                  }
+                  if (_newPassword.text.trim().length < 6) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Password must be at least 6 characters")),
+                    );
+                    return;
+                  }
+
+                  setState(() => _loading = true);
+                  try {
+                    await Supabase.instance.client.auth.updateUser(
+                      UserAttributes(password: _newPassword.text.trim()),
+                    );
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Password updated successfully! 🎉"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+
+                      // Manually load user profile
+                      final userId = Supabase.instance.client.auth.currentUser!.id;
+                      try {
+                        final profileService = ProfileService();
+                        final profileData = await profileService.getUserProfile(userId);
+                        Provider.of<AppState>(context, listen: false)
+                            .setUser(UserModel.fromJson(profileData));
+                      } catch (e) {
+                        print("Failed to load profile after reset: $e");
+                        // Continue anyway — user is logged in
+                      }
+
+                      // Go to home with clean navigation stack
+                      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+                        '/home',
+                            (route) => false,
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Error: ${e.toString()}")),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _loading = false);
+                  }
+                },
+                child: _loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                  "Update Password",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

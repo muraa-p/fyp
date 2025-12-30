@@ -7,6 +7,7 @@ import '../main.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import 'email_sent_screen.dart';
 import 'profile_setup_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -114,10 +115,8 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _authenticate(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
+    //setState(() => _loading = true);
 
-    // ... (your existing _authenticate logic remains 100% unchanged)
-    // Just keep everything from try { ... } finally { ... } as before
     try {
       AuthResponse response;
 
@@ -251,6 +250,81 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context, // ← this is AuthScreen's context (good)
+      builder: (dialogContext) => AlertDialog( // ← use a different name here
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text(
+          "Reset Password",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Form(
+          key: formKey,
+          child: _buildTextField(
+            emailController,
+            "Enter your email",
+            Icons.email_outlined,
+            validator: _validateEmail,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF60A5FA),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              Navigator.pop(dialogContext); // close dialog using dialogContext
+
+              try {
+                await Supabase.instance.client.auth.resetPasswordForEmail(
+                  emailController.text.trim(),
+                  redirectTo: "skillx://login-callback",
+                );
+
+                if (mounted) {
+                  // Use the outer context (AuthScreen's context)
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => EmailSentScreen(email: emailController.text.trim()),
+                    ),
+                  );
+                }
+              } catch (e) {
+                String message = "Failed to send reset email.";
+                if (e.toString().contains("rate limit")) {
+                  message = "Too many requests. Try again later.";
+                }
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.red.shade700,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text("Send Reset Link"),
+          ),
+        ],
+      ),
+    );
+  }
+
   String? _validateEmail(String? v) => v?.isEmpty ?? true
       ? 'Email required'
       : (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)
@@ -367,20 +441,38 @@ class _AuthScreenState extends State<AuthScreen>
                               ),
                             ],
                             const SizedBox(height: 20),
+                            const SizedBox(height: 20),
                             _buildTextField(
                                 _password, "Password", Icons.lock_outline,
                                 isPassword: true, validator: _validatePassword),
+
+                            // === FORGOT PASSWORD LINK ===
+                            if (_isLogin)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () => _showForgotPasswordDialog(),
+                                  child: const Text(
+                                    "Forgot password?",
+                                    style: TextStyle(
+                                      color: Color(0xFF60A5FA),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
 
                             const SizedBox(height: 48),
 
                             _loading
                                 ? const CircularProgressIndicator(
-                                    color: Color(0xFF60A5FA))
+                                color: Color(0xFF60A5FA))
                                 : CustomButton(
-                                    label:
-                                        _isLogin ? "Sign In" : "Create Account",
-                                    onPressed: () => _authenticate(context),
-                                  ),
+                              label:
+                              _isLogin ? "Sign In" : "Create Account",
+                              onPressed: () => _authenticate(context),
+                            ),
 
                             const SizedBox(height: 24),
                             TextButton(
