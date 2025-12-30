@@ -108,7 +108,7 @@ class _EmailSentScreenState extends State<EmailSentScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
-                Text(
+                const Text(
                   "Click the link in the email to set your new password.",
                   style: TextStyle(
                     fontSize: 16,
@@ -117,7 +117,7 @@ class _EmailSentScreenState extends State<EmailSentScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                Text(
+                const Text(
                   "Also check your spam/promotions folder.",
                   style: TextStyle(
                     fontSize: 14,

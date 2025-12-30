@@ -123,8 +123,9 @@ class _AuthScreenState extends State<AuthScreen>
       if (_isLogin) {
         response = await _authService.signIn(
             _email.text.trim(), _password.text.trim());
-        if (response.user == null)
+        if (response.user == null) {
           throw Exception("Invalid email or password.");
+        }
         if (response.user!.emailConfirmedAt == null) {
           await Supabase.instance.client.auth.signOut();
           ScaffoldMessenger.of(context).showSnackBar(

@@ -1934,10 +1934,12 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
         style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)));
     content.add(pw.SizedBox(height: 8));
     content.add(pw.Text(email, style: const pw.TextStyle(fontSize: 12)));
-    if (phone.isNotEmpty)
+    if (phone.isNotEmpty) {
       content.add(pw.Text(phone, style: const pw.TextStyle(fontSize: 12)));
-    if (location.isNotEmpty)
+    }
+    if (location.isNotEmpty) {
       content.add(pw.Text(location, style: const pw.TextStyle(fontSize: 12)));
+    }
     content.add(pw.SizedBox(height: 20));
     content.add(pw.Divider());
     content.add(pw.SizedBox(height: 20));
@@ -2028,14 +2030,17 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
       final university = widget.userProfile['university'] as String?;
       final major = widget.userProfile['major'] as String?;
       final year = widget.userProfile['year'] as String?;
-      if (university != null)
+      if (university != null) {
         content.add(pw.Text(university,
             style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)));
-      if (major != null)
+      }
+      if (major != null) {
         content.add(pw.Text(major, style: const pw.TextStyle(fontSize: 11)));
-      if (year != null)
+      }
+      if (year != null) {
         content.add(pw.Text("Graduated: $year",
             style: const pw.TextStyle(fontSize: 11)));
+      }
     }
     content.add(pw.SizedBox(height: 20));
 
@@ -2053,9 +2058,10 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
         for (final a in widget.achievements) {
           content.add(pw.Text("• ${a['title']} ${a['icon'] ?? ''}",
               style: const pw.TextStyle(fontSize: 11)));
-          if (a['desc'] != null)
+          if (a['desc'] != null) {
             content.add(
                 pw.Text(a['desc'], style: const pw.TextStyle(fontSize: 11)));
+          }
           content.add(pw.SizedBox(height: 6));
         }
       }

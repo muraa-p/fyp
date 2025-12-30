@@ -20,10 +20,12 @@ String _formatRelativeDate(String? isoString) {
   if (difference.inDays == 0) return 'Today';
   if (difference.inDays == 1) return 'Yesterday';
   if (difference.inDays < 7) return '${difference.inDays} days ago';
-  if (difference.inDays < 30)
+  if (difference.inDays < 30) {
     return '${(difference.inDays / 7).floor()} weeks ago';
-  if (difference.inDays < 365)
+  }
+  if (difference.inDays < 365) {
     return '${(difference.inDays / 30).floor()} months ago';
+  }
   return '${(difference.inDays / 365).floor()} years ago';
 }
 
