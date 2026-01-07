@@ -1,6 +1,6 @@
 # SkillX - Peer-to-Peer Skill Exchange Platform
 <div align="center">
-  <img src="assets/app_icon.png" alt="SkillX Logo" width="400"/>  
+  <img src="assets/images/app_icon.png" alt="SkillX Logo" width="400"/>  
   <!-- Adjust width as needed (e.g., 300–600) -->
 
   <br/><br/>
