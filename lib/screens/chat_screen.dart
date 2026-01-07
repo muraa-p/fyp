@@ -227,7 +227,6 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
-
   Future<void> _handleAttachmentPress() async {
     final XFile? file =
         await _picker.pickMedia(); // Allows images + videos + some files
@@ -344,7 +343,6 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
-
   Future<void> sendMessage(
       {required String content, String type = 'text'}) async {
     if (activeChat == null) return;
@@ -356,7 +354,7 @@ class _ChatScreenState extends State<ChatScreen>
       'content': content,
       'created_at': DateTime.now().toIso8601String(),
       'sender_id': currentUser!.id,
-      'message_type': type, // Include type in temp msg
+      'message_type': type,
       'sender': {
         'id': currentUser!.id,
         'name': myName,
@@ -378,7 +376,7 @@ class _ChatScreenState extends State<ChatScreen>
             'conversation_id': activeChat!['id'],
             'sender_id': currentUser!.id,
             'content': content,
-            'message_type': type, // Insert type into DB
+            'message_type': type,
           })
           .select()
           .single();
@@ -700,9 +698,7 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
-
   String memberSearchQuery = '';
-
 
   Future<void> _showProfileOrMembers() async {
     final isGroup = activeChat!['is_group'] == true;
@@ -899,7 +895,6 @@ class _ChatScreenState extends State<ChatScreen>
       );
     }
   }
-
 
   Widget _buildMessageItem(Map<String, dynamic> msg) {
     final isMe = msg['sender_id'] == currentUser?.id;
@@ -1356,317 +1351,440 @@ class _ChatScreenState extends State<ChatScreen>
                     isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : workshopRequests.isEmpty
-                        ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.swap_horiz,
-                                size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text(
-                              "No pending requests",
-                              style: TextStyle(
-                                  fontSize: 16, color: Colors.grey),
-                            ),
-                            Text(
-                              "Enrollment and exchange requests will appear here.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                        : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: workshopRequests.length,
-                      itemBuilder: (_, i) {
-                        final r = workshopRequests[i];
-                        final req = r['requester'] as Map<String, dynamic>;
-                        final ws = r['workshop'] as Map<String, dynamic>;
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.swap_horiz,
+                                          size: 64, color: Colors.grey),
+                                      SizedBox(height: 16),
+                                      Text(
+                                        "No pending requests",
+                                        style: TextStyle(
+                                            fontSize: 16, color: Colors.grey),
+                                      ),
+                                      Text(
+                                        "Enrollment and exchange requests will appear here.",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: workshopRequests.length,
+                                itemBuilder: (_, i) {
+                                  final r = workshopRequests[i];
+                                  final req =
+                                      r['requester'] as Map<String, dynamic>;
+                                  final ws =
+                                      r['workshop'] as Map<String, dynamic>;
 
-                        // Determine if this is a Teach4Learn workshop
-                        final isTeach4Learn = ws['type'] == 'Teach4Learn';
+                                  // Determine if this is a Teach4Learn workshop
+                                  final isTeach4Learn =
+                                      ws['type'] == 'Teach4Learn';
 
-                        if (isTeach4Learn) {
-                          // === FULL TEACH4LEARN LAYOUT (unchanged from before) ===
-                          final List<dynamic> requesterSkillsRaw =
-                              req['skills_to_teach'] ?? [];
-                          final List<String> requesterSkills = requesterSkillsRaw
-                              .map((s) => s.toString())
-                              .toList();
+                                  if (isTeach4Learn) {
+                                    // === FULL TEACH4LEARN LAYOUT (unchanged from before) ===
+                                    final List<dynamic> requesterSkillsRaw =
+                                        req['skills_to_teach'] ?? [];
+                                    final List<String> requesterSkills =
+                                        requesterSkillsRaw
+                                            .map((s) => s.toString())
+                                            .toList();
 
-                          final offeredSkill = ws['skill_offered']?.toString().trim();
-                          final requestedSkill = ws['skill_requested']?.toString().trim();
-                          final hasOfferedSkill = offeredSkill != null &&
-                              requesterSkills.contains(offeredSkill);
+                                    final offeredSkill =
+                                        ws['skill_offered']?.toString().trim();
+                                    final requestedSkill = ws['skill_requested']
+                                        ?.toString()
+                                        .trim();
+                                    final hasOfferedSkill = offeredSkill !=
+                                            null &&
+                                        requesterSkills.contains(offeredSkill);
 
-                          return Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Requester Header (same)
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => UserProfileScreen(user: req),
-                                        ),
-                                      );
-                                    },
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 24,
-                                          backgroundImage: req['avatar_url']?.isNotEmpty == true
-                                              ? NetworkImage(req['avatar_url'])
-                                              : null,
-                                          child: req['avatar_url']?.isNotEmpty != true
-                                              ? Text(
-                                            req['name']?.isNotEmpty == true
-                                                ? req['name'][0].toUpperCase()
-                                                : 'U',
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          )
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "${req['name']} wants to exchange skills",
-                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    return Card(
+                                      elevation: 4,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Requester Header (same)
+                                            InkWell(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        UserProfileScreen(
+                                                            user: req),
+                                                  ),
+                                                );
+                                              },
+                                              child: Row(
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 24,
+                                                    backgroundImage: req[
+                                                                    'avatar_url']
+                                                                ?.isNotEmpty ==
+                                                            true
+                                                        ? NetworkImage(
+                                                            req['avatar_url'])
+                                                        : null,
+                                                    child: req['avatar_url']
+                                                                ?.isNotEmpty !=
+                                                            true
+                                                        ? Text(
+                                                            req['name']?.isNotEmpty ==
+                                                                    true
+                                                                ? req['name'][0]
+                                                                    .toUpperCase()
+                                                                : 'U',
+                                                            style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold),
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          "${req['name']} wants to exchange skills",
+                                                          style:
+                                                              const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 16),
+                                                        ),
+                                                        Text(
+                                                          "Tap to view full profile →",
+                                                          style: TextStyle(
+                                                              fontSize: 12,
+                                                              color: Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .primary),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              Text(
-                                                "Tap to view full profile →",
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Divider(),
+                                            Text(
+                                              ws['title'] ?? 'Skill Exchange',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600),
+                                            ),
+                                            const SizedBox(height: 12),
+
+                                            // Wants to learn
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.school,
+                                                    color: Colors.deepPurple),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    "Wants to learn: $requestedSkill",
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+
+                                            // Offers to teach
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  hasOfferedSkill
+                                                      ? Icons.check_circle
+                                                      : Icons.warning_amber,
+                                                  color: hasOfferedSkill
+                                                      ? Colors.green
+                                                      : Colors.orange,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    "Offers to teach: $offeredSkill",
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: hasOfferedSkill
+                                                          ? Colors.green[700]
+                                                          : Colors.orange[700],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 12),
+
+                                            // Teaching skills chips
+                                            if (requesterSkills.isNotEmpty) ...[
+                                              const Text(
+                                                "Their teaching skills:",
                                                 style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Theme.of(context).colorScheme.primary),
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 6,
+                                                runSpacing: 6,
+                                                children: requesterSkills
+                                                    .map((skill) {
+                                                  final isMatch =
+                                                      skill == offeredSkill;
+                                                  return Chip(
+                                                    label: Text(skill),
+                                                    backgroundColor: isMatch
+                                                        ? Colors.green
+                                                            .withOpacity(0.2)
+                                                        : null,
+                                                    labelStyle: TextStyle(
+                                                      color: isMatch
+                                                          ? Colors.green[800]
+                                                          : null,
+                                                      fontWeight: isMatch
+                                                          ? FontWeight.bold
+                                                          : null,
+                                                    ),
+                                                    avatar: isMatch
+                                                        ? const Icon(
+                                                            Icons.check,
+                                                            size: 16,
+                                                            color: Colors.green)
+                                                        : null,
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ] else
+                                              const Text(
+                                                "⚠️ No teaching skills listed on profile yet",
+                                                style: TextStyle(
+                                                    color: Colors.orange),
+                                              ),
+
+                                            // Optional message
+                                            if (r['message']?.isNotEmpty ==
+                                                true) ...[
+                                              const SizedBox(height: 12),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .surfaceContainerHighest
+                                                      .withOpacity(0.5),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  "Message: ${r['message']}",
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
                                               ),
                                             ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Divider(),
-                                  Text(
-                                    ws['title'] ?? 'Skill Exchange',
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 12),
 
-                                  // Wants to learn
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.school, color: Colors.deepPurple),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          "Wants to learn: $requestedSkill",
-                                          style: const TextStyle(fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  // Offers to teach
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        hasOfferedSkill ? Icons.check_circle : Icons.warning_amber,
-                                        color: hasOfferedSkill ? Colors.green : Colors.orange,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          "Offers to teach: $offeredSkill",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: hasOfferedSkill ? Colors.green[700] : Colors.orange[700],
-                                          ),
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        declineRequest(r),
+                                                    child:
+                                                        const Text("Decline")),
+                                                const SizedBox(width: 8),
+                                                ElevatedButton.icon(
+                                                  icon: const Icon(Icons.check),
+                                                  label: const Text("Accept"),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.green,
+                                                          foregroundColor:
+                                                              Colors.white),
+                                                  onPressed: () =>
+                                                      acceptRequest(r),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-
-                                  // Teaching skills chips
-                                  if (requesterSkills.isNotEmpty) ...[
-                                    const Text(
-                                      "Their teaching skills:",
-                                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: requesterSkills.map((skill) {
-                                        final isMatch = skill == offeredSkill;
-                                        return Chip(
-                                          label: Text(skill),
-                                          backgroundColor: isMatch ? Colors.green.withOpacity(0.2) : null,
-                                          labelStyle: TextStyle(
-                                            color: isMatch ? Colors.green[800] : null,
-                                            fontWeight: isMatch ? FontWeight.bold : null,
-                                          ),
-                                          avatar: isMatch
-                                              ? const Icon(Icons.check, size: 16, color: Colors.green)
-                                              : null,
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ] else
-                                    const Text(
-                                      "⚠️ No teaching skills listed on profile yet",
-                                      style: TextStyle(color: Colors.orange),
-                                    ),
-
-                                  // Optional message
-                                  if (r['message']?.isNotEmpty == true) ...[
-                                    const SizedBox(height: 12),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withOpacity(0.5),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        "Message: ${r['message']}",
-                                        style: const TextStyle(fontStyle: FontStyle.italic),
-                                      ),
-                                    ),
-                                  ],
-
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        icon: const Icon(Icons.check),
-                                        label: const Text("Accept"),
-                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                                        onPressed: () => acceptRequest(r),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        } else {
-                          // === SIMPLIFIED FREE WORKSHOP LAYOUT ===
-                          return Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => UserProfileScreen(user: req),
-                                        ),
-                                      );
-                                    },
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 24,
-                                          backgroundImage: req['avatar_url']?.isNotEmpty == true
-                                              ? NetworkImage(req['avatar_url'])
-                                              : null,
-                                          child: req['avatar_url']?.isNotEmpty != true
-                                              ? Text(
-                                            req['name']?.isNotEmpty == true
-                                                ? req['name'][0].toUpperCase()
-                                                : 'U',
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          )
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "${req['name']} wants to join your workshop",
-                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    );
+                                  } else {
+                                    // === SIMPLIFIED FREE WORKSHOP LAYOUT ===
+                                    return Card(
+                                      elevation: 4,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            InkWell(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        UserProfileScreen(
+                                                            user: req),
+                                                  ),
+                                                );
+                                              },
+                                              child: Row(
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 24,
+                                                    backgroundImage: req[
+                                                                    'avatar_url']
+                                                                ?.isNotEmpty ==
+                                                            true
+                                                        ? NetworkImage(
+                                                            req['avatar_url'])
+                                                        : null,
+                                                    child: req['avatar_url']
+                                                                ?.isNotEmpty !=
+                                                            true
+                                                        ? Text(
+                                                            req['name']?.isNotEmpty ==
+                                                                    true
+                                                                ? req['name'][0]
+                                                                    .toUpperCase()
+                                                                : 'U',
+                                                            style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold),
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          "${req['name']} wants to join your workshop",
+                                                          style:
+                                                              const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 16),
+                                                        ),
+                                                        Text(
+                                                          "Tap to view profile →",
+                                                          style: TextStyle(
+                                                              fontSize: 12,
+                                                              color: Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .primary),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              Text(
-                                                "Tap to view profile →",
-                                                style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Theme.of(context).colorScheme.primary),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              ws['title'] ??
+                                                  'Untitled Workshop',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 15),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            if (r['message']?.isNotEmpty ==
+                                                true)
+                                              Container(
+                                                width: double.infinity,
+                                                padding:
+                                                    const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .surfaceContainerHighest
+                                                      .withOpacity(0.5),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  "Message: ${r['message']}",
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
                                               ),
-                                            ],
-                                          ),
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        declineRequest(r),
+                                                    child:
+                                                        const Text("Decline")),
+                                                const SizedBox(width: 8),
+                                                ElevatedButton.icon(
+                                                  icon: const Icon(Icons.check),
+                                                  label: const Text("Accept"),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.green,
+                                                          foregroundColor:
+                                                              Colors.white),
+                                                  onPressed: () =>
+                                                      acceptRequest(r),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    ws['title'] ?? 'Untitled Workshop',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (r['message']?.isNotEmpty == true)
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                                        borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: Text(
-                                        "Message: ${r['message']}",
-                                        style: const TextStyle(fontStyle: FontStyle.italic),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      TextButton(onPressed: () => declineRequest(r), child: const Text("Decline")),
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        icon: const Icon(Icons.check),
-                                        label: const Text("Accept"),
-                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                                        onPressed: () => acceptRequest(r),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                    );
+                                  }
+                                },
                               ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
                   ],
                 ),
               ),

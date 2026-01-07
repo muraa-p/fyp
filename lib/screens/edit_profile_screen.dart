@@ -295,7 +295,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   decoration: const InputDecoration(labelText: "Location")),
               TextField(
                   controller: websiteCtrl,
-                  decoration: const InputDecoration(labelText: "Website to show in your cv:")),
+                  decoration: const InputDecoration(
+                      labelText: "Website to show in your cv:")),
             ],
           ),
 

@@ -255,8 +255,8 @@ class _AuthScreenState extends State<AuthScreen>
     final formKey = GlobalKey<FormState>();
 
     showDialog(
-      context: context, // ← this is AuthScreen's context (good)
-      builder: (dialogContext) => AlertDialog( // ← use a different name here
+      context: context,
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: const Color(0xFF1E293B),
         title: const Text(
@@ -280,12 +280,13 @@ class _AuthScreenState extends State<AuthScreen>
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF60A5FA),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
 
-              Navigator.pop(dialogContext); // close dialog using dialogContext
+              Navigator.pop(dialogContext);
 
               try {
                 await Supabase.instance.client.auth.resetPasswordForEmail(
@@ -294,10 +295,10 @@ class _AuthScreenState extends State<AuthScreen>
                 );
 
                 if (mounted) {
-                  // Use the outer context (AuthScreen's context)
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => EmailSentScreen(email: emailController.text.trim()),
+                      builder: (_) =>
+                          EmailSentScreen(email: emailController.text.trim()),
                     ),
                   );
                 }
@@ -467,12 +468,12 @@ class _AuthScreenState extends State<AuthScreen>
 
                             _loading
                                 ? const CircularProgressIndicator(
-                                color: Color(0xFF60A5FA))
+                                    color: Color(0xFF60A5FA))
                                 : CustomButton(
-                              label:
-                              _isLogin ? "Sign In" : "Create Account",
-                              onPressed: () => _authenticate(context),
-                            ),
+                                    label:
+                                        _isLogin ? "Sign In" : "Create Account",
+                                    onPressed: () => _authenticate(context),
+                                  ),
 
                             const SizedBox(height: 24),
                             TextButton(

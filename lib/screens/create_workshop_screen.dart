@@ -121,7 +121,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     'Full day'
   ];
 
-
   bool _validateCurrentStep() {
     if (!_formKey.currentState!.validate()) {
       return false;
@@ -735,8 +734,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       ],
     );
   }
-
-
 
   Future<void> _publishWorkshop() async {
     // Get the current authenticated user's ID

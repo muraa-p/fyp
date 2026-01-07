@@ -9,12 +9,12 @@ class UserModel {
   final String? year;
   final String? location;
   final String? website;
-  final String? avatarUrl; // Matches avatar_url in DB
+  final String? avatarUrl;
 
   final List<String> skillsToTeach;
   final List<String> skillsToLearn;
 
-  final Map<String, String> social; // {"instagram": "...", "linkedin": "..."}
+  final Map<String, String> social;
 
   UserModel({
     required this.id,
@@ -27,7 +27,7 @@ class UserModel {
     this.year,
     this.location,
     this.website,
-    this.avatarUrl, // Matches avatar_url in DB
+    this.avatarUrl,
     this.skillsToTeach = const [],
     this.skillsToLearn = const [],
     this.social = const {},
@@ -50,9 +50,8 @@ class UserModel {
       website: json['website'],
 
       // Important: Read avatar_url from DB to ensure consistency
-      avatarUrl: json['avatar_url'], // Matches avatar_url in the DB
+      avatarUrl: json['avatar_url'],
 
-      // Fix: DB uses snake_case, so the model will use snake_case too
       skillsToTeach: List<String>.from(json['skills_to_teach'] ?? []),
       skillsToLearn: List<String>.from(json['skills_to_learn'] ?? []),
 
@@ -82,11 +81,7 @@ class UserModel {
       "year": year,
       "location": location,
       "website": website,
-
-      // Ensure that avatar_url matches the DB column name
-      "avatar_url": avatarUrl, // Matches avatar_url in DB
-
-      // Use snake_case for DB fields
+      "avatar_url": avatarUrl,
       "skills_to_teach": skillsToTeach,
       "skills_to_learn": skillsToLearn,
       "social": social,
@@ -106,7 +101,7 @@ class UserModel {
     String? year,
     String? location,
     String? website,
-    String? avatarUrl, // Updated to match field name
+    String? avatarUrl,
     List<String>? skillsToTeach,
     List<String>? skillsToLearn,
     Map<String, String>? social,
@@ -122,7 +117,7 @@ class UserModel {
       year: year ?? this.year,
       location: location ?? this.location,
       website: website ?? this.website,
-      avatarUrl: avatarUrl ?? this.avatarUrl, // Updated to match field name
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       skillsToTeach: skillsToTeach ?? this.skillsToTeach,
       skillsToLearn: skillsToLearn ?? this.skillsToLearn,
       social: social ?? this.social,

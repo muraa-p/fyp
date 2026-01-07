@@ -28,7 +28,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
       // Cleaned values (null if empty)
       "phone": phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-      "university": "APU",  // ← Always force APU
+      "university": "APU", // ← Always force APU
       "major": majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim(),
       "year": academicYear.isEmpty ? null : academicYear,
 
@@ -74,10 +74,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               decoration: BoxDecoration(
-                color: theme.inputDecorationTheme.fillColor ?? Colors.grey[900]?.withOpacity(0.3),
+                color: theme.inputDecorationTheme.fillColor ??
+                    Colors.grey[900]?.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.grey.withOpacity(0.5),
+                  color: theme.inputDecorationTheme.enabledBorder?.borderSide
+                          .color ??
+                      Colors.grey.withOpacity(0.5),
                   width: 1,
                 ),
               ),

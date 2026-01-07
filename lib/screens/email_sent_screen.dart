@@ -132,7 +132,7 @@ class _EmailSentScreenState extends State<EmailSentScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                      _canResend ? const Color(0xFF60A5FA) : Colors.grey,
+                          _canResend ? const Color(0xFF60A5FA) : Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24)),

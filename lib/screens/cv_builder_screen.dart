@@ -1882,7 +1882,6 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           _achievementsText = futures[4];
         });
       } else {
-
         setState(() {
           _professionalSummary = _generateTemplateSummary();
           _skillsText = "";
@@ -2504,7 +2503,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                     children: [
                       ...List.generate(
                         5,
-                            (i) => Icon(
+                        (i) => Icon(
                           Icons.star,
                           size: 18,
                           color: i < rating ? Colors.amber : Colors.grey[400],
@@ -2513,7 +2512,8 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
                       const Spacer(),
                       if (skill.isNotEmpty)
                         Chip(
-                          label: Text(skill, style: const TextStyle(fontSize: 12)),
+                          label:
+                              Text(skill, style: const TextStyle(fontSize: 12)),
                           backgroundColor: theme.colorScheme.primaryContainer,
                           visualDensity: VisualDensity.compact,
                         ),

@@ -16,7 +16,7 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Add this line
+    final theme = Theme.of(context);
 
     return SizedBox(
       width: double.infinity,

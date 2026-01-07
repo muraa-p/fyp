@@ -863,7 +863,3 @@ INSERT INTO achievement_definitions (title, description, icon, reward_type, rewa
   ('Social Butterfly', 'Start chats with 10 new people', '🦋', 'xp', '100', 'new_conversations', 10),
   ('Skill Collector', 'Learn 3 new skills this month', '🎪', 'badge', 'Skill Explorer Badge', 'monthly_skills_learned', 3)
 ON CONFLICT (title) DO NOTHING;
-
--- =================================================================
--- SUCCESS! Database fully reset and ready.
--- =================================================================
