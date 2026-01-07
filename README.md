@@ -242,9 +242,9 @@ CREATE FUNCTION mark_lesson_complete()
 
 ## 📱 Screenshots
 
-| Home Dashboard | Workshop Detail | Chat Interface | CV Builder |
-|---------------|----------------|----------------|-----------|
-| ![Home](screenshots/home.png) | ![Workshop](screenshots/workshop.png) | ![Chat](screenshots/chat.png) | ![CV](screenshots/cv.png) |
+| Home Dashboard | Workshop Detail                              | Chat Interface | CV Builder                        |
+|---------------|----------------------------------------------|----------------|-----------------------------------|
+| ![Home](screenshots/home.png) | ![Workshop](screenshots/workshop_detail.png) | ![Chat](screenshots/chat.png) | ![CV](screenshots/cv_builder.png) |
 
 ---
 
@@ -297,7 +297,7 @@ We welcome contributions! Please follow these steps:
 
 ---
 
-## 📋 Roadmap
+## 📋 Roadmap (future plans insha'Allah)
 
 ### Q1 2025
 - [ ] iOS release
@@ -337,9 +337,9 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 👥 Team
 
 **SkillX Development Team**
-- Lead Developer: [Yasir Mohamed Abdinur](https://github.com/yourusername](https://github.com/muraa-p))
-- UI/UX Designer: [Yasir Mohamed Abdinur]
-- Backend Engineer: [Yasir Mohamed Abdinur]
+- Lead Developer: [Yasir Mohamed Abdinur](https://github.com/muraa-p])
+- UI/UX Designer: [Yasir Mohamed Abdinur](https://github.com/muraa-p])
+- Backend Engineer: [Yasir Mohamed Abdinur](https://github.com/muraa-p])
 
 ---
 
@@ -349,22 +349,20 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 - [Supabase](https://supabase.com) for backend infrastructure
 - [Hugging Face](https://huggingface.co) for AI capabilities
 - [Material Design](https://m3.material.io) for design guidelines
-- APU University for project support
+- [APU University] (https://www.apu.edu.my/) for project support
 
 ---
 
 ## 📞 Support
 
 - **Email**: yasirmhaji@gmail.com
-- **Discord**: [Join our community](https://discord.gg/skillx)
-- **Documentation**: [docs.skillx.app](https://docs.skillx.app)
-- **Twitter**: [@SkillXApp](https://twitter.com/skillxapp)
+
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by students, for students**
+**Made with ❤️ by Yasir Mohamed Abdinur (student), for students**
 
 [⬆ Back to Top](#skillx---peer-to-peer-skill-exchange-platform)
 
