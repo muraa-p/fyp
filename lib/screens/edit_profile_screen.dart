@@ -214,29 +214,64 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: "Bio")),
               const Divider(height: 30),
-              ListTile(
-                leading: const Icon(Icons.school_outlined),
-                title: const Text("University"),
-                subtitle: Text(
-                  "Asia Pacific University (APU)",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
+
+              // Fixed University - Surrounded and styled like other locked fields
+              Card(
+                color: theme.colorScheme.surfaceContainerHighest,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: theme.colorScheme.outline.withOpacity(0.3),
                   ),
                 ),
-                trailing: const Icon(Icons.lock_outline, color: Colors.grey),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  "University is fixed for all students",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontStyle: FontStyle.italic,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.school_outlined,
+                              color: theme.colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Text(
+                            "University",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.lock_outline, color: Colors.grey[600]),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Asia Pacific University (APU)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Your university is automatically set based on your email domain (@mail.apu.edu.my) and cannot be changed.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+
+              const SizedBox(height: 16),
+
               TextField(
                   controller: majorCtrl,
                   decoration: const InputDecoration(labelText: "Major")),
@@ -260,7 +295,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   decoration: const InputDecoration(labelText: "Location")),
               TextField(
                   controller: websiteCtrl,
-                  decoration: const InputDecoration(labelText: "Website")),
+                  decoration: const InputDecoration(labelText: "Website to show in your cv:")),
             ],
           ),
 

@@ -539,21 +539,29 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
         const Text('Prerequisites',
             style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        ...List.generate(prerequisites.length, (i) {
-          return ListTile(
-            title: Text(prerequisites[i]),
-            trailing: IconButton(
-                onPressed: () => removeItem(prerequisites, i),
-                icon: const Icon(Icons.close)),
-          );
-        }),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: prerequisites.asMap().entries.map((entry) {
+            final index = entry.key;
+            final prereq = entry.value;
+            return Chip(
+              label: Text(prereq),
+              deleteIcon: const Icon(Icons.close, size: 18),
+              onDeleted: () => removeItem(prerequisites, index),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: newPrereqController,
                 decoration: const InputDecoration(
-                    hintText: 'Add prerequisite', border: OutlineInputBorder()),
+                  hintText: 'Add prerequisite',
+                  border: OutlineInputBorder(),
+                ),
                 onSubmitted: (_) => addItem(prerequisites, newPrereqController),
               ),
             ),
@@ -570,22 +578,29 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
         const Text('Learning Outcomes',
             style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        ...List.generate(outcomes.length, (i) {
-          return ListTile(
-            title: Text(outcomes[i]),
-            trailing: IconButton(
-                onPressed: () => removeItem(outcomes, i),
-                icon: const Icon(Icons.close)),
-          );
-        }),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: outcomes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final outcome = entry.value;
+            return Chip(
+              label: Text(outcome),
+              deleteIcon: const Icon(Icons.close, size: 18),
+              onDeleted: () => removeItem(outcomes, index),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: newOutcomeController,
                 decoration: const InputDecoration(
-                    hintText: 'Add learning outcome',
-                    border: OutlineInputBorder()),
+                  hintText: 'Add learning outcome',
+                  border: OutlineInputBorder(),
+                ),
                 onSubmitted: (_) => addItem(outcomes, newOutcomeController),
               ),
             ),

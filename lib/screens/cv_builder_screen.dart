@@ -2457,61 +2457,90 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
   Widget _buildTestimonialsSection(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (widget.testimonials.isEmpty) {
+      return Text(
+        "No testimonials yet",
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontStyle: FontStyle.italic,
+          color: theme.colorScheme.onSurface.withAlpha(150),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: widget.testimonials.map((testimonial) {
-        final author = testimonial['author'] as String? ?? "";
-        final text = testimonial['text'] as String? ?? "";
-        final rating = testimonial['rating'] as int? ?? 0;
-        final skill = testimonial['skill'] as String? ?? "";
+      children: [
+        Text(
+          "TESTIMONIALS",
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: widget.testimonials.map((t) {
+            final author = t['author'] as String? ?? "Anonymous";
+            final text = t['text'] as String? ?? "";
+            final rating = t['rating'] as int? ?? 0;
+            final skill = t['skill'] as String? ?? "";
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  "\"$text\"",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.5,
-                    fontStyle: FontStyle.italic,
-                  ),
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withOpacity(0.2),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  "- $author",
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface.withAlpha(230),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      ...List.generate(
+                        5,
+                            (i) => Icon(
+                          Icons.star,
+                          size: 18,
+                          color: i < rating ? Colors.amber : Colors.grey[400],
+                        ),
+                      ),
+                      const Spacer(),
+                      if (skill.isNotEmpty)
+                        Chip(
+                          label: Text(skill, style: const TextStyle(fontSize: 12)),
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                if (skill.isNotEmpty)
+                  const SizedBox(height: 8),
                   Text(
-                    "($skill)",
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(179),
+                    "\"$text\"",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
                     ),
                   ),
-                const SizedBox(width: 8),
-                ...List.generate(
-                  5,
-                  (i) => Icon(
-                    Icons.star,
-                    size: 14,
-                    color: i < rating ? Colors.amber : Colors.grey[300],
+                  const SizedBox(height: 8),
+                  Text(
+                    "— $author",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      }).toList(),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

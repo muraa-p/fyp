@@ -440,24 +440,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                       children: [
                         Row(
                           children: [
-                            Text(userName,
-                                style: TextStyle(
-                                    color: theme.colorScheme.onPrimary,
+                            Expanded(
+                              child: Text(
+                                userName,
+                                style: const TextStyle(
+                                    color: Colors.black,
                                     fontSize: 22,
-                                    fontWeight: FontWeight.bold)),
+                                    fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.onPrimary
-                                    .withOpacity(0.2),
+                                color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 "Level $userLevel",
-                                style: TextStyle(
-                                    color: theme.colorScheme.onPrimary,
+                                style: const TextStyle(
+                                    color: Colors.black,
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold),
                               ),
