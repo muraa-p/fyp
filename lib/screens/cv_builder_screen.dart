@@ -4,14 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../components/custom_button.dart';
 import '../main.dart';
-// Import your existing HuggingFaceService
-import '../services/hugging_face_service.dart'; // Adjust the path as needed
-// Added
-import 'package:pdf/pdf.dart'; // Added
-import 'package:pdf/widgets.dart' as pw; // Added
-import 'package:printing/printing.dart'; // Added
+import '../services/hugging_face_service.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:signin_with_linkedin/signin_with_linkedin.dart';
-// For jsonEncode
 import 'dart:developer' as developer;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1885,7 +1882,7 @@ class _CVPreviewScreenState extends State<CVPreviewScreen> {
           _achievementsText = futures[4];
         });
       } else {
-        // Use template/fallback versions
+
         setState(() {
           _professionalSummary = _generateTemplateSummary();
           _skillsText = "";

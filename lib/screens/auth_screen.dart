@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../components/custom_button.dart';
 import '../main.dart';
 import '../models/user_model.dart';
@@ -201,7 +200,7 @@ class _AuthScreenState extends State<AuthScreen>
         "name": _name.text.trim(),
         "email": _email.text.trim(),
         "bio": "",
-        "university": "",
+        "university": "APU",
         "major": "",
         "year": "",
         "location": "",

@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillx/screens/delete_account_screen.dart';
@@ -9,7 +8,6 @@ import 'package:skillx/services/profile_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_links/app_links.dart';
-
 import 'models/user_model.dart';
 import 'themes/app_theme.dart';
 import 'screens/welcome_screen.dart';

@@ -140,7 +140,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _showPasswordUpdateDialog(BuildContext context) {
-    // ... (your existing password dialog code - unchanged)
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
@@ -385,7 +384,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildHeader(ThemeData theme, int userLevel, int userXP) {
     final userName = _profileData?['name'] ?? 'User';
-    final userUniversity = _profileData?['university'] ?? 'Member since 2024';
+    final userUniversity = _profileData?['university'] == "APU"
+        ? "Asia Pacific University (APU)"
+        : "APU Student";
     final userAvatarUrl = _profileData?['avatar_url'];
 
     return Container(
@@ -464,10 +465,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(userUniversity,
-                            style: TextStyle(
-                                color: theme.colorScheme.onPrimary
-                                    .withOpacity(0.7))),
+                        Text(
+                          userUniversity,
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text("$userXP XP",
                             style: TextStyle(

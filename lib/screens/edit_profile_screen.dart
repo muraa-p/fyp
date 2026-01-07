@@ -25,7 +25,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       emailCtrl,
       phoneCtrl,
       bioCtrl,
-      universityCtrl,
       majorCtrl,
       locationCtrl,
       websiteCtrl;
@@ -52,7 +51,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     emailCtrl = TextEditingController(text: u.email);
     phoneCtrl = TextEditingController(text: u.phone ?? "");
     bioCtrl = TextEditingController(text: u.bio ?? "");
-    universityCtrl = TextEditingController(text: u.university ?? "");
     majorCtrl = TextEditingController(text: u.major ?? "");
     academicYear = u.year ?? "";
     locationCtrl = TextEditingController(text: u.location ?? "");
@@ -74,9 +72,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       name: nameCtrl.text.trim(),
       phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
       bio: bioCtrl.text.trim().isEmpty ? null : bioCtrl.text.trim(),
-      university: universityCtrl.text.trim().isEmpty
-          ? null
-          : universityCtrl.text.trim(),
+      university: "APU",
       major: majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim(),
       year: academicYear.isEmpty ? null : academicYear,
       location:
@@ -218,9 +214,29 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: "Bio")),
               const Divider(height: 30),
-              TextField(
-                  controller: universityCtrl,
-                  decoration: const InputDecoration(labelText: "University")),
+              ListTile(
+                leading: const Icon(Icons.school_outlined),
+                title: const Text("University"),
+                subtitle: Text(
+                  "Asia Pacific University (APU)",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                trailing: const Icon(Icons.lock_outline, color: Colors.grey),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  "University is fixed for all students",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
               TextField(
                   controller: majorCtrl,
                   decoration: const InputDecoration(labelText: "Major")),

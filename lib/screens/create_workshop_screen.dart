@@ -1,4 +1,3 @@
-// ADD THESE IMPORTS AT THE TOP
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../components/custom_button.dart';
@@ -122,7 +121,7 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     'Full day'
   ];
 
-  // Validate current step before proceeding
+
   bool _validateCurrentStep() {
     if (!_formKey.currentState!.validate()) {
       return false;
@@ -207,7 +206,6 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     setState(() => list.removeAt(index));
   }
 
-  // Steps with Form and validation
   Widget buildStep1() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -723,7 +721,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
     );
   }
 
-// Replace your _publishWorkshop function with this updated version
+
+
   Future<void> _publishWorkshop() async {
     // Get the current authenticated user's ID
     final user = Supabase.instance.client.auth.currentUser;
@@ -735,10 +734,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       return;
     }
 
-    // Set a loading state to prevent multiple clicks
     setState(() => _isPublishing = true);
 
-    // Combine date and time into a single DateTime object for the database
     DateTime? finalDateTime;
     if (selectedDate != null && selectedTime != null) {
       finalDateTime = DateTime(
@@ -750,9 +747,8 @@ class _CreateWorkshopScreenState extends State<CreateWorkshopScreen> {
       );
     }
 
-    // Prepare the data map to be sent to Supabase
     final workshopData = {
-      'creator_id': user.id, // Use the actual user ID from Supabase Auth
+      'creator_id': user.id,
       'title': titleController.text.isNotEmpty
           ? titleController.text
           : "Untitled Workshop",
