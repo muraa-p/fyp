@@ -149,11 +149,14 @@ await Supabase.initialize(
 - Run the SQL script from `lib/SQL code` in your Supabase SQL editor
 - Enable Realtime for `messages` and `workshops` tables
 
-5. **Deploy Edge Functions**
+5. **Deploy Edge Functions and auth hooks**
+
+Create them manualy and paste the code of the edge functions under the service folder or use the commands below:
 ```bash
 supabase functions deploy delete-account
 supabase functions deploy send-deletion-email
 ```
+NOTE: dont forget to create auth hook for the domain restriction.
 
 6. **Configure environment variables**
 - Add `RESEND_API_KEY` for email functionality
